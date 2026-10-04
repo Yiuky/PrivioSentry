@@ -1,27 +1,27 @@
 ---
-name: Bug report
-about: Something does not work as expected
+name: Relatar problema
+about: Algo não funciona como esperado / Something does not work as expected
 labels: bug
 ---
 
-> **Do NOT attach real documents, real CPFs, names or addresses.** Reproduce with the synthetic
-> sample (`python examples/make_sample_pdf.py`) or another fictional document.
-> For security vulnerabilities or a redaction that leaked real data, follow SECURITY.md instead of opening a public issue.
+> **NÃO anexe documentos reais, CPFs, nomes ou endereços reais.** Reproduza com o exemplo sintético
+> (`python examples/make_sample_pdf.py`) ou outro documento fictício.
+> Para vulnerabilidades ou tarja que deixou vazar dado real, siga o SECURITY.md em vez de abrir issue pública.
 
-**Describe the bug**
+**O que aconteceu**
 
-**Steps to reproduce**
+**Passos para reproduzir**
 
 1.
 2.
 
-**Expected behavior**
+**O que era esperado**
 
-**Actual behavior / logs** (remove any personal data)
+**Logs** (remova qualquer dado pessoal)
 
-**Environment**
-- OS:
-- Python version:
-- Tesseract version (`tesseract --version`):
-- Ollama models (`OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`):
-- Version / commit:
+**Ambiente**
+- Sistema operacional:
+- Versão do Python:
+- Versão do Tesseract (`tesseract --version`):
+- Modelos do Ollama (`OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`):
+- Versão / commit:

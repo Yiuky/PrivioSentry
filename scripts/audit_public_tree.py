@@ -38,7 +38,10 @@ ALLOWED_CPFS = {
 ALLOWED_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "users.noreply.github.com"}
 ALLOWED_EMAILS = {"noreply@anthropic.com"}
 # Case-insensitive substrings that must never appear in the public tree. Extend as needed.
-AUDIT_TERMS = ["joberthgambati", "gambati", "sema.mt", "TARJADOR_2"]
+# The author's public identity (name, @Yiuky, GitHub noreply e-mail, Pix for donations) is allowed, as in
+# ArcMagery; what stays blocked is the local Windows user name (it shows up in leaked paths), the
+# employer's domain/acronym (personal project: it does not speak for any institution) and old folder names.
+AUDIT_TERMS = ["joberthgambati", "sema.mt", "TARJADOR_2"]
 # Word-bounded, case-sensitive terms (avoid matching inside normal words)
 AUDIT_WORDS = ["SEMA"]
 # Files that legitimately list the terms above (this script itself).

@@ -1,12 +1,17 @@
-## What does this PR do? / O que este PR faz?
+## O que muda
 
-<!-- Short description and motivation. -->
+<!-- Descrição curta da mudança. -->
+
+## Por quê
+
+<!-- Item do BACKLOG.md (ex.: B-10), issue ou pedido. -->
 
 ## Checklist
 
-- [ ] Tests added/updated; `pytest` passes locally (`pytest --ignore=tests/ui`, and `pytest tests/ui` if the UI changed)
-- [ ] `ruff check .` passes
-- [ ] No real personal data (CPFs, names, addresses, real PDFs/screenshots) in code, tests, fixtures, logs or the PR description
-- [ ] Behavior that could cause **under-redaction** is covered by a test (the project must fail closed)
-- [ ] Docs updated (README / docs/ / `.env.example` / CHANGELOG) when behavior or configuration changed
-- [ ] New dependencies are justified and their licenses are compatible (see docs/licensing.md)
+- [ ] Testes adicionados/atualizados; `pytest --ignore=tests/ui` passa (e `pytest tests/ui`, se a interface mudou)
+- [ ] `ruff check .` passa
+- [ ] `python scripts/audit_public_tree.py` passa: **nenhum dado pessoal real** (CPFs, nomes, endereços, PDFs ou capturas reais) no código, testes, *fixtures*, logs ou na descrição do PR
+- [ ] Comportamento que possa causar **tarja a menos** está coberto por teste (o projeto falha fechado)
+- [ ] Documentação atualizada quando o comportamento ou a configuração mudou (`README.md` **e** `README.en.md`, `docs/`, `.env.example`, `CHANGELOG.md`, [AGENTS.md](https://github.com/Yiuky/privio-sentry/blob/main/AGENTS.md))
+- [ ] Novas dependências justificadas e com licença compatível ([docs/licensing.md](https://github.com/Yiuky/privio-sentry/blob/main/docs/licensing.md))
+- [ ] `BACKLOG.md` atualizado (item movido para Concluídos, com o teste que o cobre)

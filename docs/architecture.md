@@ -1,8 +1,8 @@
-# Architecture
+# Arquitetura
 
-> **PRIVIO SENTRY** (Local AI Privacy Infrastructure) · current product: **SENTRY Redact**. This page describes what exists today. Internal module/class names (for example `SentryApp`) and some environment variables still carry the earlier working name "Tarjador"; they are being renamed separately.
+> **PRIVIO SENTRY** (Local AI Privacy Infrastructure) · produto atual: **SENTRY Redact**. Esta página descreve o que existe hoje. Nomes internos de módulos/classes (por exemplo `SentryApp`) e algumas variáveis de ambiente ainda carregam o nome de trabalho anterior "Tarjador"; eles estão sendo renomeados separadamente.
 
-## Process layout
+## Disposição dos processos
 
 ```
 Browser ─► gatekeeper.py (:8000, optional) ──proxy──► app_service.py (:8001, FastAPI)
@@ -16,41 +16,41 @@ Browser ─► gatekeeper.py (:8000, optional) ──proxy──► app_service.
                                                                   └─ utils/verifier.py      (post-redaction verification)
 ```
 
-* **`gatekeeper.py`** (optional): control panel on `:8000` that starts/stops `app_service.py` as a subprocess, runs a watchdog that restarts it after repeated failed health checks, remembers the desired state, and reverse-proxies other requests to the app. Shows `templates/gatekeeper.html` when the app is down.
-* **`app_service.py`**: FastAPI API + HTML UI. State of tasks is kept in memory and persisted atomically to `tasks.json`. Each upload/reprocess/finalize starts a worker process; workers report progress to the service over HTTP with a per-run shared secret. A multiprocessing lock serializes LLM calls across workers. Concurrent operations on the same task return `409`.
-* **`main.py`** (`SentryApp`): the pipeline, also usable as a CLI (`python main.py --input ... --output ...`).
-* **Web editor** (`templates/index.html`): a self-contained HTML/JS page (DOM overlay boxes on top of the page images) to inspect, add, move, delete and approve redaction boxes. It is **local-first by construction**: no external fonts, scripts or icon libraries (the Markdown help is rendered by a small built-in renderer, not a CDN library) and the favicon/logo are inlined. It follows the PRIVIO SENTRY design tokens (`docs/brand/design-tokens.json`), keeps all UI strings in an `I18N` object (pt-BR default, en-US available) and states permanently that AI detection is probabilistic. The **LOCAL PROCESSING** badge describes the architecture (OCR/models run on the operator's machine); it does not technically enforce a network state.
+* **`gatekeeper.py`** (opcional): painel de controle em `:8000` que inicia/para o `app_service.py` como subprocesso, executa um watchdog que o reinicia após falhas repetidas no health check, lembra o estado desejado e faz proxy reverso das demais requisições para a aplicação. Exibe `templates/gatekeeper.html` quando a aplicação está fora do ar.
+* **`app_service.py`**: API FastAPI + interface HTML. O estado das tarefas é mantido em memória e persistido de forma atômica em `tasks.json`. Cada upload/reprocessamento/finalização inicia um processo worker; os workers reportam o progresso ao serviço via HTTP com um segredo compartilhado por execução. Um lock de multiprocessing serializa as chamadas ao LLM entre os workers. Operações concorrentes sobre a mesma tarefa retornam `409`.
+* **`main.py`** (`SentryApp`): o pipeline, também utilizável como CLI (`python main.py --input ... --output ...`).
+* **Editor web** (`templates/index.html`): uma página HTML/JS autocontida (caixas sobrepostas no DOM por cima das imagens das páginas) para inspecionar, adicionar, mover, excluir e aprovar caixas de tarja. Ela é **local-first por construção**: sem fontes, scripts ou bibliotecas de ícones externos (a ajuda em Markdown é renderizada por um pequeno renderizador embutido, não por uma biblioteca de CDN) e o favicon/logo estão embutidos inline. Ela segue os design tokens do PRIVIO SENTRY (`docs/brand/design-tokens.json`), mantém todas as strings da interface em um objeto `I18N` (pt-BR por padrão, en-US disponível) e informa de forma permanente que a detecção por IA é probabilística. O selo **LOCAL PROCESSING** descreve a arquitetura (OCR/modelos rodam na máquina do operador); ele não impõe tecnicamente nenhum estado de rede.
 
-## Pipeline phases (`SentryApp.run`)
+## Fases do pipeline (`SentryApp.run`)
 
-| # | Phase | What happens |
+| # | Fase | O que acontece |
 |---|---|---|
-| 0 | Render | PDF pages to PNG at `BASE_DPI`. |
-| 1 | OCR | Tesseract with word coordinates (page in two overlapping halves; fallback to a lower scale when Tesseract fails). Standard PSM plus an optional sparse PSM pass. |
-| 2 | CPF discovery | Digits are re-assembled across words/lines, dates/times excluded, 14-digit CNPJs spared, 11-digit windows validated with the CPF check digits; boxes are computed per character. |
-| 3 | YOLO | Detects signatures; crops with padding. |
-| 4 | Crop micro-audit | OCR (PSM 6) on each crop, mapping coordinates back to the page. |
-| 5 | Address discovery | Vision LLM reads each page and returns addresses classified as personal/professional/secondary. If the AI call fails, the page is added to `failed_pages` and flagged for review (fail closed). |
-| 6 | Address redaction | Only *personal* addresses: deterministic token matching against OCR words, with a list of "immune" words (street, district, ZIP labels...). |
-| 7 | Signature audit | Draws current redactions on each signature crop and asks the vision LLM if a CPF is still visible; if yes or if the AI fails, the whole crop is redacted. |
-| 8 | Export | Writes `redactions_metadata.json` (used by the editor) and the final PDF, either by **native redaction** of the original (`apply_redactions`, removes text and burns pixels) or by rasterized pages. Reconstruction fails closed (missing/errored page = no PDF). |
-| 9 | Verification | See below. |
+| 0 | Renderização | Páginas do PDF para PNG em `BASE_DPI`. |
+| 1 | OCR | Tesseract com coordenadas por palavra (página em duas metades sobrepostas; fallback para uma escala menor quando o Tesseract falha). PSM padrão mais uma passada opcional com PSM esparso. |
+| 2 | Descoberta de CPF | Os dígitos são remontados entre palavras/linhas, datas/horários são excluídos, CNPJs de 14 dígitos são poupados, janelas de 11 dígitos são validadas com os dígitos verificadores do CPF; as caixas são calculadas por caractere. |
+| 3 | YOLO | Detecta assinaturas; recorta com margem (padding). |
+| 4 | Microauditoria dos recortes | OCR (PSM 6) em cada recorte, mapeando as coordenadas de volta para a página. |
+| 5 | Descoberta de endereços | O LLM de visão lê cada página e retorna endereços classificados como pessoais/profissionais/secundários. Se a chamada à IA falhar, a página é adicionada a `failed_pages` e marcada para revisão (falha fechado, ou fail closed). |
+| 6 | Tarja de endereços | Apenas endereços *pessoais*: correspondência determinística de tokens com as palavras do OCR, com uma lista de palavras "imunes" (rótulos de rua, bairro, CEP...). |
+| 7 | Auditoria de assinaturas | Desenha as tarjas atuais em cada recorte de assinatura e pergunta ao LLM de visão se um CPF ainda está visível; se sim, ou se a IA falhar, o recorte inteiro é tarjado. |
+| 8 | Exportação | Grava `redactions_metadata.json` (usado pelo editor) e o PDF final, seja por **tarja nativa** do original (`apply_redactions`, remove o texto e queima os pixels) ou por páginas rasterizadas. A reconstrução falha fechado (página ausente/com erro = nenhum PDF). |
+| 9 | Verificação | Veja abaixo. |
 
-## Verification and states
+## Verificação e estados
 
-`utils/verifier.py` (a) re-reads the final PDF (native text + OCR of pages with images/without text) and (b) **cross-checks coverage**: independent OCR of the *original* at `VERIFY_DPI` and checks that every valid CPF found lies inside some redaction box. Findings, AI failures and unverifiable pages become **alerts** per page.
+`utils/verifier.py` (a) relê o PDF final (texto nativo + OCR das páginas com imagens/sem texto) e (b) **faz a verificação cruzada da cobertura**: OCR independente do *original* em `VERIFY_DPI`, verificando se cada CPF válido encontrado está dentro de alguma caixa de tarja. Achados, falhas da IA e páginas não verificáveis viram **alertas** por página.
 
-Task states (free-form status text plus a progress percentage): `Iniciando...`/`Processando`/phase messages while running, `Concluído` (no pending alerts), **`Requer revisão`** (alerts exist: human review is mandatory), an error status, and `Interrompido` (the process died; set on startup for orphaned tasks).
+Estados da tarefa (texto de status livre mais um percentual de progresso): `Iniciando...`/`Processando`/mensagens de fase durante a execução, `Concluído` (sem alertas pendentes), **`Requer revisão`** (existem alertas: a revisão humana é obrigatória), um status de erro e `Interrompido` (o processo morreu; definido na inicialização para tarefas órfãs).
 
-## Folder layout of a task (`output/<name>/`)
+## Estrutura de pastas de uma tarefa (`output/<name>/`)
 
-`00_original_images/`, `01_ocr_results/`, `02_signature_crops/`, `04_*`, `05_final_export/{cpf_only,address_only,combined}`, `07_addresses_crops_ia/`, `08_*`, `99_ia_interactions/` (prompts/responses of the LLM), `process_log.log`. **All of it can contain personal data.** Final PDFs go to `documentos_finais/`.
+`00_original_images/`, `01_ocr_results/`, `02_signature_crops/`, `04_*`, `05_final_export/{cpf_only,address_only,combined}`, `07_addresses_crops_ia/`, `08_*`, `99_ia_interactions/` (prompts/respostas do LLM), `process_log.log`. **Tudo isso pode conter dados pessoais.** Os PDFs finais vão para `documentos_finais/`.
 
-## HTTP API (app_service)
+## API HTTP (app_service)
 
-`GET /` UI · `GET /readme` · `POST /upload` · `GET /tasks` · `POST /reprocess/{id}` · `GET /logs/{id}` · `POST /process-all` · `DELETE /delete-all` · `GET /previews/{id}/{page}` · `GET /metadata/{id}` · `POST /update-redactions/{id}` · `POST /reprocess-metadata/{id}` · `POST /finalize-native/{id}` · `POST /finalize/{id}` (legacy raster) · `GET /download/{id}` · `DELETE /task/{id}` · `POST /purge/{id}` (remove unredacted page images after approval) · `POST /internal/update/{id}` (workers only). Task ids are UUIDs and validated.
+`GET /` UI · `GET /readme` · `POST /upload` · `GET /tasks` · `POST /reprocess/{id}` · `GET /logs/{id}` · `POST /process-all` · `DELETE /delete-all` · `GET /previews/{id}/{page}` · `GET /metadata/{id}` · `POST /update-redactions/{id}` · `POST /reprocess-metadata/{id}` · `POST /finalize-native/{id}` · `POST /finalize/{id}` (raster legado) · `GET /download/{id}` · `DELETE /task/{id}` · `POST /purge/{id}` (remove as imagens de página não tarjadas após a aprovação) · `POST /internal/update/{id}` (somente workers). Os ids de tarefa são UUIDs e são validados.
 
-## Other directories
+## Outros diretórios
 
-* `scripts/` helper launchers and manual experiments; `experimental/agent_loop/` an unfinished LLM-agent approach (not used by the pipeline).
-* `models/` the sanitized detector and its model card; `examples/` synthetic sample generator.
+* `scripts/` lançadores auxiliares e experimentos manuais; `experimental/agent_loop/` uma abordagem inacabada com agente LLM (não usada pelo pipeline).
+* `models/` o detector sanitizado e seu model card; `examples/` gerador de amostras sintéticas.

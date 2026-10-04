@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "privio-sentry"
-version = "5.0.0"
+version = "5.1.0"
 description = "PRIVIO SENTRY - Local AI Privacy Infrastructure. SENTRY Redact: local OCR + YOLO + vision LLM pipeline that suggests redactions of CPF numbers and personal addresses in PDFs, with human review. Supports LGPD-aligned practices; does not guarantee anonymization."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
-authors = [{ name = "PRIVIO SENTRY contributors" }]
+authors = [{ name = "Joberth Firmino Gambati" }]
 keywords = ["lgpd", "redaction", "pdf", "ocr", "yolo", "privacy", "pii", "cpf"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -43,6 +43,7 @@ ui = ["pytest-playwright>=0.7"]
 [project.urls]
 Homepage = "https://github.com/Yiuky/privio-sentry"
 Issues = "https://github.com/Yiuky/privio-sentry/issues"
+Changelog = "https://github.com/Yiuky/privio-sentry/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 py-modules = ["main", "app_service", "gatekeeper"]

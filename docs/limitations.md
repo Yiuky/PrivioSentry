@@ -1,32 +1,32 @@
-# Limitations
+# Limitações
 
-Be explicit about what this tool cannot do. Always combine it with human review. PRIVIO SENTRY / SENTRY Redact is in an **early stage**: the AI **suggests**, a person **confirms**.
+Seja explícito sobre o que esta ferramenta não consegue fazer. Sempre combine o uso com revisão humana. O PRIVIO SENTRY / SENTRY Redact está em **estágio inicial**: a IA **sugere**, uma pessoa **confirma**.
 
-## Scope of redaction
-* **Only CPF numbers and personal (residential) addresses** are targeted. Not redacted: names, RG and other IDs, phone numbers, e-mails, bank/financial data, license plates, photographs/faces, QR codes/barcodes, signatures themselves (only CPFs near them), dates of birth, PDF metadata/attachments/annotations/bookmarks (inspect these separately).
-* Names of people are deliberately **not** redacted (a business rule of the original use case), which can make an individual identifiable even without CPF/address.
+## Escopo da tarja
+* **Apenas números de CPF e endereços pessoais (residenciais)** são alvo. Não são tarjados: nomes, RG e outros documentos de identificação, telefones, e-mails, dados bancários/financeiros, placas de veículos, fotografias/rostos, QR codes/códigos de barras, as próprias assinaturas (apenas CPFs próximos a elas), datas de nascimento, metadados/anexos/anotações/marcadores do PDF (inspecione esses itens separadamente).
+* Nomes de pessoas deliberadamente **não** são tarjados (uma regra de negócio do caso de uso original), o que pode tornar um indivíduo identificável mesmo sem CPF/endereço.
 
-## Detection quality
-* **OCR dependent:** low resolution, skew, stains, stamps over text, columns, and handwriting reduce recall. A single misread digit can make a CPF fail its check digits and escape detection; the verifier mitigates (but does not eliminate) this by re-OCRing the original at a different DPI and flagging inconsistencies.
-* **Handwriting / signatures:** the YOLO detector is small (single class, modest metrics, see [models/MODEL_CARD.md](../models/MODEL_CARD.md)); CPFs written by hand rely on the vision LLM, whose quality depends on the model you run.
-* **Addresses:** discovery and personal/professional classification are done by an LLM, then matched to OCR words by token. It can **under-redact** (address missed or misclassified as professional) and **over-redact** (tokens that also occur elsewhere on the page).
-* **LLM nondeterminism:** results can vary between runs and models. Failures/timeouts are flagged for review, but a confidently wrong answer is not detectable.
-* Measured recall/precision exist only for **synthetic** documents (see `docs/benchmarks.md` when present). Real-world accuracy is unknown and likely lower.
-* Only Portuguese (Brazilian) documents/formats were considered (CPF/CNPJ rules, address vocabulary).
+## Qualidade da detecção
+* **Dependente de OCR:** baixa resolução, inclinação, manchas, carimbos sobre o texto, colunas e escrita à mão reduzem a revocação. Um único dígito lido errado pode fazer um CPF falhar na verificação dos dígitos verificadores e escapar da detecção; o verificador mitiga isso (mas não elimina) refazendo o OCR do original em outro DPI e sinalizando inconsistências.
+* **Escrita à mão / assinaturas:** o detector YOLO é pequeno (classe única, métricas modestas, veja [models/MODEL_CARD.md](../models/MODEL_CARD.md)); CPFs escritos à mão dependem do LLM de visão, cuja qualidade depende do modelo que você executa.
+* **Endereços:** a descoberta e a classificação pessoal/profissional são feitas por um LLM e depois associadas às palavras do OCR por token. Pode haver **tarja a menos** (endereço não detectado ou classificado erroneamente como profissional) e **tarja a mais** (tokens que também aparecem em outros pontos da página).
+* **Não determinismo do LLM:** os resultados podem variar entre execuções e modelos. Falhas/timeouts são sinalizados para revisão, mas uma resposta errada dada com confiança não é detectável.
+* Revocação/precisão medidas existem apenas para documentos **sintéticos** (veja `docs/benchmarks.md`, quando existir). A acurácia no mundo real é desconhecida e provavelmente menor.
+* Apenas documentos/formatos em português (brasileiro) foram considerados (regras de CPF/CNPJ, vocabulário de endereços).
 
-## Performance
-* High-DPI OCR, LLM calls and the verification pass make large PDFs slow (hundreds of pages can take hours); memory use grows with `BASE_DPI`.
-* One worker process per task; LLM calls are serialized by a lock, so concurrency gains are limited.
+## Desempenho
+* OCR em DPI alto, chamadas ao LLM e a etapa de verificação deixam PDFs grandes lentos (centenas de páginas podem levar horas); o uso de memória cresce com `BASE_DPI`.
+* Um processo worker por tarefa; as chamadas ao LLM são serializadas por um lock, então os ganhos com concorrência são limitados.
 
-## Output
-* **Native mode** edits the original PDF in place of rasterizing; hidden layers, embedded files, form fields or annotations may still carry data.
-* **Raster mode** reduces resolution (default ~150 DPI-equivalent width 1240 px) and removes selectable text.
-* The final PDF is as good as the boxes: manual review in the editor is part of the workflow, not an optional extra.
+## Saída
+* O **modo nativo** edita o PDF original em vez de rasterizá-lo; camadas ocultas, arquivos embutidos, campos de formulário ou anotações ainda podem carregar dados.
+* O **modo raster** reduz a resolução (padrão ~150 DPI equivalentes, largura de 1240 px) e remove o texto selecionável.
+* O PDF final é tão bom quanto as caixas: a revisão manual no editor faz parte do fluxo de trabalho, não é um extra opcional.
 
-## Platform / operations
-* The **LOCAL PROCESSING** label in the UI describes the architecture, not an enforced network state: the application does not block outbound traffic, and `OLLAMA_API_URL` can point to a remote server. The UI never claims "no network access".
-* Not a legal-compliance tool: it can support privacy and security practices, including LGPD-aligned ones, but it does not by itself establish compliance (see [threat-model-lgpd.md](threat-model-lgpd.md)).
-* No built-in user accounts, TLS or audit trail; protection relies on loopback binding, an optional shared `API_TOKEN` and the host's security.
-* Intermediate artifacts keep personal data until deleted.
-* Primarily developed and tested on Windows; Linux support is exercised by CI (Tesseract installed via apt) but less field-tested.
-* Licensing caveats of the AGPL dependencies: [licensing.md](licensing.md).
+## Plataforma / operação
+* O rótulo **LOCAL PROCESSING** na UI descreve a arquitetura, não um estado de rede imposto: a aplicação não bloqueia tráfego de saída, e `OLLAMA_API_URL` pode apontar para um servidor remoto. A UI nunca afirma que não há acesso à rede.
+* Não é uma ferramenta de conformidade legal: ela pode apoiar práticas de privacidade e segurança, incluindo práticas alinhadas à LGPD, mas não estabelece conformidade por si só (veja [threat-model-lgpd.md](threat-model-lgpd.md)).
+* Sem contas de usuário, TLS ou trilha de auditoria embutidos; a proteção depende do bind em loopback, de um `API_TOKEN` compartilhado opcional e da segurança do host.
+* Artefatos intermediários mantêm dados pessoais até serem apagados.
+* Desenvolvido e testado principalmente no Windows; o suporte a Linux é exercitado pela CI (Tesseract instalado via apt), mas menos testado em campo.
+* Ressalvas de licenciamento das dependências AGPL: [licensing.md](licensing.md).

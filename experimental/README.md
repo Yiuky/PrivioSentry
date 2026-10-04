@@ -1,5 +1,5 @@
 # experimental/
 
-Unfinished research code, **not used by the pipeline and not covered by tests**.
+Código de pesquisa inacabado, **não usado pelo pipeline e não coberto por testes**.
 
-* `agent_loop/` - an LLM agent (ReAct style) that zooms into a page grid and redacts by calling tools. Run from this folder: `cd experimental && python -m agent_loop.test_agent`. Requires Ollama and Tesseract; it prompts for a PDF path. Do not feed it real documents unless you control the machine.
+* `agent_loop/` - um agente LLM (estilo ReAct) que dá zoom em uma grade da página e tarja chamando ferramentas. Execute a partir desta pasta: `cd experimental && python -m agent_loop.test_agent`. Requer Ollama e Tesseract; ele pede o caminho de um PDF. Não o alimente com documentos reais a menos que você controle a máquina.

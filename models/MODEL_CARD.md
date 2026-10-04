@@ -1,47 +1,47 @@
 # Model card: `signature_stamp_detector.pt`
 
-*(Português abaixo)*
+*(Resumo curto em PT-BR no final)*
 
-## Summary (EN)
+## Visão geral
 
 | | |
 |---|---|
-| Task | Object detection of **handwritten signatures** on document page images |
-| Classes | 1: `signature` (the file name mentions "stamp" for historical reasons; there is **no** stamp class) |
-| Architecture | YOLO11n (nano), Ultralytics format; fine-tuned from the pretrained `yolo11n.pt` weights |
-| Input | RGB page image; trained at `imgsz=640`; the app calls it with `conf=0.25` |
-| Weights precision | FP16 |
-| File | ~5.5 MB, inference-only checkpoint (see "Sanitization") |
-| Used by | `utils/yolo_engine.py` to crop areas around signatures, which are then audited (OCR + vision LLM) for CPF numbers written by hand |
-| License | Treat as **AGPL-3.0** (Ultralytics toolchain and base weights). See [../NOTICE](../NOTICE) and [../docs/licensing.md](../docs/licensing.md) |
+| Tarefa | Detecção de objetos de **assinaturas manuscritas** em imagens de páginas de documentos |
+| Classes | 1: `signature` (o nome do arquivo menciona "stamp" por razões históricas; **não** há classe de carimbo) |
+| Arquitetura | YOLO11n (nano), formato Ultralytics; ajustado (fine-tuning) a partir dos pesos pré-treinados `yolo11n.pt` |
+| Entrada | Imagem RGB da página; treinado com `imgsz=640`; o app o chama com `conf=0.25` |
+| Precisão numérica dos pesos | FP16 |
+| Arquivo | ~5,5 MB, checkpoint apenas para inferência (veja "Saneamento") |
+| Usado por | `utils/yolo_engine.py` para recortar áreas ao redor de assinaturas, que depois são auditadas (OCR + LLM de visão) em busca de números de CPF escritos à mão |
+| Licença | Tratar como **AGPL-3.0** (ferramental e pesos-base da Ultralytics). Veja [../NOTICE](../NOTICE) e [../docs/licensing.md](../docs/licensing.md) |
 
-### Training data summary
-Only what the original checkpoint recorded is reported; everything else is **not informed** (not recorded in the checkpoint and not known to the maintainers of this repository at the time of writing).
+### Resumo dos dados de treino
+Apenas o que o checkpoint original registrou é reportado; todo o resto é **não informado** (não registrado no checkpoint e não conhecido pelos mantenedores deste repositório no momento da redação).
 
-* Dataset: scanned/native administrative documents annotated with one class (`signature`). **Source, size (images/instances), split sizes, language, annotation tool and licensing of the data: not informed.** The dataset is **not** distributed and cannot be reconstructed from this file.
-* Training run: 100 epochs configured (early-stopping patience 20; 100 epochs were logged), batch size 8, image size 640, CPU training, default Ultralytics augmentation (mosaic 1.0, flip-lr 0.5, HSV jitter, random erasing 0.4, translate 0.1, scale 0.5), optimizer `auto`, seed 0.
-* Trained with Ultralytics 8.4.31.
+* Dataset: documentos administrativos digitalizados/nativos anotados com uma classe (`signature`). **Origem, tamanho (imagens/instâncias), tamanhos das divisões, idioma, ferramenta de anotação e licença dos dados: não informados.** O dataset **não** é distribuído e não pode ser reconstruído a partir deste arquivo.
+* Execução do treino: 100 épocas configuradas (paciência de early stopping 20; 100 épocas foram registradas), batch size 8, tamanho de imagem 640, treino em CPU, aumento de dados padrão da Ultralytics (mosaic 1.0, flip-lr 0.5, jitter HSV, random erasing 0.4, translate 0.1, scale 0.5), otimizador `auto`, seed 0.
+* Treinado com Ultralytics 8.4.31.
 
-### Metrics (as stored in the checkpoint; validation split, size not informed)
-| Metric | Best checkpoint | Last epoch | Best over epochs |
+### Métricas (conforme armazenadas no checkpoint; divisão de validação, tamanho não informado)
+| Métrica | Melhor checkpoint | Última época | Melhor entre as épocas |
 |---|---|---|---|
 | mAP@0.5 | 0.526 | 0.446 | 0.546 |
 | mAP@0.5:0.95 | 0.132 | 0.113 | 0.132 |
-| Precision | 1.000 | 0.569 | 1.000 |
-| Recall | 0.482 | 0.500 | 0.750 |
+| Precisão | 1.000 | 0.569 | 1.000 |
+| Revocação | 0.482 | 0.500 | 0.750 |
 
-Interpretation: **modest accuracy**. Recall of about 0.5 means roughly half of the signatures may be missed; precision values that swing between 0.57 and 1.0 suggest a **very small validation set**, so these numbers are noisy and should not be generalized. The pipeline does not rely on this model alone (full-page OCR and the vision LLM also look for CPFs), but you should expect misses on unusual signatures. Treat it as a helper for locating signature regions, not as a guarantee. No evaluation on independent or public benchmarks was performed.
+Interpretação: **acurácia modesta**. Revocação de cerca de 0,5 significa que aproximadamente metade das assinaturas pode não ser detectada; valores de precisão que oscilam entre 0,57 e 1,0 sugerem um **conjunto de validação muito pequeno**, então esses números são ruidosos e não devem ser generalizados. O pipeline não depende apenas deste modelo (o OCR de página inteira e o LLM de visão também procuram CPFs), mas você deve esperar falhas de detecção em assinaturas incomuns. Trate-o como um auxiliar para localizar regiões de assinatura, não como garantia. Nenhuma avaliação em benchmarks independentes ou públicos foi realizada.
 
-### Sanitization (what was removed before publishing)
-The original training checkpoint contained, besides the weights: the full `train_args` (including **absolute local paths** of the dataset YAML, project and run folders and the run name), a **git block** with a local repository path, commit hash and remote URL, the **training date**, the per-epoch **training history** (losses, learning rates, metrics), and metadata fields (optimizer/EMA slots were already empty). The published file keeps **only** the FP16 weights, the architecture definition, the class names (`{0: "signature"}`) and minimal generic arguments (`task=detect`, `imgsz=640`). It was verified to load with `ultralytics.YOLO` and run inference, and a scan of the file's strings found no paths, user names, dataset file names or dates.
+### Saneamento (o que foi removido antes da publicação)
+O checkpoint de treino original continha, além dos pesos: os `train_args` completos (incluindo **caminhos locais absolutos** do YAML do dataset, das pastas do projeto e da execução, e o nome da execução), um **bloco git** com um caminho de repositório local, hash de commit e URL do remoto, a **data do treino**, o **histórico de treino** por época (losses, learning rates, métricas) e campos de metadados (os slots de otimizador/EMA já estavam vazios). O arquivo publicado mantém **apenas** os pesos FP16, a definição da arquitetura, os nomes de classe (`{0: "signature"}`) e argumentos genéricos mínimos (`task=detect`, `imgsz=640`). Foi verificado que ele carrega com `ultralytics.YOLO` e executa inferência, e uma varredura das strings do arquivo não encontrou caminhos, nomes de usuário, nomes de arquivos do dataset ou datas.
 
-### Privacy caveat (honest note)
-Removing metadata does **not** make the weights mathematically immune to training-data extraction. A detector like this (single class, 2.6 M parameters, no generative or text-memorizing capability) offers a very low risk of reproducing identifiable training documents, but the risk is **low, not zero**. If you require a formal guarantee, retrain with a dataset you can publish (synthetic or consented), or do not redistribute the weights.
+### Ressalva de privacidade (nota honesta)
+Remover metadados **não** torna os pesos matematicamente imunes à extração de dados de treino. Um detector como este (classe única, 2,6 M de parâmetros, sem capacidade generativa ou de memorizar texto) oferece um risco muito baixo de reproduzir documentos de treino identificáveis, mas o risco é **baixo, não nulo**. Se você precisa de uma garantia formal, retreine com um dataset que possa publicar (sintético ou com consentimento) ou não redistribua os pesos.
 
-### Limitations and intended use
-* Detects signature-like marks; may fire on scribbles, stamps or logos and miss faint, small or unusual signatures.
-* Documents of other countries/styles were not evaluated.
-* Not for identity verification or any biometric use.
+### Limitações e uso pretendido
+* Detecta marcas semelhantes a assinaturas; pode disparar em rabiscos, carimbos ou logotipos e deixar de detectar assinaturas fracas, pequenas ou incomuns.
+* Documentos de outros países/estilos não foram avaliados.
+* Não serve para verificação de identidade nem para qualquer uso biométrico.
 
 ---
 

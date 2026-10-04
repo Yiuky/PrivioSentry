@@ -1,13 +1,13 @@
 ---
-name: Feature request
-about: Suggest an improvement
+name: Sugerir melhoria
+about: Proponha uma melhoria / Suggest an improvement
 labels: enhancement
 ---
 
-**Problem you want to solve**
+**Problema que a melhoria resolve**
 
-**Proposed solution**
+**Solução proposta**
 
-**Alternatives considered**
+**Alternativas consideradas**
 
-**Privacy impact** (does it store, log or transmit document content? the project must stay local-first and fail closed)
+**Impacto na privacidade** (guarda, registra ou transmite conteúdo de documentos? o projeto precisa continuar local-first e falhar fechado)
