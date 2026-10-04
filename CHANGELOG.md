@@ -5,6 +5,12 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+## [5.2.0] - 2026-10-04
+
+Versão de segurança e confiabilidade: o pipeline falha fechado em mais situações e o serviço local passa a
+recusar outros sites abertos no mesmo navegador. **Mudança de comportamento:** mais documentos vão para
+"Requer revisão", e o acesso por outro nome ou IP sem `API_TOKEN` exige `ALLOWED_HOSTS`.
+
 ### Segurança
 - **Proteção contra outros sites abertos no mesmo navegador (B-40).** Sem `API_TOKEN`, o app e o gatekeeper só aceitam o cabeçalho `Host` esperado (`127.0.0.1`, `localhost`, `::1`, `APP_HOST` e a nova variável `ALLOWED_HOSTS`), respondendo `421` aos demais (*DNS rebinding*), e recusam POST/PUT/PATCH/DELETE com `Origin` ou `Sec-Fetch-Site` de outro site (`403`, CSRF). Isso fecha a leitura das imagens originais sem tarja e o liga/desliga do gatekeeper por páginas maliciosas (`utils/net_guard.py`). Com `API_TOKEN`, a checagem de `Host` é dispensada (o cookie é `SameSite=Strict`). **Atenção:** para acessar o gatekeeper, ou o app sem token, por outro nome ou IP, liste-o em `ALLOWED_HOSTS`.
 
@@ -27,6 +33,7 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 - **Código de Conduta em PT-BR** (Contributor Covenant 2.1), com contato do mantenedor pelo GitHub ou LinkedIn e a regra de nunca anexar dados pessoais reais.
 - README (PT-BR e EN): esclarece que o processamento automático gera um PDF **preliminar** e que a versão para uso sai após a revisão e o "Aplicar proteção"; antes dizia que nenhum PDF final existia antes da revisão.
 - CI: a auditoria de dados pessoais roda em todo PR; Ruff com versão fixa (`ruff==0.16.10`).
+- Versão do pacote: 5.1.0 → 5.2.0.
 
 ## [5.1.0] - 2026-10-04
 

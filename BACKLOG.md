@@ -13,7 +13,7 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
   **P2** (robustez, operação e experiência) · **P3** (melhoria e refatoração).
 - Itens marcados como **visão** vêm do roteiro do produto: não têm data nem promessa de entrega.
 - As referências `arquivo:linha` valem para o estado de referência e podem se deslocar.
-- Estado de referência: `5.1.0`, 2026-10-04. Itens B-40 a B-65 vieram de uma revisão completa do código e da redação do manual nessa data.
+- Estado de referência: `5.2.0`, 2026-10-04. Itens B-40 a B-65 vieram de uma revisão completa do código e da redação do manual nessa data.
 
 ## Resumo
 
@@ -109,11 +109,11 @@ publicar uma versão que mexa nessas áreas:
 
 | ID | Item | Versão | Teste |
 |---|---|---|---|
-| B-40 | Validar `Host` (anti *DNS rebinding*) e `Origin`/`Sec-Fetch-Site` (anti CSRF) no app e no gatekeeper quando não há `API_TOKEN`; nova variável `ALLOWED_HOSTS` | não publicado | `tests/test_net_guard.py` |
-| B-43 | Falha do Tesseract (nas duas escalas) conta em `OCREngine.failure_count` e vira alerta da página no OCR, nos recortes e na verificação; junção das metades não perde a metade de baixo | não publicado | `tests/test_fail_closed_ocr_address.py` |
-| B-49 | Tipo de endereço do LLM normalizado (caixa, acento, sinônimos); rótulo desconhecido é tarjado como pessoal e manda a página para revisão; resposta sem a lista `addresses` falha fechado | não publicado | `tests/test_fail_closed_ocr_address.py` |
-| B-61 | Todo alerta exige revisão: "Modelo YOLO ausente" (documento inteiro, `add_document_review`) e os "Protocolos de Pânico" (página) | não publicado | `tests/test_main_phases.py::test_phase3_without_model_fails_closed`, `tests/test_fail_closed_ocr_address.py` |
-| B-60 | Auditoria de dados pessoais em todo PR (CI) e Ruff com versão fixa | não publicado | `.github/workflows/ci.yml` (passo *Auditoria*) |
+| B-40 | Validar `Host` (anti *DNS rebinding*) e `Origin`/`Sec-Fetch-Site` (anti CSRF) no app e no gatekeeper quando não há `API_TOKEN`; nova variável `ALLOWED_HOSTS` | 5.2.0 | `tests/test_net_guard.py` |
+| B-43 | Falha do Tesseract (nas duas escalas) conta em `OCREngine.failure_count` e vira alerta da página no OCR, nos recortes e na verificação; junção das metades não perde a metade de baixo | 5.2.0 | `tests/test_fail_closed_ocr_address.py` |
+| B-49 | Tipo de endereço do LLM normalizado (caixa, acento, sinônimos); rótulo desconhecido é tarjado como pessoal e manda a página para revisão; resposta sem a lista `addresses` falha fechado | 5.2.0 | `tests/test_fail_closed_ocr_address.py` |
+| B-61 | Todo alerta exige revisão: "Modelo YOLO ausente" (documento inteiro, `add_document_review`) e os "Protocolos de Pânico" (página) | 5.2.0 | `tests/test_main_phases.py::test_phase3_without_model_fails_closed`, `tests/test_fail_closed_ocr_address.py` |
+| B-60 | Auditoria de dados pessoais em todo PR (CI) e Ruff com versão fixa | 5.2.0 | `.github/workflows/ci.yml` (passo *Auditoria*) |
 | B-13 | Releases versionadas (tag `vX.Y.Z` + notas do CHANGELOG) e versão alinhada em `pyproject.toml`/`CITATION.cff` | 5.1.0 | `tests/test_check_versions.py` |
 | — | CI verde: coleta restrita a `tests/` e teste do gatekeeper que simula Windows passa no Linux | 5.1.0 | `pytest.ini`, `tests/test_gatekeeper.py` |
 | — | Interface local-first (sem CDN), pt-BR/en-US, WCAG AA | 5.1.0 | `tests/ui/test_ui_brand.py`, `tests/ui/test_ui_security_a11y.py` |
