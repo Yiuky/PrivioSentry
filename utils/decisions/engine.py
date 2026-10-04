@@ -16,6 +16,7 @@ Configuração (variáveis de ambiente, documentadas em docs/configuration.md):
 import logging
 import math
 import os
+import threading
 from dataclasses import dataclass, field
 from typing import List, Optional, Sequence
 
@@ -57,8 +58,24 @@ class LayaEngine:
         self.model_id = model_id or os.getenv("LAYA_MODEL") or DEFAULT_LAYA_MODEL
         self.device = device or os.getenv("LAYA_DEVICE") or "cpu"
         self._agent = None
+        self._load_lock = threading.Lock()  # pré-carga em segundo plano + uso: carrega uma vez só
 
     def _load(self):
+        with self._load_lock:
+            return self._load_locked()
+
+    def preload(self):
+        """Carrega o modelo em segundo plano (ex.: enquanto o LLM analisa as páginas). Erros ficam para o uso."""
+        def run():
+            try:
+                self._load()
+            except Exception as e:  # o erro reaparece em features() e a política trata (falha fechado)
+                logger.warning(f"[decisions] pré-carga do modelo falhou: {e}")
+        thread = threading.Thread(target=run, name="laya-preload", daemon=True)
+        thread.start()
+        return thread
+
+    def _load_locked(self):
         if self._agent is None:
             try:
                 # Redes com inspeção TLS (proxy corporativo): usa o repositório de certificados do sistema.
@@ -149,6 +166,10 @@ class DecisionService:
     @property
     def thresholds(self):
         return self.profile.thresholds
+
+    def preload(self):
+        """Começa a carregar o modelo agora, em paralelo, se o motor souber fazer isso."""
+        return self.engine.preload() if hasattr(self.engine, "preload") else None
 
     def decide_many(self, texts: Sequence[str]) -> List[Decision]:
         """Nunca levanta exceção: falha do motor vira p_personal=None (a política trata)."""

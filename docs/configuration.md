@@ -23,7 +23,8 @@ Todas as configurações são variáveis de ambiente, normalmente definidas em u
 
 | Variável | Padrão | Descrição |
 |---|---|---|
-| `BASE_DPI` | `1000` | DPI usado para renderizar cada página para o OCR. Valores altos ajudam com texto pequeno, mas exigem muita RAM e tempo; 300-600 é um bom ponto de partida em máquinas modestas. |
+| `BASE_DPI` | `300` | DPI usado para renderizar cada página para o OCR. **300 é o recomendado**: nas medições (benchmarks.md) teve a melhor revocação e foi o mais rápido; acima disso o Tesseract quebra os dígitos em pedaços e perde CPFs (a 1000 DPI a revocação caiu para ~60% e cada página vira ~97 Mpx). Suba só para documentos com letra muito pequena, e meça antes. |
+| `OCR_WORKERS` | metade dos núcleos (até 8) | Quantas páginas passam pelo OCR ao mesmo tempo, nas duas passadas e na verificação. Com `BASE_DPI` acima de 600 o padrão cai para 2 (memória). `1` = uma página por vez. |
 | `TESSERACT_PATH` | *(PATH do sistema)* | Caminho completo do executável `tesseract` caso ele não esteja no `PATH` (comum no Windows). |
 | `TESSERACT_LANG` | `por` | Idioma(s) do Tesseract, por exemplo `por+eng`. O traineddata precisa estar instalado. |
 | `TESSDATA_PREFIX` | *(padrão do Tesseract)* | Pasta com os `*.traineddata`. Lida pelo próprio Tesseract, não pelo código. No Debian/Ubuntu instale `tesseract-ocr-por`; a cópia de trabalho original mantinha uma pasta `tessdata/` de 16 MB, que não faz parte do repositório público. |

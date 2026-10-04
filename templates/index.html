@@ -136,7 +136,14 @@
         .page-wrapper { position:relative; box-shadow:var(--shadow-md); background:var(--white); min-height: 500px; width: fit-content; border:1px solid var(--border); }
         .page-img { display:block; max-width:100%; height:auto; user-select:none; -webkit-user-drag:none; background: var(--white); }
 
+        .task-time { font-size:12px; color:var(--slate); margin-top:4px; cursor:help; }
         .redaction-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+        /* Região que a verificação pediu para revisar (onde está o problema, não uma tarja) */
+        .review-mark { position:absolute; border:3px dashed var(--warning-strong); background:rgba(247,144,9,0.12); border-radius:4px; pointer-events:auto; z-index:3; cursor:help; }
+        .review-mark .review-mark-label { position:absolute; top:-22px; left:-3px; white-space:nowrap; font-size:12px; font-weight:700; line-height:18px; padding:0 6px; border-radius:4px; background:var(--warning-strong); color:var(--white); }
+        .review-mark.flash { animation: review-flash 0.9s ease-in-out 3; }
+        @keyframes review-flash { 0%, 100% { box-shadow: 0 0 0 0 rgba(247,144,9,0); } 50% { box-shadow: 0 0 0 10px rgba(247,144,9,0.45); } }
+        @media (prefers-reduced-motion: reduce) { .review-mark.flash { animation: none; outline: 4px solid var(--warning-strong); } }
         .redaction-box { position:absolute; background:rgba(11,18,32,0.45); border:2px solid var(--primary); pointer-events:auto; z-index:2; }
         .redaction-box.type-signature { border-color: var(--teal); background: rgba(20, 184, 166, 0.40); }
         .redaction-box.type-signature::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--teal-strong); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
@@ -385,6 +392,8 @@
                 'menu.pii': 'Dados pessoais (PII)', 'menu.sig': 'Assinatura (manual)', 'menu.cancel': 'Cancelar',
                 'zoom.in': 'Aumentar zoom', 'zoom.out': 'Diminuir zoom', 'nav.prev': 'Página anterior', 'nav.next': 'Próxima página',
                 'pending.region': 'Páginas pendentes de revisão', 'pending.title': 'Requer revisão', 'pending.only': 'Só páginas pendentes', 'pending.page': 'Pág',
+                'review.mark': 'Revisar aqui', 'ok.finished': 'Processamento concluído: resultado carregado.',
+                'warn.finished': 'O processamento terminou. Salve suas edições e reabra o documento para ver o resultado.',
                 'empty.title': 'Nenhum documento ainda', 'empty.sub': 'Adicione um PDF para iniciar a detecção.',
                 'step.detect.title': 'Detectar', 'step.detect.body': 'OCR, regras de validação e modelos locais sugerem possíveis CPFs, endereços e assinaturas.',
                 'step.review.title': 'Revisar', 'step.review.body': 'Cada sugestão aparece como uma região editável. Ajuste, mova ou remova antes de continuar.',
@@ -430,6 +439,8 @@
                 'menu.pii': 'Personal data (PII)', 'menu.sig': 'Signature (manual)', 'menu.cancel': 'Cancel',
                 'zoom.in': 'Zoom in', 'zoom.out': 'Zoom out', 'nav.prev': 'Previous page', 'nav.next': 'Next page',
                 'pending.region': 'Pages pending review', 'pending.title': 'Needs review', 'pending.only': 'Pending pages only', 'pending.page': 'Page',
+                'review.mark': 'Review here', 'ok.finished': 'Processing finished: result loaded.',
+                'warn.finished': 'Processing finished. Save your edits and reopen the document to see the result.',
                 'empty.title': 'No documents yet', 'empty.sub': 'Add a PDF to begin detection.',
                 'step.detect.title': 'Detect', 'step.detect.body': 'OCR, validation rules and local models suggest potential CPF numbers, addresses and signatures.',
                 'step.review.title': 'Review', 'step.review.body': 'Each suggestion appears as an editable region. Adjust, move or remove it before continuing.',
@@ -584,7 +595,37 @@
             const el = document.getElementById(`page-wrapper-${n}`);
             if (!el) return;
             if (el.style.display === 'none') { pendingOnly = false; applyPendingState(); updatePendingBar(true); }
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const marks = el.querySelectorAll('.review-mark');
+            // Com região conhecida, centraliza nela e pisca; senão, vai para o topo da página
+            (marks[0] || el).scrollIntoView({ behavior: 'smooth', block: marks.length ? 'center' : 'start' });
+            marks.forEach(m => { m.classList.remove('flash'); void m.offsetWidth; m.classList.add('flash'); });
+        }
+
+        // Regiões a revisar (task.review_marks): caixas relativas 0..1 desenhadas sobre a página
+        function renderReviewMarks() {
+            const task = currentTaskId ? tasks[currentTaskId] : null;
+            const marks = (task && Array.isArray(task.review_marks)) ? task.review_marks : [];
+            marks.forEach(m => {
+                const layer = document.getElementById(`layer-${parseInt(m.page, 10)}`);
+                const b = Array.isArray(m.box) ? m.box.map(Number) : [];
+                if (!layer || b.length !== 4 || b.some(v => !isFinite(v))) return;
+                const pad = 0.006;  // folga para o contorno não cobrir o texto
+                const el = document.createElement('div');
+                el.className = 'review-mark';
+                el.setAttribute('data-testid', 'review-mark');
+                el.setAttribute('role', 'note');
+                el.title = String(m.reason || '');
+                el.setAttribute('aria-label', `${t('review.mark')}: ${String(m.reason || '')}`);
+                el.style.left = (Math.max(0, b[0] - pad) * 100) + '%';
+                el.style.top = (Math.max(0, b[1] - pad) * 100) + '%';
+                el.style.width = (Math.min(1, b[2] + pad) - Math.max(0, b[0] - pad)) * 100 + '%';
+                el.style.height = (Math.min(1, b[3] + pad) - Math.max(0, b[1] - pad)) * 100 + '%';
+                const label = document.createElement('span');
+                label.className = 'review-mark-label';
+                label.textContent = `⚠ ${t('review.mark')}`;
+                el.appendChild(label);
+                layer.appendChild(el);
+            });
         }
 
         function togglePendingOnly(v) { pendingOnly = !!v; applyPendingState(); }
@@ -668,6 +709,17 @@
                     }
 
                     const dateStr = tk.created_at ? new Date(tk.created_at).toLocaleDateString(lang, {hour: '2-digit', minute:'2-digit'}) : '';
+                    // Tempo por etapa (desempenho): total no cartão, detalhe ao passar o mouse
+                    let timeHtml = '';
+                    if (isDone && tk.timings && typeof tk.timings === 'object') {
+                        const entries = Object.entries(tk.timings).filter(([, v]) => isFinite(Number(v)));
+                        const total = entries.reduce((acc, [, v]) => acc + Number(v), 0);
+                        if (entries.length) {
+                            const detail = entries.map(([k, v]) => `${k}: ${Number(v).toFixed(1)} s`).join('\n');
+                            const label = total >= 60 ? `${Math.floor(total / 60)} min ${Math.round(total % 60)} s` : `${total.toFixed(0)} s`;
+                            timeHtml = `<div class="task-time" title="${esc(detail)}" data-testid="task-time">⏱ ${esc(label)}</div>`;
+                        }
+                    }
 
                     let alertsHtml = '';
                     if (tk.alerts && tk.alerts.length > 0) {
@@ -691,6 +743,7 @@
                         <div class="task-meta"><span class="task-status">${esc(tk.status)} ${!isDone ? '('+esc(tk.percentage)+'%)' : ''}</span><span>${dateStr}</span></div>
                         ${badgeHtml}
                         ${completeHtml}
+                        ${timeHtml}
                         ${downloadHtml}
                     `;
                     // Só re-renderiza quando algo mudou (evita fechar o menu aberto a cada polling)
@@ -702,7 +755,27 @@
                 });
                 tasks = data;
                 updatePendingBar();
+                await refreshOpenDocumentIfFinished();
             } catch(e) { console.error('Erro ao atualizar tarefas:', e); }
+        }
+
+        // Documento aberto enquanto processava: ao terminar, carrega o resultado sem precisar recarregar a página.
+        // Com edições não salvas, só avisa (nunca descarta trabalho do revisor).
+        let openTaskWasDone = null;
+        let loadedRedactionsSig = '[]';
+        const taskDone = (tk) => !!(tk && (tk.completed || tk.error));
+        async function refreshOpenDocumentIfFinished() {
+            if (!currentTaskId) { openTaskWasDone = null; return; }
+            const tk = tasks[currentTaskId];
+            const done = taskDone(tk);
+            const finishedNow = openTaskWasDone === false && done;
+            openTaskWasDone = done;
+            if (!finishedNow) return;
+            if (JSON.stringify(redactions) !== loadedRedactionsSig) { toast(t('warn.finished')); return; }
+            await loadMetadata();
+            initDocumentView(tk.total || 1);
+            updatePendingBar(true);
+            toast(t('ok.finished'), true);
         }
 
         async function selectTask(id, name) {
@@ -719,6 +792,7 @@
 
             await fetchTasks();
             await loadMetadata();
+            openTaskWasDone = taskDone(tasks[currentTaskId]);
             initDocumentView((tasks[currentTaskId] && tasks[currentTaskId].total) || 1);
             updatePendingBar(true);
         }
@@ -811,6 +885,7 @@
                 const r = await fetch(`/metadata/${currentTaskId}`);
                 const data = await r.json();
                 redactions = data.redactions || [];
+                loadedRedactionsSig = JSON.stringify(redactions);
             } catch(e) { console.error("Erro ao carregar metadados:", e); }
         }
 
@@ -915,6 +990,7 @@
                 };
                 layer.appendChild(box);
             });
+            renderReviewMarks();
         }
 
         let activePageNum = null;
@@ -1038,6 +1114,7 @@
 
             loader.style.display = 'none';
             if(res.ok) {
+                loadedRedactionsSig = JSON.stringify(redactions);  // salvo: sem edições pendentes
                 const btn = document.getElementById('btn-save');
                 const originalHTML = btn.innerHTML;
                 btn.innerHTML = '<span></span>';

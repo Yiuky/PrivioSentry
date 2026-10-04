@@ -1,8 +1,31 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+import os
 import re
+import threading
 import pytesseract
 from PIL import Image
 from utils.validators import is_valid_cpf, is_valid_cnpj
+
+def ocr_workers(base_dpi=None, jobs=None):
+    """
+    Quantas páginas rodar no OCR ao mesmo tempo (OCR_WORKERS; padrão: metade dos núcleos, até 8).
+    Imagens muito grandes (BASE_DPI > 600) usam no máximo 2, para não estourar a memória.
+    """
+    try:
+        value = int(os.getenv("OCR_WORKERS", "0"))
+    except ValueError:
+        value = 0
+    if value <= 0:
+        value = max(1, min(8, (os.cpu_count() or 2) // 2))
+        if base_dpi and base_dpi > 600:
+            value = min(value, 2)
+    if jobs is not None:
+        value = min(value, max(1, jobs))
+    if value > 1:
+        # Vários Tesseracts ao mesmo tempo: cada um com 1 thread (evita disputa de núcleos; recomendação do Tesseract)
+        os.environ.setdefault("OMP_THREAD_LIMIT", "1")
+    return value
+
 
 class OCREngine:
     def __init__(self, tesseract_path, lang="por+eng", logger=None):
@@ -12,6 +35,8 @@ class OCREngine:
         # Quantas chamadas ao Tesseract falharam de vez (nas duas escalas). Quem chama compara o valor
         # antes/depois de uma página para falhar fechado: resultado vazio por erro != página sem CPF.
         self.failure_count = 0
+        self._failure_lock = threading.Lock()
+        self._local = threading.local()  # falhas da thread atual: com OCR em paralelo, cada página conta as suas
         if self.tesseract_path:
             pytesseract.pytesseract.tesseract_cmd = self.tesseract_path
 
@@ -44,10 +69,19 @@ class OCREngine:
                 img_safe = img.resize((int(w_orig * scale), int(h_orig * scale)), resample=Image.Resampling.LANCZOS)
                 return attempt_scan(img_safe, scale)
             except Exception as e2:
-                self.failure_count += 1
+                self._record_failure()
                 if self.logger:
                     self.logger.error(f"[!!] TESSERACT CRITICAL FAIL: {e2}")
                 return {"text": []} if method == "data" else ""
+
+    def _record_failure(self):
+        with self._failure_lock:
+            self.failure_count += 1
+        self._local.failures = getattr(self._local, "failures", 0) + 1
+
+    def thread_failures(self):
+        """Falhas do Tesseract registradas pela thread atual (compare antes/depois de uma página)."""
+        return getattr(self._local, "failures", 0)
 
     def image_to_data(self, img, psm=3):
         return self._run_tesseract_with_fallback(img, method="data", psm=psm)

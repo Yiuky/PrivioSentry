@@ -296,7 +296,7 @@ class Session:
 
         # Mesmo se não houver tarjas para aplicar (box_list vazio),
         # PROCESSAMOS a imagem (redimensionamento + conversão JPEG) para o PDF final
-        # para garantir que o arquivo final não contenha PNGs gigantes de 1000 DPI.
+        # para garantir que o arquivo final não contenha PNGs gigantes (renderização em alta resolução).
 
         if box_list:
             for b in box_list:
@@ -441,8 +441,8 @@ class Session:
                 for b in boxes:
                     src_w = b.get("source_width") or b.get("image_width")
                     if not src_w or src_w <= 0:
-                        # Assumimos que foi extraído nativamente na proporção do Tesseract (1000 DPI aprox.)
-                        src_w = pdf_w * (1000 / 72.0)
+                        # Sem a largura da imagem de origem: assume a resolução de renderização (BASE_DPI)
+                        src_w = pdf_w * (_env_int("BASE_DPI", 300, 72, 2400) / 72.0)
 
                     scale = pdf_w / float(src_w)
 

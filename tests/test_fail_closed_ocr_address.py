@@ -65,7 +65,7 @@ class FlakyOCR(OCREngine):
 
     def get_grounding_map(self, img_path, psm=3):
         if self.fail_when(os.path.basename(img_path)):
-            self.failure_count += 1
+            self._record_failure()
             return "", []
         return "[0] CPF: [1] " + CPF_A_FMT, [word(0, "CPF:", 0), word(1, CPF_A_FMT, 200, w=280)]
 

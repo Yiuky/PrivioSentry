@@ -63,15 +63,38 @@ class CpfMaskingFilter(logging.Filter):
         return True
 
 
+class ArgsMaskingFilter(logging.Filter):
+    """Mascara CPF e segredos DENTRO dos argumentos do registro, preservando a estrutura.
+
+    O formatador de acesso do uvicorn lê record.args como tupla (cliente, método, caminho, versão, status):
+    achatar a mensagem (como faz o CpfMaskingFilter) quebraria a formatação de cada requisição.
+    """
+
+    @staticmethod
+    def _clean(value):
+        return mask_secrets(mask_text(value)) if isinstance(value, str) else value
+
+    def filter(self, record):
+        if isinstance(record.msg, str):
+            record.msg = self._clean(record.msg)
+        if isinstance(record.args, tuple):
+            record.args = tuple(self._clean(a) for a in record.args)
+        elif isinstance(record.args, dict):
+            record.args = {k: self._clean(v) for k, v in record.args.items()}
+        return True
+
+
 def install_access_log_masking():
-    """Mascara CPF e segredos nos registros do uvicorn (acesso e erro), que têm handlers próprios.
+    """Mascara CPF e segredos nos registros do uvicorn (acesso e erro), que têm handlers e formatadores próprios.
 
     Filtro de LOGGER: vale para tudo o que esses loggers registram, mesmo com handlers criados depois.
     """
-    flt = CpfMaskingFilter()
+    flt = ArgsMaskingFilter()
     for name in ("uvicorn.access", "uvicorn.error"):
         lg = logging.getLogger(name)
-        if not any(isinstance(f, CpfMaskingFilter) for f in lg.filters):
+        for old in [f for f in lg.filters if isinstance(f, CpfMaskingFilter)]:
+            lg.removeFilter(old)
+        if not any(isinstance(f, ArgsMaskingFilter) for f in lg.filters):
             lg.addFilter(flt)
     return flt
 

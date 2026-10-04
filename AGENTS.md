@@ -78,7 +78,8 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
 - **README da interface.** O botão *Documentação* do editor mostra o `README.md` da raiz pelo renderizador
   local (`GET /readme`). Ele não interpreta HTML: as linhas HTML do topo aparecem como texto. Isso é
   proposital (ver `test_readme_renderer_is_local_and_escapes_html`); não troque por `innerHTML`.
-- **`BASE_DPI` padrão é 1000.** Ótimo para texto miúdo, caro em RAM e tempo. Os testes usam valores menores.
+- **`BASE_DPI` padrão é 300** (era 1000 até a 5.3.0). Medido: acima de 300 o Tesseract fragmenta os dígitos e a revocação de CPF cai (docs/benchmarks.md). Não suba o padrão sem rodar o benchmark.
+- **OCR em paralelo.** As páginas passam pelo OCR em threads (`ocr_workers`). Detecte falha do Tesseract com `OCREngine.thread_failures()` (por thread), nunca com o contador global, senão a falha de uma página é atribuída a outra. As duas passadas (padrão + esparsa) são mantidas de propósito.
 - **Artefatos com dados pessoais.** `output/`, `WEB_INPUT/`, `documentos_finais/` e `tasks.json` estão no
   `.gitignore` e nunca devem ser versionados.
 - **Licenças AGPL.** PyMuPDF e Ultralytics são AGPL-3.0; novas dependências precisam de justificativa e

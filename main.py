@@ -5,11 +5,12 @@ import os
 import sys
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
 from utils.transform_pdf_to_img import transform_pdf_to_img
 from utils.session import Session
-from utils.ocr_engine import OCREngine
+from utils.ocr_engine import OCREngine, ocr_workers
 from utils.yolo_engine import YOLOEngine
 from utils.address_redactor import AddressRedactor
 from utils.lexicon import is_immune
@@ -41,7 +42,8 @@ class SentryApp:
         self.address_redactor = AddressRedactor(self.session, self.logger)
         
         # 3. Armazenamento de Estado
-        self.base_dpi = int(os.getenv("BASE_DPI", "1000"))
+        # 300 DPI: melhor revocação E mais rápido nas medições (docs/benchmarks.md, 2026-10-04)
+        self.base_dpi = int(os.getenv("BASE_DPI", "300"))
         self.image_paths = [] 
         self.grounding_maps = []
         self.grounding_maps_sparse = []
@@ -55,11 +57,21 @@ class SentryApp:
         self.alerts = []
         # FALHAR FECHADO: páginas/itens que exigem revisão humana (page_num -> [motivos])
         self.review_pages = defaultdict(list)
+        self.review_marks = []  # regiões a revisar: {"page", "reason", "box": [x0, y0, x1, y1] relativos}
+        self.timings = {}  # segundos por etapa (para acompanhar o desempenho)
+        self.grounding_maps_native = []  # palavras do texto digital do PDF (passada extra de CPF), por página
 
-    def add_review(self, page_num, reason):
-        """Marca uma página como 'requer revisão' e registra o alerta (sem duplicar)."""
+    def add_review(self, page_num, reason, boxes=None):
+        """Marca uma página como 'requer revisão' e registra o alerta (sem duplicar).
+
+        boxes: regiões [x0, y0, x1, y1] relativas (0..1) na página, para o editor mostrar ONDE revisar.
+        """
         if reason not in self.review_pages[page_num]:
             self.review_pages[page_num].append(reason)
+        for box in boxes or []:
+            mark = {"page": page_num, "reason": mask_text(reason), "box": [round(float(v), 4) for v in box]}
+            if mark not in self.review_marks:
+                self.review_marks.append(mark)
         msg = mask_text(f"Pág {page_num}: {reason}")
         if msg not in self.alerts:
             self.alerts.append(msg)
@@ -73,6 +85,9 @@ class SentryApp:
             self.alerts.append(msg)
 
     def _ocr_failures(self):
+        """Falhas do Tesseract da thread atual (o OCR das páginas roda em paralelo)."""
+        if hasattr(self.ocr, "thread_failures"):
+            return self.ocr.thread_failures()
         return getattr(self.ocr, "failure_count", 0)
 
     @property
@@ -88,8 +103,11 @@ class SentryApp:
                 "completed": True,
                 "needs_review": True,
                 "alerts": self.alerts,
+                "review_marks": self.review_marks,
+                "timings": self.timings,
             }
-        return {"status": "Concluído", "percentage": 100, "completed": True, "needs_review": False, "alerts": self.alerts}
+        return {"status": "Concluído", "percentage": 100, "completed": True, "needs_review": False,
+                "alerts": self.alerts, "review_marks": self.review_marks, "timings": self.timings}
 
     def run(self, progress_callback=None, manual_redactions=None, native_mode=False):
         """Executa o pipeline completo com suporte a notificações de progresso."""
@@ -127,7 +145,10 @@ class SentryApp:
         
         for func, status, pct in phases:
             self.update_progress(status, pct)
+            started = time.time()
             func()
+            self.timings[status] = round(time.time() - started, 1)  # chave = nome legível da etapa
+            self.logger.info(f"[TEMPO] {status}: {self.timings[status]} s")
             
         final = self.final_state()
         self.update_progress(final["status"], 100)
@@ -153,6 +174,7 @@ class SentryApp:
                 "status": status,
                 "percentage": percentage,
                 "alerts": self.alerts,
+                "review_marks": self.review_marks,
                 "total": len(self.image_paths) if hasattr(self, 'image_paths') else 0,
                 "doc_out_dir": self.session.output_dir if self.session else None
             })
@@ -168,42 +190,66 @@ class SentryApp:
             self.logger.error(f"[FATAL] Erro na Fase 0: {e}")
             raise Exception(f"Erro na Fase 0: {e}")
     
-    def run_phase_1(self):
-        """Fase 1: OCR da página e exportação de resultados (Grounding Indexado)."""
-        self.logger.info("--- PHASE 1: OCR SCANNING (01_OCR_RESULTS) ---")
-        for i, img_path in enumerate(self.image_paths):
-            page_num = i + 1
-            self.logger.info(f"[*] OCR scanning page {page_num}/{len(self.image_paths)}...")
-            
-            # Cooperação: Cede tempo para os outros cores e para o loop do FastAPI
-            time.sleep(0.01)
-            
-            failures_before = self._ocr_failures()
-            # Extrai o mapa e o texto indexado
-            indexed_text, coordinate_map = self.ocr.get_grounding_map(img_path, psm=os.getenv("TESSERACT_STD_PSM", "3"))
-            
-            # Extrai scanner secundário para blocos dispersos (PSM 11)
-            sparse_psm = os.getenv("TESSERACT_SPARSE_PSM", "")
-            if sparse_psm:
-                self.logger.info(f"    -> Realizando varredura suplementar de dígitos (TESSERACT_SPARSE_PSM = {sparse_psm})...")
-                _, sparse_map = self.ocr.get_grounding_map(img_path, psm=sparse_psm)
-                self.grounding_maps_sparse.append(sparse_map)
-            else:
-                self.grounding_maps_sparse.append([])
-                
-            if self._ocr_failures() > failures_before:
-                # Resultado vazio por erro do Tesseract não pode virar "página sem CPF" (falha fechado)
-                self.add_review(page_num, "OCR (Tesseract) falhou nesta página: CPFs podem não ter sido detectados. Revisar manualmente.")
+    def _ocr_page(self, img_path):
+        """As DUAS passadas de OCR de uma página (padrão + esparsa). Roda em paralelo com outras páginas."""
+        failures_before = self._ocr_failures()
+        indexed_text, coordinate_map = self.ocr.get_grounding_map(img_path, psm=os.getenv("TESSERACT_STD_PSM", "3"))
+        sparse_map = []
+        sparse_psm = os.getenv("TESSERACT_SPARSE_PSM", "")
+        if sparse_psm:
+            _, sparse_map = self.ocr.get_grounding_map(img_path, psm=sparse_psm)
+        return indexed_text, coordinate_map, sparse_map, self._ocr_failures() > failures_before
 
-            # Armazena para fases posteriores
+    def run_phase_1(self):
+        """Fase 1: OCR (duas passadas por página, páginas em paralelo) + texto digital do PDF, se houver."""
+        self.logger.info("--- PHASE 1: OCR SCANNING (01_OCR_RESULTS) ---")
+        total = len(self.image_paths)
+        workers = ocr_workers(self.base_dpi, total)
+        sparse_psm = os.getenv("TESSERACT_SPARSE_PSM", "")
+        self.logger.info(f"[*] OCR de {total} página(s) com {workers} em paralelo"
+                         f"{' + varredura suplementar (PSM ' + sparse_psm + ')' if sparse_psm else ''}...")
+        results = [None] * total
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = {ex.submit(self._ocr_page, path): i for i, path in enumerate(self.image_paths)}
+            for done, future in enumerate(as_completed(futures), start=1):
+                results[futures[future]] = future.result()
+                if done % max(1, total // 10) == 0 or total < 10:
+                    self.update_progress(f"OCR: Pagina {done}/{total}", int(10 + (done / total * 30)))
+
+        for i, (indexed_text, coordinate_map, sparse_map, failed) in enumerate(results):
+            if failed:
+                # Resultado vazio por erro do Tesseract não pode virar "página sem CPF" (falha fechado)
+                self.add_review(i + 1, "OCR (Tesseract) falhou nesta página: CPFs podem não ter sido detectados. Revisar manualmente.")
             self.grounding_maps.append(coordinate_map)
             self.indexed_texts.append(indexed_text)
-            
-            # Reporta progresso a cada 10% ou a cada página se for PDF pequeno
-            if page_num % max(1, len(self.image_paths) // 10) == 0 or len(self.image_paths) < 10:
-                self.update_progress(f"OCR: Pagina {page_num}/{len(self.image_paths)}", int(10 + (page_num/len(self.image_paths)*30)))
+            self.grounding_maps_sparse.append(sparse_map)
 
+        self.grounding_maps_native = self._native_text_maps(total)
         self.logger.info("[+] Fase 1 concluída: Grounding e Visualizações exportados.")
+
+    def _native_text_maps(self, total):
+        """
+        Passada EXTRA: palavras do texto digital do PDF (quando existe), já na escala de pixels das imagens.
+        Não substitui o OCR; soma a ele (texto digital não tem erro de leitura).
+        """
+        from utils.verifier import _words_to_grounding
+        maps = [[] for _ in range(total)]
+        try:
+            import fitz
+            scale = self.base_dpi / 72.0
+            with fitz.open(self.session.pdf_path) as doc:
+                for i in range(min(total, len(doc))):
+                    grounding = _words_to_grounding(doc[i].get_text("words"))
+                    for w in grounding:
+                        b = w["box"]
+                        w["box"] = {"x": b["x"] * scale, "y": b["y"] * scale, "w": b["w"] * scale, "h": b["h"] * scale}
+                    maps[i] = grounding
+        except Exception as e:
+            self.logger.warning(f"[!] Texto digital do PDF não lido (segue só com o OCR): {e}")
+        n = sum(1 for m in maps if m)
+        if n:
+            self.logger.info(f"[*] Texto digital encontrado em {n} página(s): usado como passada extra de CPF.")
+        return maps
 
     def run_phase_2(self):
         """Fase 2: Descoberta de CPFs (OCR Standard + OCR Esparso)."""
@@ -224,12 +270,16 @@ class SentryApp:
                 self.cpf_redactions[page_num].extend(boxes)
                 all_found_cpfs.update(page_cpfs)
                 
-            # Passada 2 (Sparse PSM 11)
+            # Passada 2 (Sparse PSM 11) e passada 3 (texto digital do PDF, quando existe)
+            extra_maps = []
             if i < len(self.grounding_maps_sparse) and self.grounding_maps_sparse[i]:
-                sparse_map = self.grounding_maps_sparse[i]
-                cmd_map_s, cpfs_s = self.ocr.find_cpfs_in_grounding(sparse_map)
+                extra_maps.append(self.grounding_maps_sparse[i])
+            if i < len(self.grounding_maps_native) and self.grounding_maps_native[i]:
+                extra_maps.append(self.grounding_maps_native[i])
+            for extra_map in extra_maps:
+                cmd_map_s, cpfs_s = self.ocr.find_cpfs_in_grounding(extra_map)
                 if cmd_map_s:
-                    boxes_s = self.session.get_redaction_boxes(sparse_map, cmd_map_s)
+                    boxes_s = self.session.get_redaction_boxes(extra_map, cmd_map_s)
                     self.global_redactions[page_num].extend(boxes_s)
                     self.cpf_redactions[page_num].extend(boxes_s)
                     all_found_cpfs.update(cpfs_s)
@@ -286,6 +336,9 @@ class SentryApp:
     def run_address_discovery(self):
         """Fase de Endereços: Descoberta via AI Semântica (Visão)."""
         self.logger.info("--- INICIANDO ELEMENTO: ADDRESS REDACTOR (VISÃO) ---")
+        service = decisions.get_engine()
+        if service is not None:
+            service.preload()  # o decisor carrega o modelo enquanto o LLM analisa as páginas
         self.address_redactor.run_discovery(self.image_paths)
         for page_num, reason in self.address_redactor.failed_pages.items():
             self.add_review(page_num, f"IA não analisou endereços ({reason[:120]}). Revisar manualmente.")
@@ -313,16 +366,34 @@ class SentryApp:
             if is_personal and not llm_personal:
                 addr["type"] = "pessoal"
                 addr["decided_by"] = verdict.engine
+            word_boxes = self._address_word_boxes(page, addr["text"])
             if reason:
-                self.add_review(page, f"Endereços: {reason}. Revisar manualmente.")
+                self.add_review(page, f"Endereços: {reason}. Revisar manualmente.",
+                                self._relative_boxes(page, word_boxes))
             log.append({"page": page, "text": normalize_state(addr["text"]), "llm_type": addr.get("type_original"),
                         "final_type": addr["type"], "p_personal": verdict.p_personal, "mode": service.mode,
-                        "profile": verdict.profile_version, "word_boxes": self._address_word_boxes(page, addr["text"])})
+                        "profile": verdict.profile_version, "word_boxes": word_boxes})
         try:
             decision_feedback.write_decision_log(self.session.output_dir, log)
         except OSError as e:
             self.logger.warning(f"[decisions] não foi possível gravar decisions.json: {e}")
         self.logger.info(f"[decisions] {len(log)} endereço(s) avaliados pelo decisor local (modo {service.mode}).")
+
+    def _relative_boxes(self, page_num, boxes):
+        """[x, y, w, h] em pixels da imagem da página -> uma região [x0, y0, x1, y1] relativa que envolve todas."""
+        if not boxes or page_num > len(self.image_paths):
+            return []
+        try:
+            from PIL import Image
+            with Image.open(self.image_paths[page_num - 1]) as im:
+                width, height = im.size
+        except Exception:
+            return []
+        x0 = min(b[0] for b in boxes)
+        y0 = min(b[1] for b in boxes)
+        x1 = max(b[0] + b[2] for b in boxes)
+        y1 = max(b[1] + b[3] for b in boxes)
+        return [[x0 / width, y0 / height, x1 / width, y1 / height]]
 
     def _address_word_boxes(self, page_num, text):
         """Caixas [x, y, w, h] das palavras do endereço na página (para aprender com a revisão)."""
@@ -649,6 +720,7 @@ class SentryApp:
             raise RuntimeError(f"PDF final não encontrado para verificação: {final_pdf}")
 
         use_ocr = os.getenv("VERIFY_OCR", "1") == "1"
+        found_at = {}
         leftovers, unverified = verify_pdf(
             final_pdf,
             ocr_engine=self.ocr,
@@ -658,10 +730,11 @@ class SentryApp:
             logger=self.logger,
             progress=lambda done, total: self.update_progress(
                 f"Verificação pós-tarja: {done}/{total}", 98),
+            locations=found_at,
         )
         for page_num, cpfs in leftovers.items():
             self.logger.error(f"[!!!] CPF AINDA VISÍVEL na pág {page_num} do PDF final ({len(cpfs)} ocorrência(s)).")
-            self.add_review(page_num, f"{len(cpfs)} CPF(s) ainda detectável(is) no PDF final")
+            self.add_review(page_num, f"{len(cpfs)} CPF(s) ainda detectável(is) no PDF final", found_at.get(page_num))
         for page_num in unverified:
             self.add_review(page_num, "página sem texto e não verificada por OCR")
 
@@ -669,6 +742,7 @@ class SentryApp:
             # Cobertura: OCR independente do ORIGINAL (outra resolução) vs. tarjas decididas.
             # Pega CPFs que a detecção principal leu errado e que o PDF final (baixa resolução) não revela.
             from utils.verifier import find_uncovered_cpfs
+            uncovered_at = {}
             uncovered, failed = find_uncovered_cpfs(
                 self.session.pdf_path, self.global_redactions, self.ocr,
                 base_dpi=self.base_dpi,
@@ -677,10 +751,11 @@ class SentryApp:
                 logger=self.logger,
                 progress=lambda done, total: self.update_progress(
                     f"Verificação de cobertura: {done}/{total}", 98),
+                locations=uncovered_at,
             )
             for page_num, cpfs in uncovered.items():
                 self.logger.error(f"[!!!] CPF no ORIGINAL sem tarja correspondente na pág {page_num} ({len(cpfs)} distinto(s)).")
-                self.add_review(page_num, "CPF detectado no original sem tarja correspondente")
+                self.add_review(page_num, "CPF detectado no original sem tarja correspondente", uncovered_at.get(page_num))
             for page_num in failed:
                 self.add_review(page_num, "verificação de cobertura por OCR falhou")
         self.logger.info(f"[+] Verificação concluída: {len(leftovers)} página(s) reprovada(s), {len(unverified)} não verificada(s).")

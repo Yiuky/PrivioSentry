@@ -6,6 +6,7 @@ import pytest
 from PIL import Image
 
 from sentry_testkit import CPF_A, CPF_A_FMT, CPF_B, make_text_pdf
+import utils.transform_pdf_to_img as transform_module
 from utils.transform_pdf_to_img import transform_pdf_to_img
 from utils.validators import is_valid_cnpj, is_valid_cpf
 
@@ -82,15 +83,15 @@ def test_transform_corrupt_pdf_raises(tmp_path):
 def test_transform_retries_locked_output_then_succeeds(tmp_path, monkeypatch):
     pdf = make_text_pdf(tmp_path / "a.pdf")
     calls = {"n": 0}
-    real_save = fitz.Pixmap.save
+    real_save = transform_module._save_png
 
-    def flaky(self, filename, *a, **k):
+    def flaky(pix, filename):
         calls["n"] += 1
         if calls["n"] < 3:
             raise OSError("arquivo travado")
-        return real_save(self, filename, *a, **k)
+        return real_save(pix, filename)
 
-    monkeypatch.setattr(fitz.Pixmap, "save", flaky)
+    monkeypatch.setattr(transform_module, "_save_png", flaky)
     monkeypatch.setattr("time.sleep", lambda s: None)
     paths = transform_pdf_to_img(pdf, str(tmp_path / "o"), dpi=36)
     assert calls["n"] == 3 and os.path.exists(paths[0])
@@ -98,7 +99,7 @@ def test_transform_retries_locked_output_then_succeeds(tmp_path, monkeypatch):
 
 def test_transform_gives_up_after_three_failed_saves(tmp_path, monkeypatch):
     pdf = make_text_pdf(tmp_path / "a.pdf")
-    monkeypatch.setattr(fitz.Pixmap, "save", lambda *a, **k: (_ for _ in ()).throw(OSError("travado")))
+    monkeypatch.setattr(transform_module, "_save_png", lambda *a, **k: (_ for _ in ()).throw(OSError("travado")))
     monkeypatch.setattr("time.sleep", lambda s: None)
     with pytest.raises(OSError):
         transform_pdf_to_img(pdf, str(tmp_path / "o"), dpi=36)

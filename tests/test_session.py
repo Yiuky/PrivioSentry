@@ -260,9 +260,10 @@ def test_native_redaction_uses_image_width_and_default_scale(session, tmp_path):
         assert "pagina 2" in d[1].get_text()
 
 
-def test_native_redaction_default_assumption_is_1000_dpi(session):
-    """Sem source/image_width: assume imagem a 1000 DPI -> caixa gigante em pixels vira pequena em pontos."""
-    box = {"x": 1000, "y": 1250, "w": 800, "h": 300}  # ~72..130pt x 90..112pt
+def test_native_redaction_default_assumption_is_base_dpi(session, monkeypatch):
+    """Sem source/image_width: assume a resolução de renderização (BASE_DPI) para converter pixels em pontos."""
+    monkeypatch.setenv("BASE_DPI", "1000")
+    box = {"x": 1000, "y": 1250, "w": 800, "h": 300}  # a 1000 DPI: ~72..130pt x 90..112pt
     out = session.apply_native_pdf_redactions({1: [box]})
     with fitz.open(out) as d:
         assert "pagina 1" not in d[0].get_text()
@@ -284,3 +285,11 @@ def test_no_cpf_text_artifacts_after_basic_usage(session, tmp_path):
     session.save_ai_interaction("f", "p", CPF_A_FMT, CPF_A, {"m": CPF_A})
     for path in text_files_under(session.output_dir):
         assert not FULL_CPF_RE.search(open(path, encoding="utf-8").read()), path
+
+
+def test_native_redaction_default_assumption_follows_new_300_dpi_default(session, monkeypatch):
+    monkeypatch.delenv("BASE_DPI", raising=False)
+    box = {"x": 300, "y": 375, "w": 240, "h": 90}  # a 300 DPI: os mesmos ~72..130pt x 90..112pt
+    out = session.apply_native_pdf_redactions({1: [box]})
+    with fitz.open(out) as d:
+        assert "pagina 1" not in d[0].get_text()

@@ -102,7 +102,7 @@ em [threat-model-lgpd.md](threat-model-lgpd.md) e [brand/LGPD_PRODUCT_POSITIONIN
 | Python | **3.10 a 3.12** |
 | Tesseract OCR | 5.x com o idioma português (`por`) |
 | Ollama | Servidor local com um modelo multimodal (visão) já baixado |
-| Hardware | RAM/VRAM compatível com o modelo escolhido; o `BASE_DPI` padrão (1000) é alto e consome bastante memória |
+| Hardware | RAM/VRAM compatível com o modelo escolhido; o OCR usa vários núcleos da CPU em paralelo (`OCR_WORKERS`) |
 | Detector de assinaturas | `models/signature_stamp_detector.pt` (já incluído no repositório) |
 
 ### 2.2 Windows
@@ -237,7 +237,7 @@ Todas as configurações são **variáveis de ambiente**, normalmente no arquivo
 | `TESSERACT_LANG` | `por` | Idioma(s) do OCR, por exemplo `por+eng` (o *traineddata* precisa estar instalado) |
 | `OLLAMA_API_URL` | `http://localhost:11434` | Endereço do servidor Ollama |
 | `OLLAMA_MODEL` / `OLLAMA_VISION_MODEL` | `llama3` / `gemma4:e4b` | Modelos de texto e de visão |
-| `BASE_DPI` | `1000` | DPI de renderização das páginas (qualidade × memória × tempo) |
+| `BASE_DPI` | `300` | DPI de renderização das páginas. 300 teve a melhor revocação e o menor tempo nas medições |
 | `VERIFY_OCR` | `1` | Liga a verificação pós-tarja por OCR (recomendado manter `1`) |
 | `VERIFY_DPI` | `300` | DPI do OCR de verificação |
 | `APP_HOST` / `APP_PORT` | `127.0.0.1` / `8001` | Endereço e porta da aplicação web |
@@ -779,7 +779,8 @@ Sem o token correto, as rotas respondem `401` com "Não autorizado".
 
 **Sinais:** status `Erro: Erro na Fase 0: ...`; máquina travando; PDFs longos levando horas.
 
-- Reduza `BASE_DPI` (padrão 1000) para algo entre `300` e `600` ([seção 3.2](#32-perfis-sugeridos-de-desempenho)).
+- Confira se `BASE_DPI` está em `300` (o padrão). Valores altos deixam tudo mais lento e, nas medições, pioraram a detecção ([seção 3.2](#32-perfis-sugeridos-de-desempenho)).
+- Ajuste `OCR_WORKERS` ao número de núcleos livres.
 - Mantenha `TESSERACT_SPARSE_PSM` vazio (padrão), pois a segunda passada de OCR custa tempo.
 - `VERIFY_DPI` alto deixa a verificação mais lenta.
 - Evite processar muitos PDFs grandes ao mesmo tempo: cada tarefa roda num processo próprio.

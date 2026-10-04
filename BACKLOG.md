@@ -21,7 +21,7 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
 |---|---|---|
 | 🔴 P0 | 0 | Proteger o serviço local contra outros sites no mesmo navegador e o token de acesso |
 | 🟠 P1 | 13 | Falhar fechado em mais situações (OCR, respostas da IA, tarjas manuais, rotação) |
-| 🟡 P2 | 11 | Robustez dos processos, limites de recursos, Docker e editor |
+| 🟡 P2 | 10 | Robustez dos processos, limites de recursos, Docker e editor |
 | 🔵 P3 | 5 | Limpeza de código, lint e marca |
 | 🧠 Roteiro | 9 | Detecção configurável (nomes, telefones, RG...), GLiNER e decisor Laya que aprende (B-71 a B-79) |
 | 🔭 Visão | 5 | Auditoria, políticas e novos módulos SENTRY |
@@ -97,7 +97,6 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 | B-65 | **Expor na interface a remoção das imagens originais** (`POST /purge/{id}`), hoje só pela API | `app_service.py:420-429` |
 | B-10 | Tarja nativa: remover ou sinalizar metadados, anexos, anotações, campos de formulário e camadas ocultas que sobrevivem à tarja | [docs/limitations.md](docs/limitations.md) (Saída) |
 | B-11 | Aviso na interface quando `OLLAMA_API_URL` não aponta para `localhost` | [docs/limitations.md](docs/limitations.md) (Plataforma) |
-| B-12 | Desempenho em PDFs grandes (centenas de páginas): perfis de DPI, paralelismo do OCR fora do `AI_LOCK` | [docs/limitations.md](docs/limitations.md) (Desempenho) |
 | B-59 | Publicar a imagem Docker (GHCR) na Release, respeitando a ressalva de licenciamento | [docs/licensing.md](docs/licensing.md), `.github/workflows/release.yml` |
 
 ## 🔵 P3 · Refatoração e manutenção
@@ -126,6 +125,8 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 
 | ID | Item | Versão | Teste |
 |---|---|---|---|
+| B-12 | Desempenho: `BASE_DPI` 300 (medido: melhor revocação e mais rápido), OCR das páginas em paralelo nas duas passadas e na verificação, pré-carga do Laya, PNG leve. Documento real de 10 páginas: ~14 min → ~3 min | não publicado | `tests/test_performance.py`, `docs/benchmarks.md` |
+| B-67 | Regiões a revisar desenhadas na página (alerta com posição) e documento aberto que se atualiza ao terminar o processamento | não publicado | `tests/test_review_marks.py`, `tests/ui/test_ui_review_marks.py` |
 | B-41 | Token na URL só abre a sessão (redireciona sem o token); cookie de sessão aleatório (`HttpOnly`, `SameSite=Strict`, `Secure` com HTTPS) no lugar do token cru; `token=` mascarado nos registros (`utils/auth.py`) | 5.3.0 | `tests/test_auth.py`, `tests/test_service_endpoints.py` |
 | B-42 | Painel do gatekeeper exige `API_TOKEN` quando definido; `kill_port_owner` só encerra um `app_service.py` órfão e não usa shell | 5.3.0 | `tests/test_auth.py`, `tests/test_gatekeeper.py` |
 | B-52 | Saída do app herdada pelo gatekeeper (o PIPE nunca lido travava o app) | 5.3.0 | `gatekeeper.py` |

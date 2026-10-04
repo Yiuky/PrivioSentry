@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from utils.auth import TokenAuth  # noqa: E402
-from utils.pii import CpfMaskingFilter, install_access_log_masking, mask_secrets  # noqa: E402
+from utils.pii import ArgsMaskingFilter, CpfMaskingFilter, install_access_log_masking, mask_secrets  # noqa: E402
 
 
 def _app(token="segredo"):
@@ -81,10 +81,22 @@ def test_mask_secrets_and_access_log_filter():
     assert mask_secrets("GET /tasks?token=abc&x=1") == "GET /tasks?token=***&x=1"
     assert mask_secrets("?API_TOKEN=z") == "?API_TOKEN=***"
     install_access_log_masking()
-    assert any(isinstance(f, CpfMaskingFilter) for f in logging.getLogger("uvicorn.access").filters)
+    filters = logging.getLogger("uvicorn.access").filters
+    assert any(isinstance(f, ArgsMaskingFilter) for f in filters)
+    assert not any(isinstance(f, CpfMaskingFilter) for f in filters)
     record = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 1, '%s "GET %s"', ("127.0.0.1", "/?token=s3"), None)
-    CpfMaskingFilter().filter(record)
+    ArgsMaskingFilter().filter(record)
     assert "s3" not in record.getMessage() and "token=***" in record.getMessage()
+
+
+def test_uvicorn_access_formatter_still_works_with_masking():
+    # Regressão da 5.3.0: o filtro achatava record.args e o AccessFormatter do uvicorn quebrava a cada requisição
+    from uvicorn.logging import AccessFormatter
+    record = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 1, '%s - "%s %s HTTP/%s" %d',
+                               ("127.0.0.1:5000", "GET", "/tasks?token=s3cr3t", "1.1", 200), None)
+    ArgsMaskingFilter().filter(record)
+    line = AccessFormatter('%(client_addr)s - "%(request_line)s" %(status_code)s', use_colors=False).format(record)
+    assert "s3cr3t" not in line and "token=***" in line and "200" in line
 
 
 def test_gatekeeper_panel_requires_token_when_set(monkeypatch, tmp_path):

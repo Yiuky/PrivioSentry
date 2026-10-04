@@ -374,6 +374,7 @@ def reset_task_state(task, status):
     task["error"] = False
     task["needs_review"] = False
     task["alerts"] = []
+    task["review_marks"] = []
     task.pop("purged", None)  # reprocessar regenera as imagens
 
 @app.post("/reprocess/{task_id}")

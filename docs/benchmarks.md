@@ -76,7 +76,7 @@ A verificação novamente encontrou **20/20 vazamentos com 0/10 páginas limpas 
 
 * Neste corpus sintético, **300 DPI foi a melhor configuração de detecção**; 200 DPI foi quase tão bom e ~40 % mais rápido.
   A revocação **caiu a 400 e especialmente a 600 DPI**: o Tesseract fragmenta os dígitos em tokens pequenos em tamanhos
-  de renderização grandes, o que torna mais difícil juntar as sequências de dígitos em um único CPF. O padrão do projeto `BASE_DPI=1000` **não
+  de renderização grandes, o que torna mais difícil juntar as sequências de dígitos em um único CPF. O padrão antigo do projeto, `BASE_DPI=1000`, **não
   foi medido** (uma única página A4 leva minutos); com base nessas evidências, ele está fora da faixa em que as digitalizações sintéticas
   se comportam melhor. Isso pode ser diferente para digitalizações reais, então meça com seus próprios dados (permitidos) antes de alterar o padrão.
 * `psm` 3, 6 e 11 deram a mesma revocação em texto sintético limpo; diferenças só apareceriam em layouts mais bagunçados.
@@ -88,3 +88,37 @@ A verificação novamente encontrou **20/20 vazamentos com 0/10 páginas limpas 
   qualidade da correspondência de endereços (veja `tests/test_address_matching.py` para a caracterização de tarja excessiva/insuficiente),
   PDFs com camada de texto nativa (esses são verificados por extração exata de texto, não por OCR).
 * Os tamanhos de amostra são pequenos (30 CPFs): um único erro move a revocação em 3,3 pontos. Use os arquivos JSON para o detalhe por página.
+
+## Rodada de 2026-10-04: DPI de renderização (300 × 600 × 1000)
+
+Motivação: o padrão `BASE_DPI=1000` deixava um documento real de 10 páginas em ~14 minutos (61% do tempo no OCR).
+
+### Sintético (`--pages 8 --dpis 300 600 1000 --psms 3 11 --workers 6 --seed 7 --noise 12`, 24 CPFs)
+
+| DPI | psm | revocação de CPF | precisão | cobertura de caixas | s/página |
+|---:|---:|---:|---:|---:|---:|
+| 300 | 3 | 100,0% | 100,0% | 100,0% | 7,1 |
+| 300 | 11 | 100,0% | 100,0% | 100,0% | 8,0 |
+| 600 | 3 | 62,5% | 88,2% | 33,3% | 22,5 |
+| 600 | 11 | 58,3% | 93,3% | 25,0% | 22,0 |
+| 1000 | 3 | 58,3% | 93,3% | 29,2% | 21,0 |
+| 1000 | 11 | 62,5% | 100,0% | 33,3% | 19,5 |
+
+Verificação (PDF final 1240 px): vazamentos encontrados 16/16 a 300 DPI, 14/16 a 600, 11 a 13/16 a 1000; nenhuma página
+limpa sinalizada em nenhuma configuração.
+
+### Documento real (10 páginas digitalizadas, só contagens; OCR duplo sequencial)
+
+| DPI | renderização | OCR duplo | CPFs distintos |
+|---:|---:|---:|---:|
+| 300 | 16 s | 101 s | 6 |
+| 400 | 28 s | 154 s | 6 |
+| 600 | 45 s | 245 s | 5 |
+| 1000 | 82 s | ~510 s | 5 |
+
+A 300 DPI, os 5 CPFs achados a 1000 DPI foram todos encontrados. O sexto veio da passada esparsa, montado com 4 pedaços
+de duas linhas, sem CPF inteiro numa palavra: provável falso positivo (vira tarja sugerida a mais, que o revisor remove).
+
+**Decisão:** padrão `BASE_DPI=300`. Somado ao OCR das páginas em paralelo (`OCR_WORKERS`), o OCR deve ficar perto de
+10× mais rápido. As duas passadas de OCR (padrão + esparsa) foram mantidas de propósito: cada leitura a mais pode achar
+um CPF que a outra perdeu.

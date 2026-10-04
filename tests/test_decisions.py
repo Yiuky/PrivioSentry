@@ -265,3 +265,30 @@ def test_pipeline_shadow_changes_nothing_but_logs(app, monkeypatch):
 def test_pipeline_without_engine_is_a_noop(app):
     app.apply_address_decisions()
     assert not os.path.exists(os.path.join(app.session.output_dir, "decisions.json"))
+
+
+def test_preload_loads_model_once_even_when_racing_with_use(monkeypatch):
+    import sys
+    import threading
+    import time
+    import types
+    from utils.decisions.engine import LayaEngine
+
+    loads = []
+
+    def slow_load(*a, **k):
+        loads.append(threading.current_thread().name)
+        time.sleep(0.2)
+        return types.SimpleNamespace(predict_batch=lambda states, q: [
+            {"answers": {qid: {"noul": 0.9} for qid in q}} for _ in states])
+
+    monkeypatch.setitem(sys.modules, "laya", types.SimpleNamespace(load=slow_load))
+    engine = LayaEngine(model_id="convaiinnovations/laya-multilingual")
+    thread = DecisionService(engine).preload()          # começa a carregar em segundo plano
+    feats = engine.features(["Rua A, casa 1"])           # uso concorrente: espera a mesma carga
+    thread.join()
+    assert len(loads) == 1 and len(feats[0]) == len(FEATURE_IDS)
+
+
+def test_preload_is_optional_for_engines_without_it():
+    assert DecisionService(KeywordEngine()).preload() is None

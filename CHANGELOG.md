@@ -5,6 +5,23 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Alterado
+- **Mais rápido e mais preciso:** um documento real digitalizado de 10 páginas caiu de **~14 min para ~3 min** (OCR de ~510 s para ~19 s).
+  - **`BASE_DPI` padrão: 1000 → 300.** Medido (`docs/benchmarks.md`): a 300 DPI a revocação de CPF foi de 100% contra ~60% a 1000 DPI (o Tesseract quebra os dígitos em pedaços em imagens grandes), e a verificação achou 16/16 vazamentos contra 11–13/16. No documento real, os CPFs achados a 1000 DPI foram todos achados a 300 DPI. **Atenção:** quem define `BASE_DPI` no `.env` deve revisar o valor (e `YOLO_CROP_PADDING`, que é em pixels).
+  - **OCR das páginas em paralelo** (nova variável `OCR_WORKERS`; padrão: metade dos núcleos, até 8), nas duas passadas e na verificação pós-tarja. A detecção de falha do Tesseract continua por página (contador por thread). **As duas passadas de OCR (padrão + esparsa) foram mantidas.**
+  - O decisor Laya carrega o modelo **em paralelo** com a análise de endereços do LLM.
+  - Imagens das páginas gravadas com compressão PNG leve.
+
+### Adicionado
+- **Onde revisar:** cada alerta com posição conhecida (CPF ainda detectável, CPF sem tarja, dúvida do decisor sobre endereço) marca a **região na página** com um contorno tracejado laranja ("⚠ Revisar aqui"); clicar no alerta da barra leva até a região e a destaca.
+- **Documento aberto se atualiza sozinho** quando o processamento termina (sem recarregar a página); com edições não salvas, só avisa, nunca descarta.
+- **Texto digital do PDF como passada extra** de CPF, somada ao OCR, quando o PDF tem camada de texto.
+- **Tempo por etapa** registrado na tarefa e mostrado no cartão (total; detalhe ao passar o mouse).
+
+### Corrigido
+- O filtro que mascara `token=` nos registros quebrava o formatador de acesso do uvicorn (um *traceback* por requisição no console; as requisições funcionavam). Agora mascara dentro dos argumentos, preservando o formato.
+- A tarja nativa sem a largura da imagem de origem supunha 1000 DPI fixo; agora usa `BASE_DPI`.
+
 ## [5.3.0] - 2026-10-04
 
 Decisor local que aprende (experimental, desligado por padrão) e uma rodada completa de segurança: os dois

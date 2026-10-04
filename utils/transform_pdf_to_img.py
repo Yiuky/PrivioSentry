@@ -2,7 +2,15 @@
 import fitz  # PyMuPDF
 import os
 
-def transform_pdf_to_img(pdf_path, output_folder, dpi=1000):
+def _save_png(pix, output_path):
+    """PNG com compressão leve: com páginas de dezenas de megapixels, a compressão padrão gasta muito tempo."""
+    try:
+        pix.pil_save(output_path, format="PNG", compress_level=1)
+    except (AttributeError, ImportError, TypeError):  # PyMuPDF/Pillow sem pil_save: gravação padrão
+        pix.save(output_path)
+
+
+def transform_pdf_to_img(pdf_path, output_folder, dpi=300):
     """
     Transforms each page of a PDF into an image.
     
@@ -47,7 +55,7 @@ def transform_pdf_to_img(pdf_path, output_folder, dpi=1000):
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                pix.save(output_path)
+                _save_png(pix, output_path)
                 # Liberação explícita de memória para evitar picos de RAM
                 pix = None
                 break
