@@ -1,8 +1,30 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import os
 import json
+import unicodedata
 from utils.ai_client import OllamaClient
 from utils.lexicon import is_immune
+
+# Rótulos que o LLM costuma usar. Tudo é comparado sem acento, sem caixa e sem espaços nas pontas.
+PERSONAL_TYPES = {"pessoal", "residencial", "residencia", "domicilio", "domiciliar", "particular", "moradia",
+                  "personal", "residential", "home"}
+NON_PERSONAL_TYPES = {"profissional", "comercial", "empresarial", "institucional", "trabalho", "secundario",
+                      "obra", "empreendimento", "professional", "business", "secondary", "work"}
+
+
+def _normalize_label(value):
+    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii")
+    return " ".join(text.lower().split())
+
+
+def classify_address_type(value):
+    """'pessoal', 'nao_pessoal' ou 'desconhecido' para o rótulo de tipo devolvido pelo LLM."""
+    label = _normalize_label(value)
+    if label in PERSONAL_TYPES:
+        return "pessoal"
+    if label in NON_PERSONAL_TYPES:
+        return "nao_pessoal"
+    return "desconhecido"
 
 class AddressRedactor:
     def __init__(self, session, logger):
@@ -11,6 +33,7 @@ class AddressRedactor:
         self.ai = OllamaClient()
         self.results = {}
         self.failed_pages = {}  # page_num -> motivo; páginas sem análise de endereço (revisão obrigatória)
+        self.review_notes = {}  # page_num -> motivo; análise feita, mas com classificação incerta (revisão)
 
     def run_discovery(self, image_paths):
         """
@@ -61,8 +84,14 @@ class AddressRedactor:
                 self.failed_pages[page_num] = str(reason)
                 continue
 
-            # Salva os resultados desta página
-            self.results[page_num] = response.get("addresses", [])
+            addresses = response.get("addresses")
+            if not isinstance(addresses, list):
+                self.logger.error(f"[!] Resposta da IA sem a lista 'addresses' na página {page_num}.")
+                self.failed_pages[page_num] = "Resposta da IA sem a lista de endereços"
+                continue
+
+            # Salva os resultados desta página, com o tipo normalizado
+            self.results[page_num] = self._normalize_types(page_num, addresses)
             
             # Exporta o JSON de descoberta na pasta da sessão
             output_json = os.path.join(self.session.dirs["07_addresses_ia"], f"page_{page_num}_addresses.json")
@@ -72,6 +101,36 @@ class AddressRedactor:
             self.logger.info(f"[+] {len(self.results[page_num])} endereços encontrados na página {page_num}.")
 
         return self.results
+
+    def _normalize_types(self, page_num, addresses):
+        """
+        Normaliza o tipo de cada endereço para que o filtro "pessoal" não dependa da grafia do LLM
+        ("Pessoal", "residencial "...). Tipo desconhecido é tratado como pessoal (tarja conservadora) e a
+        página vai para revisão. Itens fora do formato também mandam a página para revisão.
+        """
+        normalized, unknown, malformed = [], [], 0
+        for item in addresses:
+            if not isinstance(item, dict) or not str(item.get("text") or "").strip():
+                malformed += 1
+                continue
+            item = dict(item)
+            raw = item.get("type")
+            kind = classify_address_type(raw)
+            if kind == "desconhecido":
+                unknown.append(str(raw))
+                kind = "pessoal"
+            item["type_original"] = raw
+            item["type"] = "pessoal" if kind == "pessoal" else _normalize_label(raw)
+            normalized.append(item)
+        reasons = []
+        if unknown:
+            reasons.append(f"tipo de endereço não reconhecido ({', '.join(sorted(set(unknown)))[:80]}), tarjado como pessoal")
+        if malformed:
+            reasons.append(f"{malformed} item(ns) da IA fora do formato")
+        if reasons:
+            self.logger.warning(f"[!] Página {page_num}: {'; '.join(reasons)}.")
+            self.review_notes[page_num] = "; ".join(reasons)
+        return normalized
 
     def refine_redaction_with_text_ai(self, page_num, indexed_text, discovered_addresses, coordinate_map=None):
         """

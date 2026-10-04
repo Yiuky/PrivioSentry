@@ -61,6 +61,17 @@ class SentryApp:
         if msg not in self.alerts:
             self.alerts.append(msg)
 
+    def add_document_review(self, reason):
+        """Alerta que vale para o documento inteiro (sem página): também exige revisão."""
+        if reason not in self.review_pages[0]:
+            self.review_pages[0].append(reason)
+        msg = mask_text(reason)
+        if msg not in self.alerts:
+            self.alerts.append(msg)
+
+    def _ocr_failures(self):
+        return getattr(self.ocr, "failure_count", 0)
+
     @property
     def needs_review(self):
         return bool(self.review_pages)
@@ -162,6 +173,7 @@ class SentryApp:
             # Cooperação: Cede tempo para os outros cores e para o loop do FastAPI
             time.sleep(0.01)
             
+            failures_before = self._ocr_failures()
             # Extrai o mapa e o texto indexado
             indexed_text, coordinate_map = self.ocr.get_grounding_map(img_path, psm=os.getenv("TESSERACT_STD_PSM", "3"))
             
@@ -174,6 +186,10 @@ class SentryApp:
             else:
                 self.grounding_maps_sparse.append([])
                 
+            if self._ocr_failures() > failures_before:
+                # Resultado vazio por erro do Tesseract não pode virar "página sem CPF" (falha fechado)
+                self.add_review(page_num, "OCR (Tesseract) falhou nesta página: CPFs podem não ter sido detectados. Revisar manualmente.")
+
             # Armazena para fases posteriores
             self.grounding_maps.append(coordinate_map)
             self.indexed_texts.append(indexed_text)
@@ -223,9 +239,8 @@ class SentryApp:
         self.yolo = YOLOEngine(model_path=os.getenv("YOLO_MODEL_PATH"), logger=self.logger)
         if not self.yolo.model:
             # Degrada com aviso (não bloqueia), mas registra: assinaturas não foram detectadas visualmente.
-            msg = "Modelo YOLO ausente: assinaturas não foram detectadas visualmente (revisar assinaturas manualmente)."
-            if msg not in self.alerts:
-                self.alerts.append(msg)
+            # Sem detector, nenhuma assinatura foi auditada: falha fechado (o documento exige revisão).
+            self.add_document_review("Modelo YOLO ausente: assinaturas não foram detectadas visualmente (revisar assinaturas manualmente).")
             return
         self.all_crops_metadata = []
         for i, img_path in enumerate(self.image_paths):
@@ -243,7 +258,10 @@ class SentryApp:
         if not hasattr(self, 'all_crops_metadata') or not self.all_crops_metadata: return
 
         for crop in self.all_crops_metadata:
+            failures_before = self._ocr_failures()
             _, grounding_map = self.ocr.get_grounding_map(crop["path"], psm=os.getenv("TESSERACT_CROP_PSM", "6"))
+            if self._ocr_failures() > failures_before:
+                self.add_review(crop["page_num"], "OCR falhou num recorte de assinatura. Revisar a assinatura manualmente.")
             redaction_commands, found_cpfs = self.ocr.find_cpfs_in_grounding(grounding_map)
             
             audit_boxes = self.session.get_redaction_boxes(grounding_map, redaction_commands)
@@ -265,6 +283,8 @@ class SentryApp:
         self.address_redactor.run_discovery(self.image_paths)
         for page_num, reason in self.address_redactor.failed_pages.items():
             self.add_review(page_num, f"IA não analisou endereços ({reason[:120]}). Revisar manualmente.")
+        for page_num, reason in getattr(self.address_redactor, "review_notes", {}).items():
+            self.add_review(page_num, f"Endereços: {reason}. Revisar manualmente.")
 
     def run_phase_6(self):
         """Fase 6: Tarjamento Cirúrgico via Auditoria de Texto (LLM)."""
@@ -285,7 +305,7 @@ class SentryApp:
                 if "FALLBACK_ALL" in redaction_mappings:
                     msg = f"Protocolo de Pânico (Endereços) ativado na pág {page_num} devido à estafa da IA local."
                     self.logger.error(f"[!] ERRO CRÍTICO NA IA SEMÂNTICA. {msg}")
-                    self.alerts.append(msg)
+                    self.add_review(page_num, "Protocolo de Pânico (Endereços): IA local falhou; tarja ampla aplicada. Revisar manualmente.")
                     self.update_progress("Queda na IA (Endereço). Tarjando Bruto.", 75)
                     
                     pessoais = [a["text"].upper() for a in addresses if a.get("type") == "pessoal"]
@@ -407,7 +427,7 @@ class SentryApp:
                 if "error" in response:
                     msg = f"Protocolo de Pânico (Assinaturas) ativo na pág {page_num}: IA esgotada/Timeout."
                     self.logger.error(f"[!] ERRO CRÍTICO NA IA DE VISÃO. {msg}")
-                    self.alerts.append(msg)
+                    self.add_review(page_num, "Protocolo de Pânico (Assinaturas): IA esgotada/timeout; recorte inteiro tarjado. Revisar manualmente.")
                     self.update_progress("Queda da IA (Visão). Tarjando Total.", 85)
                     
                     emergency_box = {"x": x1_off, "y": y1_off, "w": w_crop, "h": h_crop}

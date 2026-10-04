@@ -122,13 +122,15 @@ class FakeYOLO:
         return [], []
 
 
-def test_phase3_without_model_warns_but_does_not_block(app, monkeypatch):
+def test_phase3_without_model_fails_closed(app, monkeypatch):
+    # B-61: sem detector nenhuma assinatura foi auditada -> o documento exige revisao (antes so avisava)
     monkeypatch.setattr(main, "YOLOEngine", lambda **kw: FakeYOLO(model=None))
     render(app)
     app.run_phase_3()
     assert not hasattr(app, "all_crops_metadata")
     assert any("YOLO" in a for a in app.alerts)
-    assert not app.needs_review  # degradacao com aviso, nao reprova
+    assert app.needs_review and "YOLO" in app.review_pages[0][0]
+    assert app.final_state()["status"] == "Requer revisão"
 
 
 def test_phase3_collects_crops_and_fails_closed_on_yolo_error(app, monkeypatch):

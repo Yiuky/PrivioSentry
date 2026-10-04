@@ -509,7 +509,8 @@ Comportamento:
 
 > [!WARNING]
 > O `API_TOKEN` protege a aplicação, mas **não** o painel do gatekeeper (`/gatekeeper` e o liga/desliga). Mantenha
-> o gatekeeper em `127.0.0.1`.
+> o gatekeeper em `127.0.0.1`. Ele recusa outros nomes de host e pedidos de liga/desliga vindos de outros sites;
+> para acessá-lo por outro nome ou IP, liste-o em `ALLOWED_HOSTS`.
 
 ---
 
@@ -617,7 +618,8 @@ Cada item de `redactions_metadata.json` / `manual_redactions.json` descreve uma 
 ### 7.4 Alertas e o que fazer
 
 Os alertas aparecem no ícone **⚠** do cartão, na barra de pendências do editor e no terminal (linha de comando).
-Os alertas com página (`Pág N: ...`) colocam o documento em **Requer revisão**.
+Todo alerta coloca o documento em **Requer revisão**: os com página (`Pág N: ...`) marcam aquela página, e os
+sem página valem para o documento inteiro.
 
 | Alerta | O que significa | O que fazer |
 |---|---|---|
@@ -628,8 +630,11 @@ Os alertas com página (`Pág N: ...`) colocam o documento em **Requer revisão*
 | `Pág N: IA não analisou endereços (...). Revisar manualmente.` | O LLM de visão falhou ou não respondeu | Procure endereços pessoais manualmente; confira o Ollama ([seção 10.2](#102-ollama-inacessível-ou-modelo-ausente)) |
 | `Pág N: IA de visão falhou na auditoria de assinatura (recorte tarjado por segurança)` | A IA falhou ao auditar a assinatura; o recorte inteiro recebeu tarja | Confira se a tarja ampla é adequada e ajuste |
 | `Pág N: detecção de assinaturas (YOLO) falhou (...)` | O detector falhou nessa página | Procure CPFs próximos a assinaturas manualmente |
-| `Modelo YOLO ausente: ...` | O arquivo do detector não foi encontrado; a fase de assinaturas foi pulada | Restaure `models/signature_stamp_detector.pt` ou ajuste `YOLO_MODEL_PATH` |
-| `Protocolo de Pânico (Endereços) ...` / `(Assinaturas) ...` | A IA local falhou e foi aplicada uma tarja ampla de segurança | Revise a página: pode haver tarja a mais |
+| `Pág N: OCR (Tesseract) falhou nesta página: ...` | O Tesseract falhou de vez nessa página; CPFs podem não ter sido detectados | Revise a página inteira; confira o Tesseract ([seção 10.1](#101-tesseract-não-encontrado-ou-sem-o-idioma-português)) |
+| `Pág N: OCR falhou num recorte de assinatura. ...` | O OCR do recorte de uma assinatura falhou | Procure CPFs perto da assinatura |
+| `Pág N: Endereços: tipo de endereço não reconhecido (...), tarjado como pessoal. ...` | O LLM usou um rótulo desconhecido; por segurança, o endereço recebeu tarja | Confira se o endereço é mesmo pessoal; remova a tarja se não for |
+| `Modelo YOLO ausente: ...` | O arquivo do detector não foi encontrado; a fase de assinaturas foi pulada (vale para o documento inteiro) | Restaure `models/signature_stamp_detector.pt` ou ajuste `YOLO_MODEL_PATH`; procure CPFs perto das assinaturas |
+| `Pág N: Protocolo de Pânico (Endereços) ...` / `(Assinaturas) ...` | A IA local falhou e foi aplicada uma tarja ampla de segurança | Revise a página: pode haver tarja a mais |
 
 > [!NOTE]
 > Os alertas e os logs mascaram os CPFs: o número completo não é gravado.
@@ -728,6 +733,9 @@ Sem o token correto, as rotas respondem `401` com "Não autorizado".
 > - O token é único e compartilhado: não há perfis nem permissões por usuário.
 > - No Docker, a porta é publicada só em `127.0.0.1`; não troque para `0.0.0.0` sem definir `API_TOKEN`.
 > - O painel do gatekeeper não é protegido pelo token ([seção 5](#5-painel-gatekeeper)).
+> - Sem `API_TOKEN`, a aplicação só responde a `127.0.0.1`, `localhost`, ao `APP_HOST` e aos nomes de
+>   `ALLOWED_HOSTS` (os demais recebem `421`), e recusa envios e exclusões vindos de outros sites (`403`). Isso
+>   impede que uma página maliciosa aberta no seu navegador leia ou altere suas tarefas.
 
 ---
 
@@ -735,7 +743,8 @@ Sem o token correto, as rotas respondem `401` com "Não autorizado".
 
 ### 10.1 Tesseract não encontrado ou sem o idioma português
 
-**Sinais:** no log aparece `TESSERACT CRITICAL FAIL`; nenhuma detecção de CPF; páginas sem texto.
+**Sinais:** alerta "OCR (Tesseract) falhou nesta página" e documento em **Requer revisão**; no log aparece
+`TESSERACT CRITICAL FAIL`.
 
 - Rode `tesseract --version`. Se não for encontrado, defina `TESSERACT_PATH` no `.env` com o caminho completo
   (Windows: `C:\Program Files\Tesseract-OCR\tesseract.exe`).
@@ -843,7 +852,8 @@ de PDF ou pastas abertas e tente **Excluir** de novo. A tarefa continua listada 
 ### 10.15 Alerta "Modelo YOLO ausente"
 
 O arquivo `models/signature_stamp_detector.pt` não foi encontrado. Restaure-o (ele faz parte do repositório) ou
-aponte `YOLO_MODEL_PATH` para o caminho correto. Sem ele, CPFs perto de assinaturas dependem só do OCR.
+aponte `YOLO_MODEL_PATH` para o caminho correto. Sem ele, CPFs perto de assinaturas dependem só do OCR, e por
+isso o documento fica em **Requer revisão**.
 
 ### 10.16 O painel gatekeeper mostra "Offline" ou o serviço reinicia sozinho
 
@@ -864,7 +874,8 @@ Apenas números de CPF e endereços pessoais (residenciais). Nomes de pessoas s�
 
 **Endereços profissionais são tarjados?**
 Não. O LLM classifica cada endereço como pessoal, profissional ou secundário, e só os pessoais recebem tarja
-sugerida. A classificação pode errar: revise.
+sugerida (variações como "Pessoal" ou "residencial" também contam). Se o LLM usar um rótulo desconhecido, o
+endereço é tarjado por segurança e a página vai para revisão. A classificação pode errar: revise.
 
 **Os documentos são enviados para a nuvem?**
 A aplicação não envia o conteúdo a serviços de terceiros: OCR, YOLO e LLM rodam na sua máquina. Mas a aplicação

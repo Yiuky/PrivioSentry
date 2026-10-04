@@ -9,6 +9,7 @@ Todas as configurações são variáveis de ambiente, normalmente definidas em u
 | `APP_HOST` | `127.0.0.1` | `app_service.py`, `gatekeeper.py` | Interface de bind. Use `0.0.0.0` somente junto com `API_TOKEN` e HTTPS na frente. |
 | `APP_PORT` | `8001` | `app_service.py`, `gatekeeper.py` | Porta da aplicação; o gatekeeper faz proxy para ela. |
 | `API_TOKEN` | *(vazio = sem autenticação)* | `app_service.py` | Quando definido, todas as rotas o exigem: header `X-API-Token`, cookie `api_token` ou `?token=` (a forma via query string pode vazar em logs/histórico; prefira o header/cookie). |
+| `ALLOWED_HOSTS` | *(vazio)* | `utils/net_guard.py` (`app_service.py`, `gatekeeper.py`) | Nomes extras aceitos nos cabeçalhos `Host`/`Origin`, separados por vírgula. Loopback (`127.0.0.1`, `localhost`, `::1`) e `APP_HOST` sempre valem. Sem `API_TOKEN`, o app recusa outro `Host` (`421`, proteção contra *DNS rebinding*) e POST/DELETE vindos de outro site (`403`, proteção contra CSRF). O gatekeeper, que não tem token, faz essa checagem sempre: para acessá-lo por outro nome ou IP, liste-o aqui. `*` desliga a checagem (não recomendado). |
 | `MAX_UPLOAD_MB` | `500` | `app_service.py` | Tamanho máximo de upload. |
 | `PRIVIO_INPUT_DIR` | `./WEB_INPUT` | `app_service.py` | Onde os PDFs enviados são armazenados. |
 | `PRIVIO_OUTPUT_DIR` | `./output` | `app_service.py`, `utils/session.py` | Artefatos por tarefa: imagens das páginas, resultados de OCR, recortes, logs, metadados de tarja (**contêm dados pessoais**). |

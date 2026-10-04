@@ -9,6 +9,9 @@ class OCREngine:
         self.tesseract_path = tesseract_path
         self.lang = lang
         self.logger = logger
+        # Quantas chamadas ao Tesseract falharam de vez (nas duas escalas). Quem chama compara o valor
+        # antes/depois de uma página para falhar fechado: resultado vazio por erro != página sem CPF.
+        self.failure_count = 0
         if self.tesseract_path:
             pytesseract.pytesseract.tesseract_cmd = self.tesseract_path
 
@@ -41,6 +44,7 @@ class OCREngine:
                 img_safe = img.resize((int(w_orig * scale), int(h_orig * scale)), resample=Image.Resampling.LANCZOS)
                 return attempt_scan(img_safe, scale)
             except Exception as e2:
+                self.failure_count += 1
                 if self.logger:
                     self.logger.error(f"[!!] TESSERACT CRITICAL FAIL: {e2}")
                 return {"text": []} if method == "data" else ""
@@ -64,6 +68,11 @@ class OCREngine:
         data_top = self.image_to_data(top_half, psm=psm)
         data_bottom = self.image_to_data(bottom_half, psm=psm)
         
+        # Metade de cima falhou (só {"text": []}): parte de um dicionário vazio com as chaves da de baixo,
+        # para não perder as palavras da metade de baixo (a falha já foi contada em failure_count).
+        if "level" not in data_top and "level" in data_bottom:
+            data_top = {key: [] for key in data_bottom}
+
         # Merge data_bottom into data_top with coordinate and hierarchy offset
         offset_y = h - half_h
         max_block = max(data_top.get('block_num', [0])) if data_top.get('block_num') else 0

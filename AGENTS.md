@@ -25,6 +25,7 @@ existentes em documentação, interface ou mensagens.
 | I-06 | **Nenhum CPF completo em log.** `utils/pii.install_log_masking()` mascara os registros; não o contorne nem grave CPFs por `print` | `tests/test_pii.py` |
 | I-07 | Não enfraqueça a verificação pós-tarja nem o aviso permanente de que a detecção por IA é probabilística | Revisão de PR |
 | I-08 | Testes **não** podem exigir Ollama, GPU nem rede: o LLM e o YOLO são simulados | `tests/conftest.py`, `tests/sentry_testkit.py` |
+| I-09 | Todo alerta exige revisão: use `add_review(página, motivo)` ou `add_document_review(motivo)`, nunca `self.alerts.append` direto. Falha do OCR é detectada por `OCREngine.failure_count` (resultado vazio por erro ≠ página sem CPF) | `tests/test_fail_closed_ocr_address.py` |
 
 ## 3. Arquitetura: três processos
 
@@ -60,6 +61,7 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
 | `utils/session.py` | Pastas da tarefa, logs, exportação, reconstrução do PDF e tarja nativa (`apply_native_pdf_redactions`) |
 | `utils/verifier.py` | Verificação pós-tarja: relê o PDF final e confronta o original (`find_uncovered_cpfs`) |
 | `utils/pii.py` | Mascaramento de CPF em logs |
+| `utils/net_guard.py` | Checagem de `Host`/`Origin` (anti *DNS rebinding* e CSRF) usada pelo app e pelo gatekeeper; `ALLOWED_HOSTS` |
 | `templates/index.html` | Editor web autocontido; textos no objeto `I18N` (pt-BR padrão, en-US), chaves conforme `docs/brand/UX_SPEC.md`; renderizador Markdown próprio que **nunca** injeta HTML |
 | `templates/gatekeeper.html` | Página do painel quando o app está desligado |
 | `scripts/audit_public_tree.py` | Auditoria de dados pessoais, segredos e caminhos locais antes de publicar |

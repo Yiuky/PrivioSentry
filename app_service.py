@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from main import SentryApp
 from utils.pii import install_log_masking
+from utils.net_guard import check_request
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -235,6 +236,12 @@ startup_maintenance()  # após todas as definições acima (usa is_running/task_
 
 @app.middleware("http")
 async def token_guard(request: Request, call_next):
+    # Sem token: só aceita Host esperado (anti DNS rebinding) e recusa POST/DELETE de outros sites (anti CSRF).
+    # /internal/ fica de fora: os workers chamam por 127.0.0.1 e são autenticados pelo segredo interno.
+    if not request.url.path.startswith("/internal/"):
+        blocked = check_request(request.method, request.headers, token_enabled=bool(API_TOKEN))
+        if blocked:
+            return JSONResponse({"detail": blocked[1]}, status_code=blocked[0])
     if API_TOKEN and not request.url.path.startswith("/internal/"):
         supplied = request.headers.get("x-api-token") or request.cookies.get("api_token") or request.query_params.get("token")
         if not supplied or not secrets.compare_digest(supplied, API_TOKEN):

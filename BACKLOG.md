@@ -19,8 +19,8 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
 
 | Prioridade | Abertos | Foco |
 |---|---|---|
-| 🔴 P0 | 3 | Proteger o serviço local contra outros sites no mesmo navegador e o token de acesso |
-| 🟠 P1 | 15 | Falhar fechado em mais situações (OCR, respostas da IA, tarjas manuais, rotação) |
+| 🔴 P0 | 2 | Proteger o serviço local contra outros sites no mesmo navegador e o token de acesso |
+| 🟠 P1 | 13 | Falhar fechado em mais situações (OCR, respostas da IA, tarjas manuais, rotação) |
 | 🟡 P2 | 12 | Robustez dos processos, limites de recursos, Docker e editor |
 | 🔵 P3 | 5 | Limpeza de código, lint e marca |
 | 🔭 Visão | 5 | Auditoria, políticas e novos módulos SENTRY |
@@ -46,24 +46,20 @@ publicar uma versão que mexa nessas áreas:
 
 | ID | Item | Referência |
 |---|---|---|
-| B-40 | **Validar `Host` e `Origin` no serviço local.** Sem `API_TOKEN` (o padrão), uma página maliciosa aberta no mesmo navegador pode, via *DNS rebinding*, ler `/tasks`, `/previews` (imagens originais sem tarja) e `/download`, e disparar POSTs simples entre origens (`/process-all`, `/upload`, `/purge`). Direção: `TrustedHostMiddleware` (`127.0.0.1`/`localhost`) e exigir `Origin` igual ou um *header* próprio nas rotas que alteram estado; documentar no modelo de ameaças | `app_service.py:236-246`, `docs/threat-model-lgpd.md` |
 | B-41 | **Não aceitar `API_TOKEN` na *query string* nem guardar o token bruto em cookie.** `?token=` vai para o log do uvicorn, o histórico do navegador e o log do proxy do gatekeeper. Direção: trocar por cookie de sessão aleatório (`HttpOnly`, `SameSite`, `secure` com HTTPS), redirecionar sem o `?token=` e mascarar a *query* nos logs | `app_service.py:239-244`, `gatekeeper.py:205-234` |
-| B-42 | **Proteger `/api/toggle` do gatekeeper e restringir `kill_port_owner`.** Qualquer site desliga o serviço com um POST `text/plain`; `kill_port_owner` faz `taskkill /F /T` em qualquer processo na porta. Direção: exigir token/`Origin` e encerrar só o processo filho conhecido | `gatekeeper.py:88-102`, `gatekeeper.py:189-198` |
+| B-42 | **Autenticar o painel do gatekeeper e restringir `kill_port_owner`.** Desde B-40 o `/api/toggle` recusa outros sites (`Origin`/`Host`), mas o painel continua sem autenticação própria; `kill_port_owner` faz `taskkill /F /T` em qualquer processo na porta. Direção: aceitar `API_TOKEN` no painel e encerrar só o processo filho conhecido | `gatekeeper.py:88-102`, `gatekeeper.py:189-198` |
 
 ## 🟠 P1 · Resultado errado ou tarja a menos
 
 | ID | Item | Referência |
 |---|---|---|
-| B-43 | **Falhar fechado quando o Tesseract falha ou não está instalado.** Se o OCR falhar nas duas escalas, o motor devolve resultado vazio: nenhum CPF é encontrado, a verificação usa o mesmo motor e o documento pode terminar como "Concluído". Direção: propagar a falha como alerta da página (`add_review`) e checar pré-requisitos (versão, idioma `por`, modelo YOLO) no início do serviço e da CLI | `utils/ocr_engine.py:43-46`, `utils/verifier.py:71-72`, `main.py:224-229` |
 | B-44 | **Descartar ou conciliar `manual_redactions.json` ao reprocessar.** O reprocessamento mantém as tarjas manuais antigas, que têm prioridade sobre as novas detecções da IA | `app_service.py:354-372`, `app_service.py:431-442` |
 | B-45 | **Não baixar automaticamente o PDF nativo quando a tarefa "Requer revisão".** O *polling* redireciona para `/download` ao ver `percentage === 100`, sem olhar `needs_review` (que chega depois) | `templates/index.html:1083-1089`, `main.py:116-117` |
 | B-46 | **Não servir PDF final desatualizado.** `/download` entrega qualquer PDF final no disco, inclusive o da execução anterior durante um reprocessamento ou após falha. Direção: gravar em temporário, `os.replace` após a verificação e servir só com estado coerente | `app_service.py:492-512`, `utils/session.py:398-471` |
 | B-47 | **Validar o esquema das tarjas manuais e falhar fechado ao descartar uma.** `/update-redactions` aceita qualquer lista e grava sem escrita atômica; caixas malformadas ou fora do intervalo são descartadas só com log. Direção: modelo Pydantic (422), gravação atômica e `add_review` | `app_service.py:437-458`, `main.py:456-470`, `utils/session.py:434-436` |
 | B-48 | **Validar o esquema das respostas da IA.** Na auditoria de assinaturas, resposta que não é dict é ignorada e dict sem `unredacted_cpfs` conta como "limpo"; na descoberta de endereços, resposta sem `addresses` vira "0 endereços". Direção: resposta fora do esquema = falha → revisão e tarja de emergência | `main.py:369-424`, `utils/address_redactor.py:65` |
-| B-49 | **Normalizar a classificação "pessoal" dos endereços.** O filtro compara `type == "pessoal"` exatamente; "Pessoal", "residencial" ou espaços extras deixam endereços pessoais sem tarja e sem alerta. Direção: normalizar (caixa, acento, espaços), aceitar sinônimos e mandar tipo desconhecido para revisão | `utils/address_redactor.py:85`, `main.py:291` |
 | B-50 | **Marcar como "não verificada" a página com imagem quando `VERIFY_OCR=0`.** Página digitalizada com algum texto nativo não passa por OCR e também não entra em `unverified` | `utils/verifier.py:63-79`, `tests/test_verifier_extra.py:71-81` |
 | B-51 | **Tratar páginas rotacionadas e a escala de DPI na tarja nativa e na verificação.** As caixas vêm da imagem renderizada (já rotacionada) e vão direto para `add_redact_annot`; o *fallback* de escala usa 1000 DPI fixo. Direção: `page.derotation_matrix`, usar `BASE_DPI` e testes com `/Rotate` 90/180/270 (V-05) | `utils/session.py:439-456`, `utils/verifier.py:109-130` |
-| B-61 | **Alertas sem página não colocam a tarefa em "Requer revisão".** "Modelo YOLO ausente" e os "Protocolos de Pânico" vão para `self.alerts` sem `add_review`, então a tarefa pode ficar "Concluído" com ⚠. Direção: todo alerta exige revisão (página 0 = documento inteiro) | `main.py:56-78`, `main.py:224-229`, `main.py:286-288`, `main.py:408-410` |
 | B-62 | **Manter os alertas anteriores ao "Aplicar proteção".** O estado final da tarja nativa vem só da nova verificação; uma falha anterior da IA some e a tarefa pode virar "Concluído". Direção: herdar os alertas não resolvidos até o revisor marcá-los como conferidos | `main.py:472-484`, `app_service.py:468-490` |
 | B-63 | **Deixar claro que o PDF automático é preliminar.** O processamento já grava um PDF raster com as sugestões da IA e libera *Ver/Baixar PDF* antes de qualquer revisão. Direção: rotular como "preliminar" na interface e no nome do arquivo, ou liberar o download só após "Aplicar proteção" | `main.py:485-567`, `templates/index.html` |
 | B-01 | Medir revocação e precisão em um conjunto **realista** (carimbos, manuscritos, fotos de papel, tabelas), montado só com documentos fictícios | [docs/benchmarks.md](docs/benchmarks.md) |
@@ -113,6 +109,10 @@ publicar uma versão que mexa nessas áreas:
 
 | ID | Item | Versão | Teste |
 |---|---|---|---|
+| B-40 | Validar `Host` (anti *DNS rebinding*) e `Origin`/`Sec-Fetch-Site` (anti CSRF) no app e no gatekeeper quando não há `API_TOKEN`; nova variável `ALLOWED_HOSTS` | não publicado | `tests/test_net_guard.py` |
+| B-43 | Falha do Tesseract (nas duas escalas) conta em `OCREngine.failure_count` e vira alerta da página no OCR, nos recortes e na verificação; junção das metades não perde a metade de baixo | não publicado | `tests/test_fail_closed_ocr_address.py` |
+| B-49 | Tipo de endereço do LLM normalizado (caixa, acento, sinônimos); rótulo desconhecido é tarjado como pessoal e manda a página para revisão; resposta sem a lista `addresses` falha fechado | não publicado | `tests/test_fail_closed_ocr_address.py` |
+| B-61 | Todo alerta exige revisão: "Modelo YOLO ausente" (documento inteiro, `add_document_review`) e os "Protocolos de Pânico" (página) | não publicado | `tests/test_main_phases.py::test_phase3_without_model_fails_closed`, `tests/test_fail_closed_ocr_address.py` |
 | B-60 | Auditoria de dados pessoais em todo PR (CI) e Ruff com versão fixa | não publicado | `.github/workflows/ci.yml` (passo *Auditoria*) |
 | B-13 | Releases versionadas (tag `vX.Y.Z` + notas do CHANGELOG) e versão alinhada em `pyproject.toml`/`CITATION.cff` | 5.1.0 | `tests/test_check_versions.py` |
 | — | CI verde: coleta restrita a `tests/` e teste do gatekeeper que simula Windows passa no Linux | 5.1.0 | `pytest.ini`, `tests/test_gatekeeper.py` |

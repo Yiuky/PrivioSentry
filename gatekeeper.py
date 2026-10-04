@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
+from utils.net_guard import check_request
 
 # Filtro para suprimir erros de conexão resetada no Windows (Harmless WinError 10054)
 class WinErrorFilter(logging.Filter):
@@ -36,6 +37,16 @@ for logger_name in ["uvicorn.error", "uvicorn.access", "Gatekeeper"]:
 
 IS_WINDOWS = os.name == 'nt'  # constante para facilitar testes
 app = FastAPI(title="Gatekeeper Service")
+
+
+@app.middleware("http")
+async def origin_guard(request: Request, call_next):
+    # O gatekeeper não tem autenticação própria e repassa tudo para o app: sem esta checagem ele seria um
+    # atalho para DNS rebinding/CSRF (inclusive no /api/toggle). Para acessá-lo por outro nome, use ALLOWED_HOSTS.
+    blocked = check_request(request.method, request.headers, token_enabled=False)
+    if blocked:
+        return JSONResponse({"detail": blocked[1]}, status_code=blocked[0])
+    return await call_next(request)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 

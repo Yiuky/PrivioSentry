@@ -38,6 +38,8 @@ def isolated_environment(request, tmp_path, monkeypatch):
         return
     for name in _ENV_TO_CLEAR:
         monkeypatch.delenv(name, raising=False)
+    # O TestClient usa o Host "testserver"; a proteção de Host (utils/net_guard.py) o aceita só nos testes.
+    monkeypatch.setenv("ALLOWED_HOSTS", "testserver")
     (tmp_path / "state").mkdir(exist_ok=True)
     monkeypatch.setenv("PRIVIO_TASKS_FILE", str(tmp_path / "state" / "tasks.json"))
     monkeypatch.setenv("PRIVIO_INPUT_DIR", str(tmp_path / "state" / "in"))

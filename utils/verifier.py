@@ -68,7 +68,10 @@ def verify_pdf(pdf_path, ocr_engine=None, use_ocr=True, dpi=300, psm="6", logger
                         img_path = os.path.join(tmp, f"verify_{page_num}.png")
                         pix.save(img_path)
                         pix = None
+                        failures_before = getattr(engine, "failure_count", 0)
                         _, grounding = engine.get_grounding_map(img_path, psm=psm)
+                        if getattr(engine, "failure_count", 0) > failures_before:
+                            raise RuntimeError("Tesseract falhou (resultado vazio por erro)")
                     _, found_ocr = engine.find_cpfs_in_grounding(grounding)
                     found_here |= found_ocr
                 except Exception as e:
@@ -113,7 +116,10 @@ def find_uncovered_cpfs(pdf_path, boxes_by_page, ocr_engine, base_dpi=1000, dpi=
                     img_path = os.path.join(tmp, f"cover_{page_num}.png")
                     pix.save(img_path)
                     pix = None
+                    failures_before = getattr(ocr_engine, "failure_count", 0)
                     _, grounding = ocr_engine.get_grounding_map(img_path, psm=psm)
+                    if getattr(ocr_engine, "failure_count", 0) > failures_before:
+                        raise RuntimeError("Tesseract falhou (resultado vazio por erro)")
                 commands, found = ocr_engine.find_cpfs_in_grounding(grounding)
             except Exception as e:
                 if logger:
