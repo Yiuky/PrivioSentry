@@ -66,6 +66,20 @@ Ambas são lidas em `utils/session.py` e `app_service.py`.
 | `FINAL_JPEG_QUALITY` | `75` | Qualidade JPEG (1-95; valores fora do intervalo voltam ao padrão) dessas páginas. |
 | `RETENTION_DAYS` | `0` (desativado) | Na inicialização, exclui tarefas (e todos os seus artefatos) com mais de N dias; `0`/não definido mantém tudo. `POST /purge/{id}` remove sob demanda as imagens originais das páginas de uma tarefa. Sempre exclua `output/` quando terminar: ele contém imagens das páginas e texto de OCR com dados pessoais. |
 
+## Decisor local e automelhoramento (opcional)
+
+Detalhes em [decisions.md](decisions.md). Exige `pip install -e ".[laya]"`.
+
+| Variável | Padrão | Lida em | Descrição |
+|---|---|---|---|
+| `DECISION_ENGINE` | `off` | `utils/decisions/engine.py` | `laya` liga o decisor local de endereços; `off` desliga |
+| `DECISION_MODE` | `shadow` | `utils/decisions/engine.py` | `shadow` só observa e registra; `assist` participa (só com perfil aprovado; nunca reduz proteção) |
+| `LAYA_MODEL` | `convaiinnovations/laya-multilingual` | `utils/decisions/engine.py` | Modelo do Hugging Face ou pasta local |
+| `LAYA_DEVICE` | `cpu` | `utils/decisions/engine.py` | `cpu` ou `cuda` |
+| `LAYA_REVISION` | *(vazio)* | pacote `laya` | Commit fixo do modelo; `reviewed` usa os commits revisados pelo Laya |
+| `LEARNING_ENABLED` | `0` | `utils/decisions/feedback.py` | `1` guarda as correções do revisor como exemplos de treino |
+| `PRIVIO_LEARNING_DIR` | `./learning` | `utils/decisions/learning.py` | Exemplos, cache e perfis versionados (**contém palavras de endereços**; fora do git) |
+
 ## Logging
 
 | Variável | Padrão | Descrição |

@@ -25,7 +25,8 @@ _ENV_TO_CLEAR = (
     "BASE_DPI", "DEBUG_LEVEL", "YOLO_CROP_PADDING", "PRIVIO_TASKS_FILE", "PRIVIO_INPUT_DIR",
     "PRIVIO_OUTPUT_DIR", "PRIVIO_FINAL_DIR", "GATEKEEPER_STATE_FILE", "GATEKEEPER_PORT", "APP_PORT",
     "APP_HOST", "MAX_UPLOAD_MB", "AI_IMAGE_RESOLUTION", "AI_CONTEXT_WINDOW", "OLLAMA_TEXT_TIMEOUT",
-    "OLLAMA_VISION_TIMEOUT",
+    "OLLAMA_VISION_TIMEOUT", "DECISION_ENGINE", "DECISION_MODE", "LAYA_MODEL", "LAYA_DEVICE",
+    "LEARNING_ENABLED", "PRIVIO_LEARNING_DIR",
 )
 
 
@@ -40,6 +41,9 @@ def isolated_environment(request, tmp_path, monkeypatch):
         monkeypatch.delenv(name, raising=False)
     # O TestClient usa o Host "testserver"; a proteção de Host (utils/net_guard.py) o aceita só nos testes.
     monkeypatch.setenv("ALLOWED_HOSTS", "testserver")
+    # O decisor local guarda uma instância por processo: cada teste parte do zero (desligado por padrão)
+    from utils.decisions import reset_engine
+    reset_engine()
     (tmp_path / "state").mkdir(exist_ok=True)
     monkeypatch.setenv("PRIVIO_TASKS_FILE", str(tmp_path / "state" / "tasks.json"))
     monkeypatch.setenv("PRIVIO_INPUT_DIR", str(tmp_path / "state" / "in"))

@@ -55,7 +55,8 @@ The LGPD separates *personal data* from *sensitive personal data* (health, biome
 4. Asks the vision LLM to discover **addresses** on each page and classify them (personal / professional / secondary); only *personal* addresses are redacted, via a deterministic match against the OCR words.
 5. Produces a final PDF (native-text redaction of the original, or rasterized pages) plus a JSON of redaction boxes.
 6. Runs a **post-redaction verification**: re-reads the output and cross-checks the *original* (OCR at higher DPI) to make sure every CPF found is covered by a redaction.
-7. Provides a **web editor** to add, move, delete and approve redactions before generating the final PDF.
+7. Optionally, a **local decision model** ([Laya](https://huggingface.co/convaiinnovations/laya), Apache-2.0, CPU-friendly) gives a calibrated second opinion on addresses and **learns from reviewer corrections**; a new profile only goes live after passing a quality gate, and it never removes a redaction. Off by default; see [docs/decisions.md](docs/decisions.md) (Portuguese).
+8. Provides a **web editor** to add, move, delete and approve redactions before generating the final PDF.
 
 ## Requirements
 

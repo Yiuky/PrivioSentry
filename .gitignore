@@ -79,3 +79,6 @@ playwright-report/
 .DS_Store
 Thumbs.db
 INFORMATION_BASE/
+
+# Automelhoramento do decisor local: exemplos rotulados e perfis (contêm texto de endereços)
+learning/

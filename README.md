@@ -130,6 +130,11 @@ flowchart LR
 
 ### Destaques
 
+- **Decisor local que aprende (experimental):** um modelo de decisão local
+  ([Laya](https://huggingface.co/convaiinnovations/laya), Apache-2.0, roda na CPU) dá uma segunda opinião
+  calibrada sobre os endereços e **aprende com as correções do revisor**. Um novo perfil só entra se passar
+  num portão de qualidade, e o decisor nunca tira uma tarja. Desligado por padrão: veja
+  [docs/decisions.md](docs/decisions.md).
 - **Local-first:** OCR, YOLO e LLM rodam na máquina; a interface não carrega fontes, scripts nem imagens
   externas (os testes de interface garantem isso).
 - **Falha fechado:** qualquer incerteza vira alerta e o estado **"Requer revisão"**; a CLI devolve o código
@@ -285,7 +290,7 @@ datas e sem promessa de entrega:
 
 | Módulo (visão) | Papel pretendido |
 |---|---|
-| SENTRY Detect | Detectar e classificar informação sensível candidata (dados pessoais, dados pessoais sensíveis, segredos, financeiro, personalizado) |
+| SENTRY Detect | Detectar e classificar informação sensível candidata (dados pessoais, dados pessoais sensíveis, segredos, financeiro, personalizado). **Próximo passo:** o usuário escolhe o que tarjar (nomes, telefones, RG...), com regras validadas, nomes por GLiNER e exceções decididas pelo Laya (backlog B-71 a B-75) |
 | SENTRY Mask / Transform | Mascaramento/substituição e pseudonimização como operações explícitas, controladas por política |
 | SENTRY Gateway | Fronteira de privacidade para o tráfego a IAs/APIs externas |
 | SENTRY Audit | Evidências (hashes, proveniência de modelo/política) sem guardar valores sensíveis brutos |

@@ -1,0 +1,4 @@
+# Decisor local opcional (docs/decisions.md). Instale depois de requirements.txt:
+#   pip install -r requirements-laya.txt
+laya>=0.3.26
+truststore>=0.9

@@ -23,6 +23,7 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
 | 🟠 P1 | 13 | Falhar fechado em mais situações (OCR, respostas da IA, tarjas manuais, rotação) |
 | 🟡 P2 | 12 | Robustez dos processos, limites de recursos, Docker e editor |
 | 🔵 P3 | 5 | Limpeza de código, lint e marca |
+| 🧠 Roteiro | 9 | Detecção configurável (nomes, telefones, RG...), GLiNER e decisor Laya que aprende (B-71 a B-79) |
 | 🔭 Visão | 5 | Auditoria, políticas e novos módulos SENTRY |
 
 ---
@@ -41,6 +42,25 @@ publicar uma versão que mexa nessas áreas:
 | V-05 | PDF com páginas rotacionadas (90/180/270°) e PDF digitalizado com texto nativo parcial (ver B-49, B-50) | `utils/session.py`, `utils/verifier.py` |
 
 ---
+
+## 🧠 Detecção configurável e decisor que aprende (roteiro)
+
+Objetivo: o usuário escolhe **o que tarjar** (inclusive nomes), com recurso mínimo (modo leve, sem GPU),
+tudo local, e o sistema **melhora com as correções do revisor** sem nunca reduzir a proteção sozinho.
+Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão → tarja`. Guia do decisor:
+[docs/decisions.md](docs/decisions.md).
+
+| ID | Prioridade | Item | Depende de |
+|---|---|---|---|
+| B-71 | P1 | **Política configurável**: o usuário escolhe os tipos (CPF, endereço, nome, telefone, e-mail, RG...) na interface e na CLI; arquivo de política versionado; registrar qual política foi aplicada em cada tarefa | — |
+| B-72 | P1 | **Novos tipos por regras com validação**: RG, CNH, PIS/NIS, título de eleitor, telefone, e-mail, CEP, placa, cartão (dígito verificador quando houver), com testes e casos falsos positivos conhecidos | B-71 |
+| B-73 | P1 | **Nomes e rótulos livres com GLiNER** (modo leve na CPU): o usuário escreve o rótulo ("nome de pessoa", "número de processo"); trechos mapeados para as caixas do OCR; confiança baixa → revisão | B-71 |
+| B-74 | P2 | **Exceções decididas pelo Laya**: "nome a proteger" × "servidor/signatário público" (LAI), com perguntas próprias, treino e portão | B-73, B-70 |
+| B-75 | P2 | **Perfis de política e roteamento**: perfis prontos (Transparência/LAI, Saúde, Jurídico, Só CPF) e o Laya sugerindo o perfil pelo tipo de documento | B-71, B-70 |
+| B-76 | P2 | **Ajuste fino dos pesos do Laya** (hoje só a cabeça e os limiares são treinados): quando houver rotina pública de treino, ou com treinador próprio + LoRA, sempre com o mesmo portão | B-70 |
+| B-77 | P2 | **Painel de aprendizado na interface**: modo atual, perfil ativo e métricas, botão de treinar e de voltar versão, contador de correções guardadas | B-70 |
+| B-78 | P1 | **Avaliação realista do decisor**: conjunto fictício mais difícil que o sintético (endereços ambíguos, OCR ruidoso) para o portão de qualidade | B-70, B-01 |
+| B-79 | P3 | **Instalação offline e mais rápida**: modelo em pasta local / `HF_HUB_OFFLINE`, versão ONNX na CPU (`laya.onnx_agent`), cache compartilhado | B-70 |
 
 ## 🔴 P0 · Segurança e vazamento
 
@@ -98,8 +118,8 @@ publicar uma versão que mexa nessas áreas:
 | ID | Item | Referência |
 |---|---|---|
 | B-30 | **Trilha de auditoria** (SENTRY Audit): hashes e proveniência de modelo/política sem guardar valores sensíveis | [docs/brand/LGPD_PRODUCT_POSITIONING.md](docs/brand/LGPD_PRODUCT_POSITIONING.md) |
-| B-31 | **Motor de políticas** configurável (o que detectar e como proteger) | idem |
-| B-32 | Novos tipos de dado (SENTRY Detect): nomes, telefones, e-mails, RG, dados bancários | [docs/limitations.md](docs/limitations.md) |
+| B-31 | **Motor de políticas** configurável (o que detectar e como proteger). Primeira etapa no roteiro: B-71 e B-75 | idem |
+| B-32 | Novos tipos de dado (SENTRY Detect): nomes, telefones, e-mails, RG, dados bancários. Primeira etapa no roteiro: B-72 e B-73 | [docs/limitations.md](docs/limitations.md) |
 | B-33 | Mascaramento e pseudonimização (SENTRY Mask / Transform) | [README.md](README.md#-visão-futuro-não-implementado) |
 | B-34 | Fronteira de privacidade para IAs/APIs externas (SENTRY Gateway) | idem |
 
@@ -109,6 +129,7 @@ publicar uma versão que mexa nessas áreas:
 
 | ID | Item | Versão | Teste |
 |---|---|---|---|
+| B-70 | **Decisor local Laya com automelhoramento** para o tipo de endereço: modos sombra/assistido, regra que nunca reduz proteção, texto minimizado, cabeça treinável sobre o Laya congelado, limiares aprendidos, portão de qualidade, perfis versionados com rollback, captura das correções do revisor (opt-in) e CLI `python -m utils.decisions`. Treino real na CPU, conjunto realista: AUC 0,83 → 0,91 | não publicado | `tests/test_decisions.py` |
 | B-40 | Validar `Host` (anti *DNS rebinding*) e `Origin`/`Sec-Fetch-Site` (anti CSRF) no app e no gatekeeper quando não há `API_TOKEN`; nova variável `ALLOWED_HOSTS` | 5.2.0 | `tests/test_net_guard.py` |
 | B-43 | Falha do Tesseract (nas duas escalas) conta em `OCREngine.failure_count` e vira alerta da página no OCR, nos recortes e na verificação; junção das metades não perde a metade de baixo | 5.2.0 | `tests/test_fail_closed_ocr_address.py` |
 | B-49 | Tipo de endereço do LLM normalizado (caixa, acento, sinônimos); rótulo desconhecido é tarjado como pessoal e manda a página para revisão; resposta sem a lista `addresses` falha fechado | 5.2.0 | `tests/test_fail_closed_ocr_address.py` |

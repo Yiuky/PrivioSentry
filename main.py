@@ -14,6 +14,9 @@ from utils.yolo_engine import YOLOEngine
 from utils.address_redactor import AddressRedactor
 from utils.lexicon import is_immune
 from utils.pii import mask_text
+from utils import decisions
+from utils.decisions import feedback as decision_feedback
+from utils.decisions.questions import normalize_state
 
 load_dotenv()
 
@@ -95,6 +98,8 @@ class SentryApp:
         if native_mode and manual_redactions is not None:
             self.logger.info("[!] RETARJAMENTO TOTAL ATIVADO: Aplicando Tarjas diretamente no PDF Nativo.")
             self._load_metadata_safely(manual_redactions)
+            # Automelhoramento: as tarjas confirmadas pelo revisor viram exemplos (LEARNING_ENABLED=1)
+            decision_feedback.capture_review(self.session.output_dir, manual_redactions)
             phases = [
                 (self.run_native_phase, "Retarjamento PDF Nativo...", 90),
                 (self.run_verification, "Verificação pós-tarja...", 98)
@@ -285,6 +290,54 @@ class SentryApp:
             self.add_review(page_num, f"IA não analisou endereços ({reason[:120]}). Revisar manualmente.")
         for page_num, reason in getattr(self.address_redactor, "review_notes", {}).items():
             self.add_review(page_num, f"Endereços: {reason}. Revisar manualmente.")
+        self.apply_address_decisions()
+
+    def apply_address_decisions(self):
+        """
+        Decisor local (utils/decisions): pergunta ao modelo calibrado se cada endereço é residencial e
+        combina com o LLM pela regra de policy.py (nunca reduz proteção). Grava decisions.json, que o
+        automelhoramento usa para aprender com as correções do revisor. Desligado: não faz nada.
+        """
+        service = decisions.get_engine()
+        results = self.address_redactor.results
+        items = [(page, addr) for page in sorted(results) for addr in results[page]]
+        if service is None or not items:
+            return
+        verdicts = service.decide_many([addr["text"] for _, addr in items])
+        log = []
+        for (page, addr), verdict in zip(items, verdicts):
+            llm_personal = addr.get("type") == "pessoal"
+            is_personal, reason = decisions.combine_address_decision(
+                llm_personal, verdict.p_personal, service.mode, service.thresholds)
+            if is_personal and not llm_personal:
+                addr["type"] = "pessoal"
+                addr["decided_by"] = verdict.engine
+            if reason:
+                self.add_review(page, f"Endereços: {reason}. Revisar manualmente.")
+            log.append({"page": page, "text": normalize_state(addr["text"]), "llm_type": addr.get("type_original"),
+                        "final_type": addr["type"], "p_personal": verdict.p_personal, "mode": service.mode,
+                        "profile": verdict.profile_version, "word_boxes": self._address_word_boxes(page, addr["text"])})
+        try:
+            decision_feedback.write_decision_log(self.session.output_dir, log)
+        except OSError as e:
+            self.logger.warning(f"[decisions] não foi possível gravar decisions.json: {e}")
+        self.logger.info(f"[decisions] {len(log)} endereço(s) avaliados pelo decisor local (modo {service.mode}).")
+
+    def _address_word_boxes(self, page_num, text):
+        """Caixas [x, y, w, h] das palavras do endereço na página (para aprender com a revisão)."""
+        if page_num > len(self.grounding_maps):
+            return []
+        cmap = self.grounding_maps[page_num - 1]
+        ids = self.address_redactor.refine_redaction_with_text_ai(
+            page_num, self.indexed_texts[page_num - 1], [{"text": text, "type": "pessoal"}], cmap) or []
+        boxes = []
+        for word_id in ids:
+            try:
+                b = cmap[int(word_id)]["box"]
+                boxes.append([b["x"], b["y"], b["w"], b["h"]])
+            except (ValueError, IndexError, KeyError, TypeError):
+                continue
+        return boxes
 
     def run_phase_6(self):
         """Fase 6: Tarjamento Cirúrgico via Auditoria de Texto (LLM)."""
