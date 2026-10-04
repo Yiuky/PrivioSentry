@@ -1,63 +1,148 @@
 <p align="center">
-  <img src="assets/concept-mark.svg" alt="PRIVIO SENTRY logo (concept mark)" width="96" height="96">
+  <img src="assets/concept-mark.svg" alt="PRIVIO SENTRY" width="120" height="120" />
 </p>
 
-# PRIVIO SENTRY
+<h1 align="center">PRIVIO SENTRY</h1>
 
-**Local AI Privacy Infrastructure** · current product: **SENTRY Redact**
+<p align="center">
+  <strong>Infraestrutura local de privacidade com IA · produto atual: SENTRY Redact</strong><br>
+  <em>Encontra CPFs e endereços pessoais em PDFs, sugere as tarjas e só gera o documento final depois da revisão humana</em>
+</p>
 
-> **Protect data before it is exposed.** &nbsp;·&nbsp; Detect. Review. Protect.
+<p align="center">
+  <a href="https://github.com/Yiuky/privio-sentry/actions/workflows/ci.yml"><img src="https://github.com/Yiuky/privio-sentry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white" alt="Python"></a>
+  <a href="https://github.com/tesseract-ocr/tesseract"><img src="https://img.shields.io/badge/OCR-Tesseract%205-5C2D91.svg" alt="Tesseract OCR"></a>
+  <a href="https://ollama.com/"><img src="https://img.shields.io/badge/LLM%20local-Ollama-000000.svg?logo=ollama&logoColor=white" alt="Ollama"></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/API-FastAPI-009688.svg?logo=fastapi&logoColor=white" alt="FastAPI"></a>
+  <a href="#-limitações"><img src="https://img.shields.io/badge/Status-est%C3%A1gio%20inicial-E67E22.svg" alt="Status: estágio inicial"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/Licen%C3%A7a-AGPL--3.0--or--later-blue.svg" alt="Licença AGPL-3.0-or-later"></a>
+</p>
 
-[English](README.md) | [Português (Brasil)](README.pt-BR.md)
+<p align="center">
+  <a href="#-instalação"><strong>⚡ Instalar</strong></a> •
+  <a href="#-uso-rápido"><strong>🚀 Usar</strong></a> •
+  <a href="docs/"><strong>📖 Documentação</strong></a> •
+  <a href="docs/limitations.md"><strong>⚠️ Limitações</strong></a> •
+  <a href="CHANGELOG.md"><strong>📋 Novidades</strong></a> •
+  <a href="https://github.com/Yiuky/privio-sentry/issues/new/choose"><strong>🐞 Relatar problema</strong></a> •
+  <a href="README.en.md"><strong>🌐 English</strong></a>
+</p>
 
-PRIVIO SENTRY is a local-first project for detecting and protecting personal, sensitive and confidential information in documents. Its first and only released capability, **SENTRY Redact**, is a pipeline that finds **CPF numbers** and **personal (residential) addresses** in PDF files and prepares redactions for a person to review. OCR, detection and the language/vision models run on your machine; the application does not send document content to third-party clouds.
+---
 
-> **Status: early stage.** SENTRY Redact is usable but young: it covers a narrow scope (CPF and personal addresses), has been measured only on synthetic data, and has no audit trail yet. Expect breaking changes.
+<p align="center">
+  <img src="docs/img/editor.png" alt="Editor do SENTRY Redact com tarjas sugeridas sobre CPF e endereço residencial de um formulário fictício" width="94%" />
+</p>
 
-> **Trademark:** the code is AGPL-3.0-or-later, but the names and logos are not covered by that license. See [TRADEMARKS.md](TRADEMARKS.md).
+> **Proteja os dados antes que sejam expostos.** · Detectar. Revisar. Proteger.
 
-## Principle
+## 📌 O que faz
 
-> **AI suggests. The policy constrains. The human confirms. The system records.**
+O **PRIVIO SENTRY** é um projeto *local-first* para detectar e proteger informações pessoais em documentos.
+Sua primeira (e, por enquanto, única) capacidade, o **SENTRY Redact**, lê arquivos PDF, encontra **CPFs** e
+**endereços pessoais (residenciais)** e prepara as tarjas para uma pessoa revisar num **editor web**. OCR,
+detecção e os modelos de linguagem/visão rodam na sua máquina: a aplicação não envia o conteúdo dos
+documentos a nuvens de terceiros.
 
-* The models only **suggest** *potential* detections; every suggestion appears as an editable region that a person can accept, move, resize or remove.
-* Nothing becomes the final PDF until the reviewer confirms it. When the pipeline is unsure (an AI call failed, a CPF found in the original is not covered, a page could not be verified) it **fails closed**: the document is marked **"Requer revisão" (Needs review)** instead of "Concluído" (Completed), with per-page alerts.
-* "The policy constrains" and "the system records" are the design direction: today the policy is fixed (CPF + personal addresses) and the only record is the task log. A configurable policy engine and an audit trail are **planned, not implemented** (see [Vision](#vision-future-not-implemented)).
+> **Status: estágio inicial.** Utilizável, mas jovem: escopo restrito (CPF e endereços pessoais), medido
+> apenas em dados sintéticos e ainda sem trilha de auditoria. Espere mudanças incompatíveis.
 
-## Read this first: it assists, it does not guarantee
+> **Marca:** o código é AGPL-3.0-or-later, mas os nomes e logotipos não são cobertos por essa licença. Veja
+> [TRADEMARKS.md](TRADEMARKS.md).
 
-**This tool does NOT guarantee complete anonymization.** AI detection is probabilistic. OCR errors, handwriting, poor scans, unusual layouts and model mistakes can leave personal data visible, and it can also redact more than necessary.
+## 🧭 Princípio
 
-* Every output **must be reviewed by a person** before publication or sharing.
-* "Concluído" means *no pending alert was detected by the automatic checks*, not that the document is guaranteed clean.
-* Only **CPF** and **personal addresses** are targeted. Names, phone numbers, e-mails, RG, bank data, photos, QR codes, metadata, etc. are **not** redacted. See [docs/limitations.md](docs/limitations.md) and [docs/threat-model-lgpd.md](docs/threat-model-lgpd.md).
-* Never use real documents to report bugs or in tests; see [SECURITY.md](SECURITY.md).
+> **A IA sugere. A política restringe. O humano confirma. O sistema registra.**
 
-## LGPD positioning
+| | Como funciona hoje |
+|---|---|
+| 🤖 **A IA sugere** | Os modelos só apontam detecções *potenciais*; cada uma vira uma caixa editável que a pessoa aceita, move, redimensiona ou remove |
+| 🙋 **O humano confirma** | Nada vira PDF final antes da confirmação do revisor |
+| 🔒 **Falha fechado** | Na dúvida (IA falhou, CPF do original sem tarja, página não verificada), o documento fica como **"Requer revisão"** em vez de "Concluído", com alertas por página |
+| 📜 **Política e registro** | Hoje a política é fixa (CPF + endereços pessoais) e o único registro é o log da tarefa. Motor de políticas configurável e trilha de auditoria estão **planejados, não implementados** ([Visão](#-visão-futuro-não-implementado)) |
 
-PRIVIO SENTRY is a **technical control that can support privacy and security practices**, including those related to Brazil's data-protection law (**LGPD**, Lei 13.709/2018). It is **not** an "LGPD compliance" engine, it is not legal advice, and using it does not by itself make any document or process compliant: that depends on purpose, legal basis, necessity, governance, data lifecycle and roles. Local processing is an architectural choice, not a legal conclusion; actual guarantees depend on your deployment (network configuration, logging, temporary files, model behavior). The UI label **LOCAL PROCESSING** describes where processing happens; it does not claim the machine is offline.
+## ⚠️ Leia primeiro: é uma ferramenta de apoio, não uma garantia
 
-The LGPD separates *personal data* from *sensitive personal data* (health, biometric, genetic...). Today only CPF numbers and residential addresses (personal data) are targeted. See [docs/brand/LGPD_PRODUCT_POSITIONING.md](docs/brand/LGPD_PRODUCT_POSITIONING.md) and the official sources: [LGPD](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm), [ANPD](https://www.gov.br/anpd/pt-br).
+**Esta ferramenta NÃO garante anonimização total.** A detecção por IA é probabilística. Erros de OCR,
+manuscritos, digitalizações ruins, layouts incomuns e falhas dos modelos podem deixar dados pessoais
+visíveis; também pode tarjar mais do que o necessário.
 
-## What SENTRY Redact does today
+- Toda saída **deve ser revisada por uma pessoa** antes de ser publicada ou compartilhada.
+- **"Concluído"** significa *nenhum alerta pendente nas verificações automáticas*, e não que o documento
+  esteja garantidamente limpo.
+- Só **CPF** e **endereços pessoais** são alvo. Nomes, telefones, e-mails, RG, dados bancários, fotos,
+  QR codes, metadados etc. **não** são tarjados ([limitações](docs/limitations.md),
+  [modelo de ameaças](docs/threat-model-lgpd.md)).
+- Nunca use documentos reais para relatar bugs ou em testes ([SECURITY.md](SECURITY.md)).
 
-1. Renders each PDF page to an image and runs **Tesseract OCR** (with word coordinates).
-2. Finds **CPFs** (validated with the check digits; CNPJs are spared; dates/times are excluded) using two OCR passes.
-3. Detects **signatures** with a **YOLO** model, crops them and audits the crops (OCR + a **vision LLM** served by [Ollama](https://ollama.com)) for handwritten/hard-to-OCR CPFs.
-4. Asks the vision LLM to discover **addresses** on each page and classify them (personal / professional / secondary); only *personal* addresses are redacted, via a deterministic match against the OCR words.
-5. Produces a final PDF (native-text redaction of the original, or rasterized pages) plus a JSON of redaction boxes.
-6. Runs a **post-redaction verification**: re-reads the output and cross-checks the *original* (OCR at higher DPI) to make sure every CPF found is covered by a redaction.
-7. Provides a **web editor** to add, move, delete and approve redactions before generating the final PDF.
+## ⚖️ Posicionamento frente à LGPD
 
-## Requirements
+O PRIVIO SENTRY é um **controle técnico que pode apoiar práticas de privacidade e segurança**, inclusive as
+relacionadas à **LGPD** (Lei 13.709/2018). Ele **não** é um motor de "conformidade com a LGPD", não é
+aconselhamento jurídico e seu uso não torna, por si só, nenhum documento ou processo conforme: isso depende de
+finalidade, base legal, necessidade, governança, ciclo de vida dos dados e papéis.
 
-* Python **3.10 – 3.12**
-* **Tesseract OCR** 5.x with the Portuguese data (`por`)
-* **Ollama** with a text/vision-capable model (any local VLM; e.g. `ollama pull qwen2.5vl:7b`)
-* RAM/VRAM suitable for the model you choose (the default render DPI is high; reduce `BASE_DPI` on small machines)
-* The YOLO signature detector `models/signature_stamp_detector.pt` (included, see [models/MODEL_CARD.md](models/MODEL_CARD.md))
+Processamento local é uma escolha de arquitetura, não uma conclusão jurídica; as garantias reais dependem da
+sua implantação (rede, logs, arquivos temporários, comportamento dos modelos). O rótulo **LOCAL PROCESSING**
+da interface indica onde o processamento ocorre; não afirma que a máquina esteja offline.
 
-## Installation
+A LGPD distingue *dado pessoal* de *dado pessoal sensível* (saúde, biométrico, genético...). Hoje só CPF e
+endereços residenciais (dados pessoais) são alvo. Veja
+[docs/brand/LGPD_PRODUCT_POSITIONING.md](docs/brand/LGPD_PRODUCT_POSITIONING.md) e as fontes oficiais:
+[LGPD](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm) ·
+[ANPD](https://www.gov.br/anpd/pt-br).
+
+## 🔍 O que o SENTRY Redact faz hoje
+
+| Etapa | O que acontece |
+|---|---|
+| 🖼️ **Renderização + OCR** | Cada página vira imagem e passa pelo **Tesseract** (com coordenadas de cada palavra) |
+| 🔢 **CPFs** | Duas passagens de OCR; validação pelos dígitos verificadores; CNPJs poupados; datas e horas excluídas |
+| ✍️ **Assinaturas** | Detector **YOLO** recorta as assinaturas; OCR + **LLM de visão** ([Ollama](https://ollama.com)) procuram CPFs manuscritos ou difíceis de ler |
+| 🏠 **Endereços** | O LLM de visão descobre os endereços e os classifica (pessoal / profissional / secundário); só os *pessoais* são tarjados, por casamento determinístico com as palavras do OCR |
+| 📄 **Exportação** | PDF final por **tarja nativa** sobre o original (remove o texto e queima os pixels) ou por páginas rasterizadas, mais um JSON com as caixas |
+| ✅ **Verificação pós-tarja** | Relê a saída e confronta o *original* (OCR em DPI maior) para garantir que todo CPF encontrado esteja coberto |
+| 🖊️ **Editor web** | Adicionar, mover, apagar e aprovar tarjas antes de gerar o PDF final |
+
+### Destaques
+
+- **Local-first:** OCR, YOLO e LLM rodam na máquina; a interface não carrega fontes, scripts nem imagens
+  externas (os testes de interface garantem isso).
+- **Falha fechado:** qualquer incerteza vira alerta e o estado **"Requer revisão"**; a CLI devolve o código
+  `3` nesses casos.
+- **Seguro por padrão:** escuta só em `127.0.0.1`, valida uploads e IDs (UUID), token opcional (`API_TOKEN`)
+  e segredo interno entre os *workers* e o serviço.
+- **Interface acessível:** pt-BR por padrão com seletor en-US, contraste WCAG AA, foco visível e atalhos
+  `N`/`P`/`Esc`.
+
+---
+
+## 💻 Requisitos
+
+| Item | Versão |
+|---|---|
+| Python | **3.10 – 3.12** |
+| Tesseract OCR | 5.x com o idioma português (`por`) |
+| Ollama | Qualquer modelo local com visão (ex.: `ollama pull qwen2.5vl:7b`) |
+| Hardware | RAM/VRAM compatível com o modelo escolhido. O DPI de renderização padrão é alto: reduza `BASE_DPI` em máquinas modestas |
+| Detector de assinaturas | `models/signature_stamp_detector.pt` (incluído; veja o [model card](models/MODEL_CARD.md)) |
+
+## ⚡ Instalação
+
+### Windows
+
+1. Instale o **Tesseract** (por exemplo, o instalador UB-Mannheim) marcando o idioma **Português**. Anote o
+   caminho do `tesseract.exe`.
+2. Instale o **Python 3.10–3.12** e o **Ollama**.
+3. No PowerShell:
+
+```powershell
+git clone https://github.com/Yiuky/privio-sentry.git; cd privio-sentry
+python -m venv venv; .\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env   # defina TESSERACT_PATH=C:\Program Files\Tesseract-OCR\tesseract.exe
+```
 
 ### Linux (Debian/Ubuntu)
 
@@ -65,111 +150,181 @@ The LGPD separates *personal data* from *sensitive personal data* (health, biome
 sudo apt-get install -y tesseract-ocr tesseract-ocr-por tesseract-ocr-eng libgl1
 git clone https://github.com/Yiuky/privio-sentry.git && cd privio-sentry
 python3 -m venv venv && . venv/bin/activate
-pip install --extra-index-url https://download.pytorch.org/whl/cpu torch torchvision   # CPU-only PyTorch (optional, smaller)
+pip install --extra-index-url https://download.pytorch.org/whl/cpu torch torchvision   # PyTorch só CPU (opcional, menor)
 pip install -r requirements.txt
-cp .env.example .env     # then edit
+cp .env.example .env     # depois edite
 ```
 
-### Windows
-
-1. Install Tesseract (e.g. the UB-Mannheim build) and tick the **Portuguese** language data. Note the path of `tesseract.exe`.
-2. Install Python 3.10–3.12 and Ollama.
-3. In PowerShell:
-
-```powershell
-git clone https://github.com/Yiuky/privio-sentry.git; cd privio-sentry
-python -m venv venv; .\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env   # set TESSERACT_PATH=C:\Program Files\Tesseract-OCR\tesseract.exe
-```
-
-### Ollama models
+### Modelos do Ollama
 
 ```bash
-ollama serve                       # if it is not already running
-ollama pull <your-vision-model>    # e.g. qwen2.5vl:7b
+ollama serve                         # se ainda não estiver rodando
+ollama pull <seu-modelo-de-visao>    # ex.: qwen2.5vl:7b
 ```
 
-Set `OLLAMA_MODEL` and `OLLAMA_VISION_MODEL` in `.env` to the model name(s). For a custom GGUF see [scripts/ollama/Modelfile.example](scripts/ollama/Modelfile.example).
+Defina `OLLAMA_MODEL` e `OLLAMA_VISION_MODEL` no `.env`. Para um GGUF próprio, veja
+[scripts/ollama/Modelfile.example](scripts/ollama/Modelfile.example).
 
-### Docker (optional)
+### Docker (opcional)
 
 ```bash
-docker compose up --build        # app on http://127.0.0.1:8001 ; Ollama must run on the host
+docker compose up --build        # app em http://127.0.0.1:8001 ; o Ollama roda no host
 ```
 
-See the licensing caveat about distributing images in [docs/licensing.md](docs/licensing.md).
+Antes de distribuir imagens Docker, leia a ressalva de licenciamento em [docs/licensing.md](docs/licensing.md).
 
-## Configuration
+## ⚙️ Configuração
 
-Copy `.env.example` to `.env`. All variables are documented in [docs/configuration.md](docs/configuration.md). The most relevant ones: `TESSERACT_PATH`, `OLLAMA_API_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `YOLO_MODEL_PATH`, `BASE_DPI`, `APP_HOST`, `API_TOKEN`, `VERIFY_OCR`.
+Copie `.env.example` para `.env`. Todas as variáveis estão em [docs/configuration.md](docs/configuration.md).
+As principais:
 
-## Usage
+| Variável | Para quê |
+|---|---|
+| `TESSERACT_PATH` | Caminho do executável do Tesseract (Windows) |
+| `OLLAMA_API_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL` | Servidor e modelos do Ollama |
+| `YOLO_MODEL_PATH` | Pesos do detector de assinaturas |
+| `BASE_DPI` | DPI de renderização das páginas (qualidade × memória × tempo) |
+| `APP_HOST`, `API_TOKEN` | Endereço de escuta e token de acesso (obrigatório fora do `127.0.0.1`) |
+| `VERIFY_OCR` | Liga/desliga a verificação pós-tarja por OCR |
 
-### Web app (with editor)
+## 🚀 Uso rápido
+
+### Aplicação web (com editor)
 
 ```bash
-python app_service.py          # http://127.0.0.1:8001   (or scripts/run_app.sh | scripts/run_app.bat)
-# optional on/off control panel + reverse proxy on :8000:
+python app_service.py          # http://127.0.0.1:8001   (ou scripts/run_app.sh | scripts/run_app.bat)
+# painel liga/desliga opcional + proxy reverso na :8000:
 python gatekeeper.py           # http://127.0.0.1:8000/gatekeeper
 ```
 
-Upload PDFs, wait for processing, then open the editor: pages flagged for review are highlighted. Adjust the boxes and click **Apply protection (native mode)**. The interface is in Portuguese (pt-BR) by default with an English (en-US) selector, works without internet access to external assets, and supports `N`/`P` (next/previous page) and `Esc` shortcuts. The server listens on `127.0.0.1` by default; to expose it on a network set `APP_HOST=0.0.0.0` **and** `API_TOKEN`, and put it behind HTTPS.
+1. Envie os PDFs e aguarde o processamento.
+2. Abra o editor: as páginas marcadas para revisão ficam destacadas.
+3. Ajuste as caixas e clique em **Aplicar proteção (modo nativo)**.
 
-### Command line (batch)
+Para expor o serviço na rede, defina `APP_HOST=0.0.0.0` **e** `API_TOKEN`, e coloque-o atrás de HTTPS
+(proxy reverso): não há TLS nem contas de usuário embutidos.
+
+### Linha de comando (lote)
 
 ```bash
-python main.py --input path/to/file_or_folder --output path/to/results
+python main.py --input caminho/arquivo_ou_pasta --output caminho/resultados
 ```
 
-Exit codes: `0` all documents completed, `3` at least one document **needs review**, `1` error. Try it with the synthetic sample:
-
-```bash
-python examples/make_sample_pdf.py            # writes examples/sample_input.pdf (fictional data)
-python main.py --input examples/sample_input.pdf --output out
-```
-
-## Architecture (short)
-
-```
-Browser ─► gatekeeper.py (:8000, optional) ─proxy─► app_service.py (:8001, FastAPI)
-                                                       └─ one worker process per task ─► main.py (SentryApp)
-                                                              OCR (Tesseract) · YOLO · Ollama LLM · verifier
-```
-
-Details: [docs/architecture.md](docs/architecture.md).
-
-## Vision (future, not implemented)
-
-The long-term direction is a local privacy-processing layer for documents, APIs, AI systems and workflows. **Only SENTRY Redact exists today.** The modules below are a roadmap to guide design, with no committed dates and no promise that they will ship:
-
-| Module (vision) | Intended role |
+| Código de saída | Significado |
 |---|---|
-| SENTRY Detect | Detect and classify candidate sensitive information (taxonomy: personal data, sensitive personal data, secrets, financial, custom) |
-| SENTRY Mask / Transform | Replacement/masking and pseudonymization as explicit, policy-controlled operations |
-| SENTRY Gateway | Privacy boundary for traffic to external AI/APIs |
-| SENTRY Audit | Evidence (hashes, model/policy provenance) without storing raw sensitive values |
+| `0` | Todos os documentos concluídos |
+| `3` | Ao menos um documento **requer revisão** |
+| `1` | Erro |
 
-Brand, design and UX guidelines live in [docs/brand/](docs/brand/) (including the product notice).
+Teste com o exemplo sintético (dados fictícios):
 
-## Limitations
+```bash
+python examples/make_sample_pdf.py            # gera examples/sample_input.pdf
+python main.py --input examples/sample_input.pdf --output saida
+```
 
-* Only CPF and personal addresses; no names, phones, e-mails, faces, etc.
-* Recall of the detection and of the verification was only measured on synthetic data (see [docs/benchmarks.md](docs/benchmarks.md) when available); real-world scans can be worse.
-* Handwriting and low-quality scans are the weakest point. The signature detector has modest accuracy (see model card).
-* Address redaction depends on an LLM classification and on fuzzy matching: it can over- or under-redact.
-* Processing a large PDF is slow (high DPI OCR + LLM calls + verification).
+## 🏗️ Arquitetura
 
-Full list: [docs/limitations.md](docs/limitations.md).
+```text
+Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (:8001, FastAPI)
+              liga/desliga + watchdog                   │ tasks.json (gravação atômica)
+                                                        └─ um processo worker por tarefa ─► main.py (SentryApp)
+                                                               ├─ utils/ocr_engine.py       Tesseract
+                                                               ├─ utils/yolo_engine.py      assinaturas (YOLO)
+                                                               ├─ utils/ai_client.py        LLM de visão (Ollama)
+                                                               ├─ utils/address_redactor.py endereços
+                                                               ├─ utils/session.py          pastas, logs, PDF final
+                                                               └─ utils/verifier.py         verificação pós-tarja
+```
 
-## Privacy & security
+Detalhes em [docs/architecture.md](docs/architecture.md); convenções e armadilhas para quem for alterar o
+código em [AGENTS.md](AGENTS.md).
 
-Processing is local. Artifacts of every task (page images, OCR output, crops) are stored under `output/` and contain **personal data**; delete them when no longer needed (see retention options in [docs/configuration.md](docs/configuration.md)). Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
+## 🧪 Testes
 
-## Contributing
+```bash
+pip install -r requirements-dev.txt
+ruff check .                     # lint
+pytest --ignore=tests/ui         # unidade e integração (sem Ollama nem GPU: LLM e YOLO são simulados)
+playwright install chromium      # uma vez
+pytest tests/ui                  # interface no navegador (identidade, acessibilidade, segurança)
+python scripts/audit_public_tree.py   # auditoria de dados pessoais e segredos antes de publicar
+```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Run `pytest` and `ruff check .` before opening a PR. **Never commit real personal data.**
+O CI do GitHub roda o lint, a suíte em Python 3.10, 3.11 e 3.12 (com cobertura) e os testes de interface.
+Os números de detecção, medidos **só em dados sintéticos**, estão em [docs/benchmarks.md](docs/benchmarks.md).
 
-## License
+## 🔭 Visão (futuro, não implementado)
 
-Source code: [GNU AGPL-3.0-or-later](LICENSE). If you distribute a modified version, or offer one to users over a network, you must provide its source under the same license. Dependencies and the YOLO weights are covered in [NOTICE](NOTICE) and [docs/licensing.md](docs/licensing.md).
+A direção de longo prazo é uma camada local de processamento de privacidade para documentos, APIs, sistemas
+de IA e fluxos de trabalho. **Hoje existe apenas o SENTRY Redact.** Os módulos abaixo orientam o desenho, sem
+datas e sem promessa de entrega:
+
+| Módulo (visão) | Papel pretendido |
+|---|---|
+| SENTRY Detect | Detectar e classificar informação sensível candidata (dados pessoais, dados pessoais sensíveis, segredos, financeiro, personalizado) |
+| SENTRY Mask / Transform | Mascaramento/substituição e pseudonimização como operações explícitas, controladas por política |
+| SENTRY Gateway | Fronteira de privacidade para o tráfego a IAs/APIs externas |
+| SENTRY Audit | Evidências (hashes, proveniência de modelo/política) sem guardar valores sensíveis brutos |
+
+O trabalho pendente e as prioridades estão no [BACKLOG.md](BACKLOG.md). Diretrizes de marca, design e UX:
+[docs/brand/](docs/brand/).
+
+## 🚧 Limitações
+
+- Só CPF e endereços pessoais; sem nomes, telefones, e-mails, rostos etc.
+- Revocação da detecção e da verificação medida **só em dados sintéticos**; digitalizações reais podem ser
+  piores.
+- Manuscritos e digitalizações de baixa qualidade são o ponto mais fraco; o detector de assinaturas tem
+  acurácia modesta.
+- A tarja de endereços depende da classificação por LLM e de casamento aproximado: pode tarjar a mais ou a
+  menos.
+- PDFs grandes são lentos (OCR em DPI alto + chamadas ao LLM + verificação).
+
+Lista completa: [docs/limitations.md](docs/limitations.md).
+
+## 🔐 Privacidade e segurança
+
+O processamento é local. Os artefatos de cada tarefa (imagens das páginas, saída do OCR, recortes) ficam em
+`output/` e **contêm dados pessoais**: apague-os quando não forem mais necessários (opções de retenção em
+[docs/configuration.md](docs/configuration.md)). Vulnerabilidades: relate de forma privada, conforme o
+[SECURITY.md](SECURITY.md).
+
+## 🤝 Contribuindo
+
+- Como relatar problemas, sugerir melhorias e enviar código: [CONTRIBUTING.md](CONTRIBUTING.md).
+- Arquitetura, invariantes e armadilhas conhecidas: [AGENTS.md](AGENTS.md).
+- Trabalho pendente e prioridades: [BACKLOG.md](BACKLOG.md).
+- Convivência: [Código de Conduta](CODE_OF_CONDUCT.md).
+- **Nunca versione dados pessoais reais.**
+
+## 📝 Como citar
+
+Se o PRIVIO SENTRY ajudou num trabalho acadêmico ou técnico, use o botão **Cite this repository** do GitHub
+(gerado a partir do [CITATION.cff](CITATION.cff)).
+
+---
+
+## 🌐 English Abstract
+
+**PRIVIO SENTRY** is a local-first, AGPL-licensed project for detecting and protecting personal data in
+documents. Its first capability, **SENTRY Redact**, finds **Brazilian CPF numbers** and **personal
+(residential) addresses** in PDF files and prepares redactions for a person to review in a web editor:
+
+- **Local pipeline:** Tesseract OCR, a YOLO signature detector and a vision LLM served by Ollama, all running
+  on your machine; the UI loads no external assets.
+- **Human in the loop:** the AI only *suggests*; nothing becomes the final PDF until a reviewer confirms it.
+- **Fails closed:** a post-redaction verifier re-reads the output and cross-checks the original; any doubt
+  marks the document as *needs review* (CLI exit code `3`).
+- **Honest scope:** early stage, measured only on synthetic data, no audit trail yet, and it does **not**
+  guarantee anonymization. It can support LGPD-aligned practices but is not a compliance engine.
+
+Full English documentation: [README.en.md](README.en.md).
+
+## 📄 Licença
+
+- **Código-fonte:** [GNU AGPL-3.0 ou posterior](LICENSE). Se você distribuir uma versão modificada, ou
+  oferecê-la a usuários pela rede, deve fornecer o código-fonte sob a mesma licença.
+- **Dependências e pesos do YOLO:** [NOTICE](NOTICE) e [docs/licensing.md](docs/licensing.md).
+- **Nomes e logotipos:** não cobertos pela AGPL; veja [TRADEMARKS.md](TRADEMARKS.md).
+- **Mantenedor:** [@Yiuky](https://github.com/Yiuky).

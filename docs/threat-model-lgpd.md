@@ -1,38 +1,38 @@
-# Threat model and LGPD notes
+# Modelo de ameaças e notas sobre a LGPD
 
-> Engineering notes, not legal advice. Consult your data-protection officer (DPO/encarregado) and legal counsel.
+> Notas de engenharia, não aconselhamento jurídico. Consulte o encarregado (DPO) e a assessoria jurídica da sua organização.
 >
-> **Positioning.** PRIVIO SENTRY is a technical control that can *support* privacy and security practices, including LGPD-aligned ones. It does not make a document "LGPD compliant": compliance depends on purpose, legal basis, necessity, governance, data lifecycle and roles. Principle: **AI suggests. The policy constrains. The human confirms. The system records.** (The audit record is not implemented yet; see the vision in [brand/LGPD_PRODUCT_POSITIONING.md](brand/LGPD_PRODUCT_POSITIONING.md) and [brand/SECURITY_AND_PRIVACY.md](brand/SECURITY_AND_PRIVACY.md).)
+> **Posicionamento.** O PRIVIO SENTRY é um controle técnico que pode *apoiar* práticas de privacidade e segurança, incluindo práticas alinhadas à LGPD. Ele não torna um documento "adequado à LGPD": a conformidade depende de finalidade, base legal, necessidade, governança, ciclo de vida dos dados e papéis. Princípio: **A IA sugere. A política restringe. O humano confirma. O sistema registra.** (O registro de auditoria ainda não está implementado; veja a visão em [brand/LGPD_PRODUCT_POSITIONING.md](brand/LGPD_PRODUCT_POSITIONING.md) e [brand/SECURITY_AND_PRIVACY.md](brand/SECURITY_AND_PRIVACY.md).)
 
-## Purpose and assets
-The tool helps remove **personal data (CPF, residential addresses)** from PDFs before they are published or shared, in the context of Brazil's **LGPD** (Lei 13.709/2018). Assets to protect:
+## Finalidade e ativos
+A ferramenta ajuda a remover **dados pessoais (CPF, endereços residenciais)** de PDFs antes de serem publicados ou compartilhados, no contexto da **LGPD** brasileira (Lei 13.709/2018). Ativos a proteger:
 
-1. The **original documents** (contain personal data).
-2. **Intermediate artifacts** (`output/`, `WEB_INPUT/`, logs, `99_ia_interactions/`): page images, OCR text, crops, LLM prompts/responses.
-3. The **redacted output** (must not leak what was meant to be removed).
+1. Os **documentos originais** (contêm dados pessoais).
+2. **Artefatos intermediários** (`output/`, `WEB_INPUT/`, logs, `99_ia_interactions/`): imagens de páginas, texto de OCR, recortes, prompts/respostas do LLM.
+3. A **saída tarjada** (não deve vazar o que deveria ter sido removido).
 
-## Design choices that reduce risk
-* **Local processing:** OCR, detection and LLMs run on the operator's machine (Tesseract, Ultralytics, Ollama). No document content is sent to third-party APIs. (Ollama itself must be pointed at a local/trusted server: `OLLAMA_API_URL`.)
-* **Fail closed + human in the loop:** uncertain results make the document **"Requer revisão"**; the editor lets a person adjust every box before generating the final PDF.
-* **Independent verification:** the final PDF is re-read and CPFs found in the original are checked against the redaction boxes.
-* **Hardened service:** loopback bind by default, optional token, upload validation (PDF magic bytes, size limit), UUID-validated routes, HTML escaping in the UI.
+## Decisões de projeto que reduzem o risco
+* **Processamento local:** OCR, detecção e LLMs rodam na máquina do operador (Tesseract, Ultralytics, Ollama). Nenhum conteúdo de documento é enviado a APIs de terceiros. (O próprio Ollama deve apontar para um servidor local/confiável: `OLLAMA_API_URL`.)
+* **Falha fechado (fail closed) + humano no circuito:** resultados incertos colocam o documento em **"Requer revisão"**; o editor permite que uma pessoa ajuste cada caixa antes de gerar o PDF final.
+* **Verificação independente:** o PDF final é relido e os CPFs encontrados no original são conferidos contra as caixas de tarja.
+* **Serviço endurecido:** bind em loopback por padrão, token opcional, validação de upload (magic bytes de PDF, limite de tamanho), rotas validadas por UUID, escape de HTML na UI.
 
-## Threats and residual risks
+## Ameaças e riscos residuais
 
-| Threat | Mitigation | Residual risk |
+| Ameaça | Mitigação | Risco residual |
 |---|---|---|
-| Personal data left visible (OCR/LLM miss) | dual OCR passes, YOLO + vision audit, verification, mandatory review | **Real**; recall is not 100%. Review is the control. |
-| Over-redaction hides needed information | editor, manual review | Operational cost |
-| Data remains in PDF structure (hidden text, metadata, attachments) | native redaction removes text under boxes; raster mode flattens | Metadata/attachments/annotations are **not** cleaned: inspect separately |
-| Leakage through artifacts/logs | files stay local; logs avoid full CPFs (improvements in progress: see CHANGELOG) | `output/` contains page images of the originals: delete after use; disk encryption recommended |
-| Unauthorized access to the web UI | loopback default; `API_TOKEN`; no multi-user model | If exposed on a network without HTTPS + token, anyone can read documents |
-| Malicious PDF/upload (parser exploits, path traversal, huge files) | sanitized names, magic-bytes check, size limit, run unprivileged (Docker user) | PDF/OCR parsers are large attack surfaces: keep dependencies updated, isolate the host |
-| Prompt injection via document text into the vision LLM | LLM output is only used to *add* redactions (JSON of addresses); failures fail closed | A document could try to suppress detection (e.g. "ignore addresses"): human review required |
-| Model/weights leakage of training data | weights are sanitized (no paths/metadata); detector is a small single-class model | Cannot be mathematically excluded (see model card) |
-| Supply chain | pinned requirements, Dependabot, CI | Standard supply-chain risk |
+| Dados pessoais deixados visíveis (falha do OCR/LLM) | duas passadas de OCR, YOLO + auditoria por visão, verificação, revisão obrigatória | **Real**; a revocação não é 100%. A revisão é o controle. |
+| Tarja a mais esconde informação necessária | editor, revisão manual | Custo operacional |
+| Dados permanecem na estrutura do PDF (texto oculto, metadados, anexos) | a tarja nativa remove o texto sob as caixas; o modo raster achata a página | Metadados/anexos/anotações **não** são limpos: inspecione separadamente |
+| Vazamento por artefatos/logs | os arquivos ficam locais; os logs evitam CPFs completos (melhorias em andamento: veja o CHANGELOG) | `output/` contém imagens das páginas dos originais: apague após o uso; criptografia de disco recomendada |
+| Acesso não autorizado à UI web | loopback por padrão; `API_TOKEN`; sem modelo multiusuário | Se exposta em uma rede sem HTTPS + token, qualquer pessoa pode ler os documentos |
+| PDF/upload malicioso (exploits no parser, path traversal, arquivos enormes) | nomes sanitizados, verificação de magic bytes, limite de tamanho, execução sem privilégios (usuário do Docker) | Parsers de PDF/OCR são grandes superfícies de ataque: mantenha as dependências atualizadas, isole o host |
+| Prompt injection via texto do documento no LLM de visão | a saída do LLM só é usada para *adicionar* tarjas (JSON de endereços); falhas fazem o pipeline falhar fechado | Um documento pode tentar suprimir a detecção (ex.: "ignore endereços"): revisão humana necessária |
+| Vazamento de dados de treino pelo modelo/pesos | os pesos estão sanitizados (sem caminhos/metadados); o detector é um modelo pequeno de classe única | Não pode ser excluído matematicamente (veja o model card) |
+| Cadeia de suprimentos | dependências fixadas, Dependabot, CI | Risco padrão de cadeia de suprimentos |
 
-## LGPD considerations (non-exhaustive)
-* Redaction/anonymization under LGPD (art. 12) requires that data **cannot be re-identified by reasonable means**; a visual blackout with remaining names, context or metadata may still allow re-identification. Evaluate this case by case.
-* The LGPD distinguishes *personal data* from *sensitive personal data* (health, biometric, genetic, etc.). This tool currently targets only CPF numbers and residential addresses (personal data); it does not detect sensitive categories.
-* Keep a **retention policy** for artifacts (delete `output/`; see `RETENTION_DAYS` in [configuration.md](configuration.md)).
-* The operator remains the **controller/operator** of the data and is responsible for the legal basis, records of processing and incident handling. This project provides no warranty (see LICENSE, section 7).
+## Considerações sobre a LGPD (não exaustivas)
+* A anonimização sob a LGPD (art. 12) exige que os dados **não possam ser reidentificados por meios razoáveis**; uma tarja visual com nomes, contexto ou metadados remanescentes ainda pode permitir a reidentificação. Avalie caso a caso.
+* A LGPD distingue *dados pessoais* de *dados pessoais sensíveis* (saúde, biométricos, genéticos etc.). Esta ferramenta atualmente tem como alvo apenas números de CPF e endereços residenciais (dados pessoais); ela não detecta categorias sensíveis.
+* Mantenha uma **política de retenção** para os artefatos (apague `output/`; veja `RETENTION_DAYS` em [configuration.md](configuration.md)).
+* O operador continua sendo o **controlador/operador** dos dados e é responsável pela base legal, pelos registros das operações de tratamento e pelo tratamento de incidentes. Este projeto não oferece nenhuma garantia (veja LICENSE, seção 7).
