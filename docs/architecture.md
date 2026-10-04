@@ -32,7 +32,7 @@ Browser ─► gatekeeper.py (:8000, optional) ──proxy──► app_service.
 | 3 | YOLO | Detecta assinaturas; recorta com margem (padding). |
 | 4 | Microauditoria dos recortes | OCR (PSM 6) em cada recorte, mapeando as coordenadas de volta para a página. |
 | 5 | Descoberta de endereços | O LLM de visão lê cada página e retorna endereços classificados como pessoais/profissionais/secundários. Se a chamada à IA falhar, a página é adicionada a `failed_pages` e marcada para revisão (falha fechado, ou fail closed). |
-| 6 | Tarja de endereços | Apenas endereços *pessoais*: correspondência determinística de tokens com as palavras do OCR, com uma lista de palavras "imunes" (rótulos de rua, bairro, CEP...). |
+| 6 | Tarja de endereços | Apenas endereços *pessoais*: cada endereço é localizado como **trecho contínuo** das palavras do OCR (`locate_address_spans`: tolera erro de OCR, palavras partidas e abreviações; exige ao menos 2 partes significativas do endereço). Termos estruturais ("imunes"), conectores, rótulos e datas nunca são tarjados. Endereço não localizado com segurança vira alerta de revisão (falha fechado). |
 | 7 | Auditoria de assinaturas | Desenha as tarjas atuais em cada recorte de assinatura e pergunta ao LLM de visão se um CPF ainda está visível; se sim, ou se a IA falhar, o recorte inteiro é tarjado. |
 | 8 | Exportação | Grava `redactions_metadata.json` (usado pelo editor) e o PDF final, seja por **tarja nativa** do original (`apply_redactions`, remove o texto e queima os pixels) ou por páginas rasterizadas. A reconstrução falha fechado (página ausente/com erro = nenhum PDF). |
 | 9 | Verificação | Veja abaixo. |

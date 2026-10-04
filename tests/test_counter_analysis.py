@@ -356,3 +356,46 @@ def test_r13_verifier_works_in_chunks_and_reports_progress(tmp_path):
     assert leftovers == {} and unverified == []
     assert max(seen_files) <= 4                                    # nunca mais que um lote em disco
     assert progress == [10, 20, 23]                                # progresso avança durante o OCR
+
+
+# --- 9. documento real (condomínio): valores em reais não viram CPF; CPF com vírgula continua CPF ---------
+def _cpfs(*texts):
+    from utils.ocr_engine import OCREngine
+    return OCREngine(tesseract_path=None).find_cpfs_in_grounding(grounding(*texts))[1]
+
+
+def test_money_values_never_assemble_into_a_cpf():
+    from utils.validators import is_valid_cpf
+    # Procura um valor em reais + número vizinho cujos 11 dígitos passariam no DV de CPF (gerado, não escrito)
+    combo = next((a, b) for a in range(1000, 10000) for b in range(100, 1000)
+                 if is_valid_cpf(f"{a}00{b}{b % 100:02d}"[:11]))
+    a, b = combo
+    money = f"{str(a)[0]}.{str(a)[1:]},00"                         # ex.: "1.500,00"
+    tail = f"{b}{b % 100:02d}"[:5]
+    assert _cpfs("pago", money, tail) == set()
+    assert _cpfs("R$", f"{a},00", tail) == set()
+
+
+def test_cpf_read_with_comma_instead_of_hyphen_is_still_a_cpf():
+    assert _cpfs("CPF", CPF_A_FMT.replace("-", ",")) == {CPF_A}
+
+
+def test_ocr_noise_words_do_not_complete_a_cpf(monkeypatch):
+    # Mesmo formato do falso positivo do documento real: dígitos soltos de ruído ("a1b", "x5y") completando
+    # 11 dígitos com números curtos vizinhos. O número é gerado aqui (nada que passe no DV fica no código).
+    from utils import ocr_engine
+    from utils.validators import is_valid_cpf
+    six = next(f"{n:06d}" for n in range(100000, 1000000) if is_valid_cpf(f"1{n:06d}5123"))
+    words_ = ["a1b", f"{six}]", "x5y", "123]"]
+    monkeypatch.setattr(ocr_engine, "_looks_like_ocr_noise", lambda text: False)
+    assert _cpfs(*words_) == {f"1{six}5123"}                        # sem o filtro: falso CPF
+    monkeypatch.undo()
+    assert _cpfs(*words_) == set()                                  # com o filtro: nenhum
+
+
+@pytest.mark.parametrize("text, expected", [("l1i3o7]x", True), ("a5b", True), ("Ol2x", True), ("123456]", False),
+                                            ("529.982.247-25", False), ("CPF:", False), ("S29.982.247-25", False),
+                                            ("nº", False), ("3A", False)])
+def test_noise_word_classifier(text, expected):
+    from utils.ocr_engine import _looks_like_ocr_noise
+    assert _looks_like_ocr_noise(text) is expected

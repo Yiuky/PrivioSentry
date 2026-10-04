@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Caracterizacao do casamento programatico de enderecos (refine_redaction_with_text_ai / is_immune).
+"""Caracterização do casamento programático de endereços (refine_redaction_with_text_ai / is_immune).
 
-A tabela abaixo documenta o comportamento ATUAL, incluindo limitacoes conhecidas:
-  - "ok":    tarja exatamente o que se espera;
-  - "over":  SOBRE-tarjamento aceito (vies "falhar fechado": prefere tarjar demais a vazar);
-  - "under": SUB-tarjamento (limitacao: o OCR leu diferente da IA de visao) -> depende da revisao humana.
-Nenhum caso aqui provou defeito que justificasse alterar o algoritmo.
+Desde a 5.4.1 o endereço é localizado como TRECHO contínuo do OCR (utils/address_redactor.locate_address_spans), e
+não como "saco de palavras". Antes, qualquer palavra do endereço era tarjada em QUALQUER ponto da página ("à",
+números, a cidade, até datas que continham um número do endereço). Categorias da tabela:
+  - "ok":     tarja exatamente o que se espera;
+  - "revisao": o endereço pessoal não foi localizado com segurança -> nenhuma tarja espalhada e a página vai
+              para revisão humana (falha fechado; ver test_unlocated_personal_address_goes_to_review).
 """
 import os
 
@@ -41,26 +42,32 @@ CASES = [
     ("cep_inteiro", ["CEP", "78.550-352"], pessoal("CEP 78.550-352"), ["78.550-352"], "ok"),
     ("cep_quebrado_pelo_ocr", ["78.550-", "352"], pessoal("78.550-352"), ["78.550-", "352"], "ok"),
     ("quadra_lote_numeros_curtos", ["Quadra", "5", "Lote", "12"], pessoal("Quadra 5 Lote 12"), ["5", "12"], "ok"),
-    ("rotulo_com_dois_pontos_nunca", ["Endereco:", "Flores"], pessoal("Endereco: Flores"), ["Flores"], "ok"),
+    ("rotulo_com_dois_pontos_nunca", ["Endereco:", "Flores", "10"], pessoal("Endereco: Flores 10"), ["Flores", "10"], "ok"),
     ("conectores_imunes", ["Rua", "do", "Sol", "e", "da", "Lua"], pessoal("Rua do Sol e da Lua"), ["Sol", "Lua"], "ok"),
     ("rodovia_com_numero_e_redigida", ["BR-163", "km", "10"], pessoal("BR-163 km 10"), ["BR-163", "10"], "ok"),
     ("endereco_profissional_ignorado", ["Avenida", "Brasil", "500"],
      [{"text": "Avenida Brasil 500", "type": "profissional"}], [], "ok"),
     ("sem_enderecos", ["Rua", "Flores"], [], [], "ok"),
-    ("varios_enderecos_so_pessoal", ["Flores", "Prado", "Obra"],
-     [{"text": "Rua Flores 1", "type": "pessoal"}, {"text": "Rua Prado 2", "type": "secundário"}], ["Flores"], "ok"),
-    # --- sobre-tarjamento (aceito) ---
-    ("over_numero_igual_em_outro_lugar", ["Pagina", "10", "Rua", "Flores", "10"], pessoal("Rua Flores 10"),
-     ["10", "Flores", "10"], "over"),
-    ("over_substring_de_palavra_maior", ["Floresta", "Santarem"], pessoal("Rua Flores, Santa Rita"),
-     ["Floresta", "Santarem"], "over"),
-    ("over_nome_da_cidade_em_qualquer_lugar", ["Cuiaba,", "12", "de", "marco", "Rua", "Alfa", "Cuiaba"],
-     pessoal("Rua Alfa, Cuiabá"), ["Cuiaba,", "Alfa", "Cuiaba"], "over"),
-    # --- sub-tarjamento (limitacao conhecida) ---
-    ("under_ocr_confunde_letra_por_digito", ["Fl0res", "123"], pessoal("Rua Flores 123"), ["123"], "under"),
-    ("under_ocr_parte_a_palavra", ["Flo", "res", "123"], pessoal("Rua Flores 123"), ["123"], "under"),
-    ("under_ia_abrevia_endereco", ["Jardim", "Primavera"], pessoal("Jd. Primavera"), ["Primavera"], "under"),
-    ("over_abreviatura_vira_substring", ["Presidente", "Costa"], pessoal("Pres. Costa"), ["Presidente", "Costa"], "over"),
+    ("numero_igual_em_outro_lugar_nao_e_tarjado", ["Pagina", "10", "Rua", "Flores", "10"], pessoal("Rua Flores 10"),
+     ["Flores", "10"], "ok"),
+    ("palavra_maior_nao_e_o_endereco", ["Floresta", "Santarem"], pessoal("Rua Flores, Santa Rita"), [], "revisao"),
+    ("cidade_solta_em_outro_lugar_nao_e_tarjada", ["Cuiaba,", "12", "de", "marco", "Rua", "Alfa", "Cuiaba"],
+     pessoal("Rua Alfa, Cuiabá"), ["Alfa", "Cuiaba"], "ok"),
+    ("ocr_confunde_letra_por_digito", ["Fl0res", "123"], pessoal("Rua Flores 123"), ["Fl0res", "123"], "ok"),
+    ("ocr_parte_a_palavra", ["Flo", "res", "123"], pessoal("Rua Flores 123"), ["Flo", "res", "123"], "ok"),
+    ("ia_abrevia_endereco", ["Jardim", "Primavera"], pessoal("Jd. Primavera"), ["Jardim", "Primavera"], "ok"),
+    ("abreviatura_casa_palavra_inteira", ["Presidente", "Costa"], pessoal("Pres. Costa"), ["Presidente", "Costa"], "ok"),
+    ("endereco_incompleto_no_ocr", ["Flores", "Prado", "Obra"],
+     [{"text": "Rua Flores 1", "type": "pessoal"}, {"text": "Rua Prado 2", "type": "secundário"}], [], "revisao"),
+    # --- casos do documento real que motivou a mudança (texto fictício, mesmo formato) ---
+    ("crase_solta_na_pagina_nao_e_tarjada", ["reunião", "realizada", "à", "noite.", "Moradora", "à", "Rua", "Alfa,",
+                                              "45", "Centro"], pessoal("à Rua Alfa, 45, Centro"), ["Alfa,", "45", "Centro"], "ok"),
+    ("data_colada_pelo_llm_nunca_e_tarjada", ["em", "05/03/2024", "na", "Rua", "Alfa,", "45"],
+     pessoal("05/03/2024 na Rua Alfa, 45"), ["Alfa,", "45"], "ok"),
+    ("data_com_numero_do_endereco_nao_e_tarjada", ["Rua", "Alfa", "2024", "assinado", "em", "01/02/2024"],
+     pessoal("Rua Alfa 2024"), ["Alfa", "2024"], "ok"),
+    ("endereco_repetido_tarja_as_duas_vezes", ["Rua", "Alfa", "45", "...", "texto", "longo", "aqui", "...", "Rua",
+                                                "Alfa", "45"], pessoal("Rua Alfa 45"), ["Alfa", "45", "Alfa", "45"], "ok"),
 ]
 
 
@@ -69,9 +76,15 @@ def test_matching_table(redactor, name, ocr_words, addresses, expected, kind):
     assert run(redactor, ocr_words, addresses) == expected
 
 
+def test_unlocated_personal_address_goes_to_review(redactor):
+    gm = [{"id": i, "text": t, "box": {"x": i * 100, "y": 0, "w": 90, "h": 20}} for i, t in enumerate(["Floresta"])]
+    assert redactor.refine_redaction_with_text_ai(1, "", pessoal("Rua Flores, Santa Rita"), gm) == []
+    assert redactor.unlocated[1] == ["Rua Flores, Santa Rita"]
+
+
 def test_every_known_limitation_is_listed_in_table():
     kinds = {c[4] for c in CASES}
-    assert kinds == {"ok", "over", "under"}
+    assert kinds == {"ok", "revisao"}
 
 
 def test_fallback_builds_map_from_indexed_text_when_no_coordinates(redactor):
@@ -88,7 +101,7 @@ def test_audit_trail_is_saved_without_page_text(redactor):
 
 
 def test_words_with_only_punctuation_are_never_redacted(redactor):
-    assert run(redactor, ["-", "...", "Flores"], pessoal("Rua Flores")) == ["Flores"]
+    assert run(redactor, ["-", "...", "Flores", "-", "10"], pessoal("Rua Flores 10")) == ["Flores", "10"]
 
 
 # --- is_immune ---------------------------------------------------------------------------------

@@ -506,6 +506,11 @@ class SentryApp:
             redaction_mappings = self.address_redactor.refine_redaction_with_text_ai(
                 page_num, indexed_text, addresses, coordinate_map
             )
+            unlocated = self.address_redactor.unlocated.get(page_num) or []
+            if unlocated:
+                # O LLM viu um endereço pessoal que não foi achado no texto do OCR: revisão, não tarja espalhada
+                self.add_review(page_num, f"{len(unlocated)} endereço(s) pessoal(is) apontado(s) pela IA não "
+                                          f"localizado(s) no texto. Revisar manualmente.")
             
             if redaction_mappings:
                 if "FALLBACK_ALL" in redaction_mappings:

@@ -5,6 +5,11 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Corrigido (a partir de um documento real processado)
+- **Endereços localizados como trecho, não como "saco de palavras".** Antes, qualquer palavra do endereço devolvido pelo LLM era tarjada em **qualquer ponto da página**: "à", números soltos, o nome da cidade e até **datas** que continham um número do endereço. Agora o endereço é localizado como trecho contínuo do OCR (tolerante a erros de OCR, palavras partidas e abreviações como "Jd."/"Pres."); datas e conectores nunca são tarjados; endereço pessoal que não é localizado com segurança manda a página para **revisão** em vez de espalhar tarjas. No documento de teste: tarjas de endereço 72 → 47, nenhuma data nem "à" solto.
+- "À", "ÀS", "AS", "OS" passam a ser conectores protegidos (o acento fazia "à" escapar da proteção).
+- **CPF falso a partir de valor em reais ou de ruído de OCR:** valores como "1.500,00" e palavras de ruído ("a1b", letras e dígitos embaralhados) não completam mais um "CPF" com dígitos vizinhos; palavra com exatamente 11 dígitos continua valendo (CPF lido com vírgula no lugar do hífen). No documento de teste: CPFs 6 → 5 (todos verdadeiros) e o alerta falso "CPF ainda detectável no PDF final" sumiu.
+
 ## [5.4.0] - 2026-10-04
 
 Critérios nacionais e internacionais de dados pessoais (catálogo de PII e perfis de política), ~4,7× mais rápido

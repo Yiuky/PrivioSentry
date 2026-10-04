@@ -14,7 +14,13 @@ IMMUNE_WORDS = {
     "LOCALIZAÇÃO", "LOCALIZACAO", "SITUADO", "CELEBRADO", "EM"
 }
 
-_SHORT_CONNECTORS = {"DE", "DO", "DA", "EM", "NO", "NA", "E", "A", "O", "AO", "DOS", "DAS", "UM", "UMA"}
+_SHORT_CONNECTORS = {"DE", "DO", "DA", "EM", "NO", "NA", "E", "A", "O", "AO", "AOS", "AS", "OS", "DOS", "DAS",
+                     "NOS", "NAS", "UM", "UMA"}
+
+
+def _strip_accents(text):
+    import unicodedata
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
 
 
 def is_immune(word):
@@ -25,6 +31,6 @@ def is_immune(word):
     # Se contiver números, nunca é imune
     if any(char.isdigit() for char in w):
         return False
-    if w in _SHORT_CONNECTORS:
+    if w in _SHORT_CONNECTORS or _strip_accents(w) in _SHORT_CONNECTORS:  # "À", "ÀS" também são conectores
         return True
     return w in IMMUNE_WORDS

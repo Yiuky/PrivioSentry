@@ -27,6 +27,24 @@ def ocr_workers(base_dpi=None, jobs=None):
     return value
 
 
+def _looks_like_ocr_noise(text):
+    """
+    Palavra que é ruído de OCR (carimbo, rabisco, textura), não pedaço de número: letras e dígitos embaralhados.
+    Seus dígitos soltos não podem completar um "CPF" com palavras vizinhas (falso positivo visto em documento real).
+    Conservador: um número real com 1-2 letras trocadas pelo OCR nas pontas não se encaixa aqui.
+    """
+    core = text.strip(".,;:()[]{}|\"'")
+    digits = sum(ch.isdigit() for ch in core)
+    letters = sum(ch.isalpha() for ch in core)
+    if not digits or not letters:
+        return False
+    classes = [("d" if ch.isdigit() else "a") for ch in core if ch.isalnum()]
+    alternations = sum(1 for a, b in zip(classes, classes[1:]) if a != b)
+    if alternations >= 4 and letters >= digits:
+        return True  # "l1i3o7]x" -> textura/ruído
+    return digits <= 3 and classes[0] == "a" and classes[-1] == "a"  # "a1b", "Ol2x": dígito perdido no meio de letras
+
+
 class OCREngine:
     def __init__(self, tesseract_path, lang="por+eng", logger=None):
         self.tesseract_path = tesseract_path
@@ -201,8 +219,12 @@ class OCREngine:
         # Expressões para identificar se a palavra original parece uma Data ou Hora
         date_pattern = re.compile(r'\d{2,4}[./-]\d{2}[./-]\d{2,4}')
         time_pattern = re.compile(r'\d{2}:\d{2}:\d{2}')
+        # Valor em reais ("1.500,00", "R$ 350,00"): nunca participa da montagem de um CPF com dígitos vizinhos.
+        # Exceção: palavra com exatamente 11 dígitos continua valendo (CPF lido com vírgula no lugar do hífen).
+        money_pattern = re.compile(r'^[(\[]?(?:R\$)?\d{1,3}(?:\.\d{3})*,\d{2}[)\].,;:]*$')
         
         excluded_ids = set()
+        prev_text = ""
         
         digits_only = ""
         last_box = None
@@ -211,8 +233,12 @@ class OCREngine:
             text = item["text"]
             box = item["box"]
             
-            # Marcar IDs que parecem datas/horas para evitar colisões acidentais
-            if date_pattern.search(text) or time_pattern.search(text):
+            # Marcar IDs que parecem datas/horas (ou valores em reais) para evitar colisões acidentais
+            n_digits = sum(ch.isdigit() for ch in text)
+            is_money = n_digits != 11 and (money_pattern.match(text.strip()) or
+                                           (prev_text.strip().upper() in ("R$", "R$:") and n_digits and "," in text))
+            prev_text = text
+            if date_pattern.search(text) or time_pattern.search(text) or is_money or _looks_like_ocr_noise(text):
                 digits_only += "X"
                 digit_to_source.append(("X", -1, -1))
                 excluded_ids.add(word_id)
