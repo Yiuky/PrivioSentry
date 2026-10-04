@@ -11,7 +11,7 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
 - Prioridade: **P0** (vazamento de dado ou segurança) · **P1** (resultado errado ou tarja a menos) ·
   **P2** (robustez e experiência) · **P3** (melhoria e refatoração).
 - Itens marcados como **visão** vêm do roteiro do produto: não têm data nem promessa de entrega.
-- Estado de referência: `5.0.0` + mudanças não publicadas do [CHANGELOG.md](CHANGELOG.md), 2026-10-04.
+- Estado de referência: `5.1.0`, 2026-10-04.
 
 ---
 
@@ -30,7 +30,6 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
 | B-10 | Tarja nativa: remover ou sinalizar metadados, anexos, anotações, campos de formulário e camadas ocultas que sobrevivem à tarja | [docs/limitations.md](docs/limitations.md) (Saída) |
 | B-11 | Aviso de rede: na interface quando `OLLAMA_API_URL` não aponta para `localhost` | [docs/limitations.md](docs/limitations.md) (Plataforma) |
 | B-12 | Desempenho em PDFs grandes (centenas de páginas): perfis de DPI, paralelismo do OCR fora do `AI_LOCK` | [docs/limitations.md](docs/limitations.md) (Desempenho) |
-| B-13 | Publicar Releases versionadas (tag `vX.Y.Z` + notas do CHANGELOG) e alinhar `pyproject.toml`/`CITATION.cff` | [CHANGELOG.md](CHANGELOG.md) |
 
 ## P3 · Refatoração e manutenção
 
@@ -57,6 +56,7 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
 
 | ID | Item | Versão | Teste |
 |---|---|---|---|
+| B-13 | Releases versionadas (tag `vX.Y.Z` + notas do CHANGELOG) e versão alinhada em `pyproject.toml`/`CITATION.cff` | 5.1.0 | `tests/test_check_versions.py` |
 | — | Pipeline falha fechado com o estado "Requer revisão" | 5.0.0 | `tests/test_fail_closed.py` |
 | — | Verificação pós-tarja contra o original | 5.0.0 | `tests/test_verifier.py`, `tests/test_verifier_extra.py` |
 | — | Interface local-first (sem CDN), pt-BR/en-US, WCAG AA | não publicado | `tests/ui/test_ui_brand.py`, `tests/ui/test_ui_security_a11y.py` |

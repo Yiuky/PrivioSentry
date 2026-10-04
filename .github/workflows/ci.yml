@@ -22,6 +22,8 @@ jobs:
           python-version: "3.12"
       - run: pip install ruff
       - run: ruff check .
+      - name: Consistência de versão (pyproject.toml, CITATION.cff, CHANGELOG.md)
+        run: python scripts/check_versions.py
 
   test:
     runs-on: ubuntu-latest

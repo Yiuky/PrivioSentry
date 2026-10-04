@@ -8,9 +8,11 @@ abstract: >-
   human review in a web editor, verifies the output against the original and fails closed. It can support
   LGPD-aligned practices but does not guarantee anonymization.
 authors:
-  - alias: Yiuky
-    name: "PRIVIO SENTRY contributors"
-version: 5.0.0
+  - family-names: Gambati
+    given-names: Joberth Firmino
+    alias: Yiuky
+version: 5.1.0
+date-released: 2026-10-04
 license: AGPL-3.0-or-later
 repository-code: "https://github.com/Yiuky/privio-sentry"
 url: "https://github.com/Yiuky/privio-sentry"

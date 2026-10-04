@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Yiuky/privio-sentry/releases/latest"><img src="https://img.shields.io/github/v/release/Yiuky/privio-sentry?label=Vers%C3%A3o&color=2E8B57" alt="Versão"></a>
   <a href="https://github.com/Yiuky/privio-sentry/actions/workflows/ci.yml"><img src="https://github.com/Yiuky/privio-sentry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white" alt="Python"></a>
   <a href="https://github.com/tesseract-ocr/tesseract"><img src="https://img.shields.io/badge/OCR-Tesseract%205-5C2D91.svg" alt="Tesseract OCR"></a>
@@ -26,7 +27,8 @@
   <a href="docs/limitations.md"><strong>⚠️ Limitações</strong></a> •
   <a href="CHANGELOG.md"><strong>📋 Novidades</strong></a> •
   <a href="https://github.com/Yiuky/privio-sentry/issues/new/choose"><strong>🐞 Relatar problema</strong></a> •
-  <a href="README.en.md"><strong>🌐 English</strong></a>
+  <a href="README.en.md"><strong>🌐 English</strong></a> •
+  <a href="#-doe-um-café-para-o-dev"><strong>☕ Doe um café</strong></a>
 </p>
 
 ---
@@ -44,6 +46,8 @@ Sua primeira (e, por enquanto, única) capacidade, o **SENTRY Redact**, lê arqu
 **endereços pessoais (residenciais)** e prepara as tarjas para uma pessoa revisar num **editor web**. OCR,
 detecção e os modelos de linguagem/visão rodam na sua máquina: a aplicação não envia o conteúdo dos
 documentos a nuvens de terceiros.
+
+> Projeto **pessoal e independente** de Joberth Firmino Gambati: não é um produto oficial de nenhuma instituição nem fala em nome dela.
 
 > **Status: estágio inicial.** Utilizável, mas jovem: escopo restrito (CPF e endereços pessoais), medido
 > apenas em dados sintéticos e ainda sem trilha de auditoria. Espere mudanças incompatíveis.
@@ -321,10 +325,30 @@ documents. Its first capability, **SENTRY Redact**, finds **Brazilian CPF number
 
 Full English documentation: [README.en.md](README.en.md).
 
-## 📄 Licença
+## ☕ Doe um café para o dev
 
+O PRIVIO SENTRY é gratuito e de código aberto, desenvolvido nas horas vagas. Se ele economizou o seu tempo,
+considere pagar um café para o desenvolvedor: ajuda a manter o projeto vivo e a trazer novos tipos de dado e
+melhorias na detecção.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/img/pix_qrcode.png" alt="QR Code Pix" width="180" /></td>
+    <td>
+      <strong>Pix</strong> (qualquer valor)<br><br>
+      Chave aleatória:<br>
+      <code>fcf8071f-416d-49f1-b4b9-3188d3d03c4b</code><br><br>
+      Pix copia e cola:<br>
+      <code>00020101021126580014br.gov.bcb.pix0136fcf8071f-416d-49f1-b4b9-3188d3d03c4b5204000053039865802BR5917JOBERTH F GAMBATI6006CUIABA62070503***63048088</code><br><br>
+      <em>Favorecido: Joberth Firmino Gambati</em>
+    </td>
+  </tr>
+</table>
+
+## 👤 Autor e licença
+
+- **Desenvolvedor:** Joberth Firmino Gambati ([@Yiuky](https://github.com/Yiuky)).
 - **Código-fonte:** [GNU AGPL-3.0 ou posterior](LICENSE). Se você distribuir uma versão modificada, ou
   oferecê-la a usuários pela rede, deve fornecer o código-fonte sob a mesma licença.
 - **Dependências e pesos do YOLO:** [NOTICE](NOTICE) e [docs/licensing.md](docs/licensing.md).
 - **Nomes e logotipos:** não cobertos pela AGPL; veja [TRADEMARKS.md](TRADEMARKS.md).
-- **Mantenedor:** [@Yiuky](https://github.com/Yiuky).

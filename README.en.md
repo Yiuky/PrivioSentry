@@ -14,6 +14,8 @@
 
 PRIVIO SENTRY is a local-first project for detecting and protecting personal, sensitive and confidential information in documents. Its first and only released capability, **SENTRY Redact**, is a pipeline that finds **CPF numbers** and **personal (residential) addresses** in PDF files and prepares redactions for a person to review. OCR, detection and the language/vision models run on your machine; the application does not send document content to third-party clouds.
 
+> A **personal, independent** project by Joberth Firmino Gambati ([@Yiuky](https://github.com/Yiuky)): it is not an official product of any institution and does not speak for one.
+
 > **Status: early stage.** SENTRY Redact is usable but young: it covers a narrow scope (CPF and personal addresses), has been measured only on synthetic data, and has no audit trail yet. Expect breaking changes.
 
 > **Trademark:** the code is AGPL-3.0-or-later, but the names and logos are not covered by that license. See [TRADEMARKS.md](TRADEMARKS.md).
@@ -175,6 +177,11 @@ Processing is local. Artifacts of every task (page images, OCR output, crops) ar
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Run `pytest` and `ruff check .` before opening a PR. **Never commit real personal data.**
+
+## Support the project
+
+PRIVIO SENTRY is free and open source, built in spare time. If it saved you time, you can buy the developer a
+coffee via Pix (Brazil): see [the donation section of the Portuguese README](README.md#-doe-um-café-para-o-dev).
 
 ## License
 

@@ -101,4 +101,10 @@ interface.
 - Toda mudança de comportamento ou configuração atualiza `CHANGELOG.md` (seção *Não publicado*),
   `docs/configuration.md` e `.env.example` quando couber.
 - Commits com *sign-off* (`git commit -s`, DCO). Um assunto por PR, com testes.
-- Versão do pacote em `pyproject.toml` e `CITATION.cff`; mantenha as duas iguais.
+- **Versão:** `pyproject.toml`, `CITATION.cff` (com `date-released`) e a seção `## [X.Y.Z] - AAAA-MM-DD` do
+  `CHANGELOG.md` andam juntas; `python scripts/check_versions.py` confere (também no CI).
+- **Publicar uma versão:** com a versão atualizada nesses três arquivos, `git tag vX.Y.Z && git push origin vX.Y.Z`.
+  O workflow **Release** confere tudo, roda a suíte e publica a Release com as notas do CHANGELOG.
+- **Identidade:** projeto pessoal de Joberth Firmino Gambati (@Yiuky). Commits com
+  `Yiuky@users.noreply.github.com`. Nunca cite instituição como autora ou dona, nem publique o e-mail
+  institucional (a auditoria bloqueia o domínio e a sigla).
