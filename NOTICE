@@ -1,0 +1,58 @@
+PRIVIO SENTRY - Local AI Privacy Infrastructure (product: SENTRY Redact)
+Copyright 2026 PRIVIO SENTRY contributors
+
+This product is free software licensed under the GNU Affero General Public License,
+version 3 or (at your option) any later version (AGPL-3.0-or-later). See LICENSE.
+The names "PRIVIO", "PRIVIO SENTRY", "SENTRY Redact" and the logos in assets/ are NOT
+licensed for reuse under the AGPL (see TRADEMARKS.md).
+
+Why AGPL: the project imports PyMuPDF and Ultralytics (both AGPL-3.0) and ships a YOLO
+model derived from Ultralytics. Licensing the whole project under AGPL-3.0-or-later keeps
+the combined work consistent. In short: you may use, study, modify and redistribute it;
+if you distribute a modified version, or let users interact with a modified version over a
+network, you must offer them the corresponding source under the same license (AGPL-3.0,
+section 13). Running it internally, unmodified or modified, without offering it to others,
+creates no publication obligation. See docs/licensing.md. This notice is not legal advice.
+
+================================================================================
+Third-party components
+================================================================================
+Direct dependencies (installed via pip / the system package manager; not
+redistributed in this repository unless stated):
+
+  Tesseract OCR            Apache-2.0           https://github.com/tesseract-ocr/tesseract
+  pytesseract              Apache-2.0           https://github.com/madmaze/pytesseract
+  PyMuPDF                  AGPL-3.0 or commercial (Artifex)   https://github.com/pymupdf/PyMuPDF
+  Ultralytics (YOLO)       AGPL-3.0             https://github.com/ultralytics/ultralytics
+  PyTorch (torch)          BSD-3-Clause         https://pytorch.org
+  OpenCV (opencv-python)   Apache-2.0           https://opencv.org  (wheel bundles FFmpeg, LGPL)
+  FastAPI                  MIT                  https://github.com/fastapi/fastapi
+  Uvicorn                  BSD-3-Clause         https://github.com/encode/uvicorn
+  HTTPX                    BSD-3-Clause         https://github.com/encode/httpx
+  Requests                 Apache-2.0           https://github.com/psf/requests
+  python-multipart         Apache-2.0           https://github.com/Kludex/python-multipart
+  Jinja2                   BSD-3-Clause         https://github.com/pallets/jinja
+  python-dotenv            BSD-3-Clause         https://github.com/theskumar/python-dotenv
+  Pillow                   MIT-CMU (HPND)       https://github.com/python-pillow/Pillow
+
+Development / test only: pytest (MIT), pytest-cov (MIT), pytest-playwright and
+Playwright (Apache-2.0), ruff (MIT).
+
+Data files:
+  Tesseract trained data (por, eng, osd)  Apache-2.0
+      https://github.com/tesseract-ocr/tessdata_fast -- installed through the system
+      package manager (tesseract-ocr-por) or downloaded by the user; the copy that was
+      kept in the original working directory is NOT part of the public repository.
+
+Model weights:
+  models/signature_stamp_detector.pt -- single-class ("signature") YOLO11n detector,
+      fine-tuned with Ultralytics from the pretrained yolo11n weights. Because the
+      Ultralytics toolchain and base weights are AGPL-3.0, treat these weights as
+      AGPL-3.0 as well. See models/MODEL_CARD.md.
+
+Models that you run through Ollama (text and vision LLMs) are NOT distributed with
+this project; each has its own license (for example Qwen, Gemma, Llama families) and
+you are responsible for complying with it.
+
+The Contributor Covenant in CODE_OF_CONDUCT.md is adapted from
+https://www.contributor-covenant.org (CC BY 4.0).

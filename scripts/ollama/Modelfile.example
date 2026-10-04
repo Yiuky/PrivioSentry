@@ -1,0 +1,12 @@
+# Example Ollama Modelfile for a local GGUF vision model + multimodal projector.
+# Exemplo de Modelfile do Ollama para um modelo GGUF de visão + projetor multimodal.
+#
+# 1. Download the GGUF files yourself / baixe os arquivos GGUF manualmente.
+# 2. Replace the placeholders below with ABSOLUTE paths on your machine.
+# 3. ollama create sentry-vision -f scripts/ollama/Modelfile.example
+# 4. Set OLLAMA_VISION_MODEL=sentry-vision (and OLLAMA_MODEL) in .env
+#
+# Alternatively, pull a ready-made model:  ollama pull qwen2.5vl:7b
+FROM /path/to/YOUR_MODEL.gguf
+ADAPTER /path/to/YOUR_MMPROJ.gguf
+TEMPLATE "{{ .Prompt }}"

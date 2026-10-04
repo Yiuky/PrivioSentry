@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "privio-sentry"
+version = "5.0.0"
+description = "PRIVIO SENTRY - Local AI Privacy Infrastructure. SENTRY Redact: local OCR + YOLO + vision LLM pipeline that suggests redactions of CPF numbers and personal addresses in PDFs, with human review. Supports LGPD-aligned practices; does not guarantee anonymization."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "PRIVIO SENTRY contributors" }]
+keywords = ["lgpd", "redaction", "pdf", "ocr", "yolo", "privacy", "pii", "cpf"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Security",
+  "Topic :: Text Processing",
+]
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+  "httpx>=0.27",
+  "python-multipart>=0.0.9",
+  "Jinja2>=3.1",
+  "python-dotenv>=1.0",
+  "requests>=2.31",
+  "PyMuPDF>=1.24",        # AGPL-3.0 -- see docs/licensing.md
+  "pillow>=10.0",
+  "pytesseract>=0.3.10",
+  "ultralytics>=8.3",     # AGPL-3.0 -- see docs/licensing.md
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9.0", "pytest-cov>=7.0", "ruff>=0.6"]
+ui = ["pytest-playwright>=0.7"]
+
+[project.urls]
+Homepage = "https://github.com/Yiuky/privio-sentry"
+Issues = "https://github.com/Yiuky/privio-sentry/issues"
+
+[tool.setuptools]
+py-modules = ["main", "app_service", "gatekeeper"]
+packages = ["utils"]
+
+# ---------------------------------------------------------------------------
+# Ruff (lint only; this project does not enforce an auto-formatter yet)
+# pytest options live in pytest.ini
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["venv", ".venv", "experimental", "output", "WEB_INPUT", "documentos_finais", "input"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = [
+  "E501",  # long lines: tolerated (prompts / log strings)
+  "E402",  # module-level import not at top (os.environ set before heavy imports)
+  "E701",  # one-line compound statements
+  "E702",
+  "E741",  # ambiguous variable names (l, O, I) used in legacy code
+  "B008",  # FastAPI Depends/File defaults
+  "B904",  # raise ... from err
+  # Legacy style issues in existing code; tighten later (not auto-fixed to avoid noisy diffs):
+  "W291", "W292", "W293",  # trailing whitespace / missing final newline
+  "E722",  # bare except
+  "B007", "B905",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "E731"]
+"scripts/**" = ["E402"]

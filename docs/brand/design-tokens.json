@@ -1,0 +1,116 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "color": {
+    "ink": {
+      "value": "#0B1220"
+    },
+    "primary.blue": {
+      "value": "#2563EB"
+    },
+    "privacy.teal": {
+      "value": "#14B8A6"
+    },
+    "protect.purple": {
+      "value": "#6941C6"
+    },
+    "slate": {
+      "value": "#667085"
+    },
+    "border": {
+      "value": "#D0D5DD"
+    },
+    "surface": {
+      "value": "#F8FAFC"
+    },
+    "white": {
+      "value": "#FFFFFF"
+    },
+    "warning": {
+      "value": "#F79009"
+    },
+    "danger": {
+      "value": "#D92D20"
+    },
+    "success": {
+      "value": "#039855"
+    }
+  },
+  "radius": {
+    "control": {
+      "value": "8px"
+    },
+    "card": {
+      "value": "12px"
+    },
+    "surface": {
+      "value": "16px"
+    },
+    "pill": {
+      "value": "999px"
+    }
+  },
+  "spacing": {
+    "1": {
+      "value": "4px"
+    },
+    "2": {
+      "value": "8px"
+    },
+    "3": {
+      "value": "12px"
+    },
+    "4": {
+      "value": "16px"
+    },
+    "5": {
+      "value": "20px"
+    },
+    "6": {
+      "value": "24px"
+    },
+    "8": {
+      "value": "32px"
+    },
+    "10": {
+      "value": "40px"
+    },
+    "12": {
+      "value": "48px"
+    }
+  },
+  "typography": {
+    "family.primary": {
+      "value": "Inter, system-ui, sans-serif"
+    },
+    "weight.regular": {
+      "value": 400
+    },
+    "weight.medium": {
+      "value": 500
+    },
+    "weight.semibold": {
+      "value": 600
+    },
+    "weight.bold": {
+      "value": 700
+    },
+    "size.body": {
+      "value": "14px"
+    },
+    "size.small": {
+      "value": "12px"
+    },
+    "size.h3": {
+      "value": "16px"
+    },
+    "size.h2": {
+      "value": "20px"
+    },
+    "size.h1": {
+      "value": "24px"
+    },
+    "size.display": {
+      "value": "32px"
+    }
+  }
+}

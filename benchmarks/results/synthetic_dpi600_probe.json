@@ -1,0 +1,133 @@
+{
+  "meta": {
+    "seed": 42,
+    "pages": 4,
+    "noise_sigma": 8.0,
+    "workers": 4,
+    "tesseract": "C:\\Program Files\\PDF24\\tesseract\\tesseract.exe",
+    "lang": "por",
+    "fonts": [
+      "arial.ttf",
+      "times.ttf",
+      "cour.ttf",
+      "verdana.ttf",
+      "georgia.ttf",
+      "calibri.ttf"
+    ],
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python": "3.12.13",
+    "wall_seconds": 49.4,
+    "cpf_total": 12
+  },
+  "summary": {
+    "detection": [
+      {
+        "dpi": 600,
+        "psm": 3,
+        "cpfs": 12,
+        "tp": 9,
+        "fp": 1,
+        "fn": 3,
+        "recall": 0.75,
+        "precision": 0.9,
+        "box_coverage": 0.5,
+        "seconds_per_page": 21.355,
+        "pages": 4
+      }
+    ],
+    "verification": [
+      {
+        "dpi": 600,
+        "psm": 3,
+        "leaks": 8,
+        "leaks_found": 7,
+        "leak_recall": 0.875,
+        "clean_pages": 4,
+        "clean_pages_flagged": 0,
+        "clean_unexpected_cpfs": 0,
+        "unverified_pages": 0,
+        "seconds_per_page": 6.709
+      }
+    ]
+  },
+  "raw": [
+    {
+      "kind": "detection",
+      "page": 0,
+      "dpi": 600,
+      "psm": 3,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "boxes_total": 3,
+      "boxes_covered": 2,
+      "seconds_ocr": 12.259,
+      "seconds_render": 9.252
+    },
+    {
+      "kind": "detection",
+      "page": 1,
+      "dpi": 600,
+      "psm": 3,
+      "tp": 2,
+      "fp": 0,
+      "fn": 1,
+      "boxes_total": 3,
+      "boxes_covered": 1,
+      "seconds_ocr": 12.366,
+      "seconds_render": 9.245
+    },
+    {
+      "kind": "detection",
+      "page": 2,
+      "dpi": 600,
+      "psm": 3,
+      "tp": 2,
+      "fp": 1,
+      "fn": 1,
+      "boxes_total": 3,
+      "boxes_covered": 2,
+      "seconds_ocr": 12.23,
+      "seconds_render": 9.229
+    },
+    {
+      "kind": "detection",
+      "page": 3,
+      "dpi": 600,
+      "psm": 3,
+      "tp": 2,
+      "fp": 0,
+      "fn": 1,
+      "boxes_total": 3,
+      "boxes_covered": 1,
+      "seconds_ocr": 12.545,
+      "seconds_render": 8.294
+    },
+    {
+      "kind": "verification",
+      "scenario": "leaky",
+      "dpi": 600,
+      "psm": 3,
+      "pages": 4,
+      "leaked_total": 8,
+      "leaks_found": 7,
+      "unexpected_found": 0,
+      "pages_flagged": 4,
+      "unverified_pages": 0,
+      "seconds_per_page": 6.697
+    },
+    {
+      "kind": "verification",
+      "scenario": "clean",
+      "dpi": 600,
+      "psm": 3,
+      "pages": 4,
+      "leaked_total": 0,
+      "leaks_found": 0,
+      "unexpected_found": 0,
+      "pages_flagged": 0,
+      "unverified_pages": 0,
+      "seconds_per_page": 6.721
+    }
+  ]
+}

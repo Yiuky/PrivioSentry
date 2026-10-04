@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRIVIO SENTRY — SENTRY Redact</title>
+    <meta name="description" content="PRIVIO SENTRY — Local AI Privacy Infrastructure. SENTRY Redact: detecte, revise e proteja dados em documentos PDF.">
+    <!-- Local-first: sem fontes, scripts ou estilos externos. Favicon embutido (data URI) derivado de assets/favicon.svg. -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%232563EB%22/%3E%3Cstop offset=%221%22 stop-color=%22%236941C6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%22512%22 height=%22512%22 rx=%22112%22 fill=%22url%28%23g%29%22/%3E%3Cpath d=%22M118 101h210l66 66v228H118z%22 fill=%22%23fff%22/%3E%3Cpath d=%22M150 190h196v34H150zM150 258h196v34H150zM150 326h128v34H150z%22 fill=%22%2308122E%22/%3E%3C/svg%3E">
+    <style>
+        /* Design tokens: docs/brand/design-tokens.json (PRIVIO SENTRY).
+           Tons "-strong"/"-tint"/"surface-2" são derivações para garantir contraste WCAG AA. */
+        :root {
+            --ink: #0B1220;
+            --primary: #2563EB;
+            --primary-strong: #1D4ED8;
+            --primary-tint: #EFF4FF;
+            --teal: #14B8A6;
+            --teal-strong: #0F766E;
+            --purple: #6941C6;
+            --slate: #667085;
+            --border: #D0D5DD;
+            --surface: #F8FAFC;
+            --surface-2: #EEF2F6;
+            --white: #FFFFFF;
+            --warning: #F79009;
+            --warning-strong: #B54708;
+            --warning-tint: #FFFAEB;
+            --danger: #D92D20;
+            --danger-strong: #B42318;
+            --danger-tint: #FEF3F2;
+            --success: #039855;
+            --success-strong: #027A48;
+            --radius-control: 8px;
+            --radius-card: 12px;
+            --radius-surface: 16px;
+            --radius-pill: 999px;
+            --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+            --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.10);
+            --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; font-family:var(--font); }
+        body { background:var(--surface); color:var(--ink); height:100vh; display:flex; flex-direction:row; overflow:hidden; font-size:14px; }
+
+        :where(button, input, select, textarea, [tabindex]):focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+        button { font: inherit; }
+
+        /* Sidebar */
+        .sidebar { width:300px; background:var(--white); border-right:1px solid var(--border); display:flex; flex-direction:column; z-index:100; transition: transform 0.3s ease; }
+
+        @media (max-width: 1024px) {
+            .sidebar { position: absolute; left: -300px; height: 100%; box-shadow: var(--shadow-md); }
+            .sidebar.open { transform: translateX(300px); }
+            .menu-toggle { display: block !important; }
+        }
+
+        .menu-toggle { display: none; position: fixed; top: 12px; left: 12px; z-index: 1000; background: var(--white); border: 1px solid var(--border); color: var(--ink); padding: 8px 12px; border-radius: var(--radius-control); cursor: pointer; box-shadow: var(--shadow-sm); }
+
+        .sidebar-header { padding:20px 20px 16px; border-bottom:1px solid var(--border); }
+        .brand { display:flex; align-items:center; gap:12px; }
+        .brand-mark { width:40px; height:40px; flex:none; border-radius:10px; display:block; }
+        .brand-name { font-size:16px; font-weight:700; letter-spacing:0.06em; line-height:1.2; color:var(--ink); }
+        .brand-product { font-size:12px; font-weight:600; color:var(--primary-strong); letter-spacing:0.04em; margin-top:2px; }
+        .brand-descriptor { font-size:11px; color:var(--slate); margin-top:12px; line-height:1.4; }
+
+        .task-list { flex:1; overflow-y:auto; padding:12px; background:var(--surface); }
+        .task-item { background:var(--white); border-radius:var(--radius-card); padding:12px; margin-bottom:8px; cursor:pointer; border:1px solid var(--border); transition:border-color 0.2s, background 0.2s; position: relative; box-shadow: var(--shadow-sm); }
+        .task-item:hover { border-color:var(--primary); }
+        .task-item.active { border-color:var(--primary); background:var(--primary-tint); }
+
+        .task-actions { position: absolute; top: 8px; right: 8px; z-index: 10; }
+        .dropdown-menu { display: none; position: absolute; right: 0; top: 30px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-control); z-index: 100; min-width: 160px; box-shadow: var(--shadow-md); overflow:hidden; }
+        .task-menu-btn { background: none; border: none; color: var(--slate); font-size: 18px; cursor: pointer; padding: 2px 8px; line-height: 1; border-radius: var(--radius-control); }
+        .task-menu-btn:hover { background: var(--surface-2); color: var(--ink); }
+        .dropdown-menu button { width: 100%; background: none; border: none; text-align: left; padding: 10px 14px; font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .dropdown-menu button:hover, .dropdown-menu button:focus-visible { background: var(--primary-tint); color: var(--primary-strong); }
+        .dropdown-menu button.danger { color: var(--danger-strong); }
+        .dropdown-menu button.danger:hover { background: var(--danger-tint); }
+        .badge-review { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; background: var(--warning-tint); color: var(--warning-strong); border: 1px solid var(--warning); }
+        .task-complete { margin-top: 6px; font-size: 11px; font-weight: 500; color: var(--success-strong); }
+
+        .pending-bar { display: none; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 24px; background: var(--warning-tint); border-bottom: 1px solid var(--warning); font-size: 12px; }
+        .pending-bar strong { color: var(--warning-strong); }
+        .pending-chip { background: var(--white); border: 1px solid var(--warning); color: var(--ink); border-radius: var(--radius-pill); padding: 3px 10px; font-size: 12px; cursor: pointer; max-width: 360px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pending-chip:hover { background: var(--warning-strong); border-color: var(--warning-strong); color: var(--white); }
+        .pending-note { color: var(--slate); font-size: 12px; }
+        .pending-filter { display: flex; align-items: center; gap: 4px; color: var(--ink); margin-left: auto; cursor: pointer; }
+        .page-wrapper.pending { outline: 3px solid var(--warning); outline-offset: 4px; }
+
+        #toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: var(--ink); color: var(--white); border-left: 4px solid var(--danger); border-radius: var(--radius-control); padding: 10px 18px; font-size: 13px; z-index: 20000; display: none; max-width: 80%; box-shadow: var(--shadow-md); }
+        #toast.ok { border-left-color: var(--success); }
+
+        .task-title { font-size:13px; font-weight:600; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 85%; }
+        .task-meta { font-size:12px; color:var(--slate); display:flex; justify-content:space-between; gap:8px; }
+
+        .sidebar-footer { padding:16px; display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--border); background:var(--white); }
+
+        .main-content { flex:1; display:flex; flex-direction:column; position:relative; background:var(--surface); width: 100%; min-width:0; }
+        .header { background:var(--white); border-bottom:1px solid var(--border); padding:0 24px; min-height:60px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+        .header-left { display:flex; align-items:center; gap:12px; min-width:0; }
+        .header-right { display:flex; align-items:center; gap:12px; }
+        #doc-name { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+        .local-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:var(--radius-pill); background:#E6F7F5; color:var(--teal-strong); border:1px solid var(--teal); font-size:11px; font-weight:700; letter-spacing:0.06em; white-space:nowrap; }
+        .local-badge::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--teal); }
+
+        .lang-select { border:1px solid var(--border); border-radius:var(--radius-control); background:var(--white); color:var(--ink); padding:5px 8px; font-size:12px; cursor:pointer; }
+
+        .ai-notice { background:var(--primary-tint); color:var(--ink); border-bottom:1px solid var(--border); padding:8px 24px; font-size:12px; line-height:1.4; }
+        .ai-notice strong { color:var(--primary-strong); }
+
+        @media (max-width: 768px) {
+            .header { padding-left: 60px; padding-right: 12px; }
+            .toolbar { flex-wrap: wrap; }
+            .ai-notice { padding: 8px 12px; }
+        }
+
+        .toolbar { display:flex; gap:8px; align-items:center; }
+        .toolbar-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+        .tool-btn { background:var(--white); border:1px solid var(--border); color:var(--ink); padding:6px 14px; border-radius:var(--radius-control); font-size:13px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:var(--shadow-sm); }
+        .tool-btn:hover { background:var(--surface-2); }
+        .tool-btn.active { background:var(--primary-tint); border-color:var(--primary); color:var(--primary-strong); }
+        .btn-success, .btn-primary { background:var(--primary); border-color:var(--primary); color:var(--white); }
+        .btn-success:hover, .btn-primary:hover { background:var(--primary-strong); }
+        .btn-protect { background:var(--purple); border-color:var(--purple); color:var(--white); }
+        .btn-protect:hover { background:#5A37A8; }
+        .btn-danger-outline { color:var(--danger-strong); border-color:var(--danger); }
+        .btn-danger-outline:hover { background:var(--danger-tint); }
+        .btn-warn { background:var(--danger-strong); border-color:var(--danger-strong); color:var(--white); }
+        .btn-warn:hover { background:#912018; }
+        .btn-block { width:100%; }
+
+        .workspace { flex:1; overflow-y:auto; position:relative; padding:20px; background:var(--surface-2); scroll-behavior: smooth; }
+        #document-viewer { display: flex; flex-direction: column; align-items: center; gap: 40px; transform-origin: top center; transition: transform 0.2s; padding-bottom: 100px; }
+        .page-wrapper { position:relative; box-shadow:var(--shadow-md); background:var(--white); min-height: 500px; width: fit-content; border:1px solid var(--border); }
+        .page-img { display:block; max-width:100%; height:auto; user-select:none; -webkit-user-drag:none; background: var(--white); }
+
+        .redaction-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+        .redaction-box { position:absolute; background:rgba(11,18,32,0.45); border:2px solid var(--primary); pointer-events:auto; z-index:2; }
+        .redaction-box.type-signature { border-color: var(--teal); background: rgba(20, 184, 166, 0.40); }
+        .redaction-box.type-signature::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--teal-strong); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
+
+        .redaction-box.selected { border:3px solid var(--white); box-shadow:0 0 0 2px var(--primary), 0 0 14px rgba(37,99,235,0.6); z-index:10; }
+        .box-delete { position:absolute; top:-12px; right:-12px; width:24px; height:24px; background:var(--danger); border-radius:50%; display:none; align-items:center; justify-content:center; font-size:14px; color:var(--white); cursor:pointer; z-index:20; }
+        .redaction-box:hover .box-delete, .redaction-box.selected .box-delete { display:flex; }
+
+        .resize-handle { position:absolute; width:12px; height:12px; background:var(--white); border:2px solid var(--primary); border-radius:3px; display:none; z-index:15; }
+        .redaction-box.selected .resize-handle { display:block; }
+        .handle-se { bottom:-6px; right:-6px; cursor:se-resize; }
+
+        /* Menu de decisão */
+        .decision-menu { position: fixed; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 8px; box-shadow: var(--shadow-md); z-index: 5000; display: none; gap: 4px; flex-direction: column; animation: popIn 0.2s ease-out; }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+        .decision-btn { background: var(--surface); border: 1px solid var(--border); color: var(--ink); padding: 10px 16px; border-radius: var(--radius-control); font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; text-align: left; }
+        .decision-btn:hover { background: var(--primary-tint); border-color: var(--primary); }
+        .decision-btn.sig:hover { background: #E6F7F5; border-color: var(--teal); }
+        .decision-btn.cancel { color: var(--slate); }
+
+        .ghost { position:fixed; border:2px dashed var(--primary); background:rgba(37,99,235,0.15); display:none; pointer-events:none; z-index:10000; }
+
+        .zoom-info { position:fixed; right:30px; bottom:30px; background:var(--white); padding:6px 12px; border-radius:var(--radius-pill); border:1px solid var(--border); font-size:12px; color:var(--ink); display:flex; align-items:center; gap:10px; z-index:1000; box-shadow:var(--shadow-md); }
+        .zoom-btn { background:none; border:none; color:var(--ink); font-size:18px; cursor:pointer; padding:0 6px; border-radius:var(--radius-control); }
+        .zoom-btn:hover { background:var(--surface-2); }
+
+        .page-nav { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:var(--white); padding:6px 16px; border-radius:var(--radius-pill); display:flex; align-items:center; gap:12px; border:1px solid var(--border); box-shadow:var(--shadow-md); z-index:1000; }
+        .nav-btn { background:none; border:none; color:var(--ink); cursor:pointer; font-size:24px; border-radius:var(--radius-control); padding:0 6px; }
+        .nav-btn:hover:not(:disabled) { background:var(--surface-2); }
+        .nav-btn:disabled { color:var(--border); cursor:default; }
+
+        #loader { display:none; position:absolute; top:0; left:0; z-index:2000; background:rgba(248,250,252,0.85); width:100%; height:100%; align-items:center; justify-content:center; flex-direction:column; color:var(--ink); text-align:center; white-space:pre-line; }
+        .spinner { width:44px; height:44px; border:4px solid var(--border); border-top-color:var(--primary); border-radius:50%; animation:spin 1s linear infinite; margin-bottom:15px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Estado vazio */
+        .empty-state { width: 100%; max-width: 760px; margin: 24px auto 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; z-index: 10; }
+        .empty-mark { width:64px; height:64px; border-radius:16px; margin-bottom:16px; }
+        .empty-state h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; color: var(--ink); }
+        .empty-sub { color: #475467; font-size: 14px; margin-bottom: 8px; }
+        .empty-tagline { color: var(--primary-strong); font-size: 14px; font-weight: 600; margin-bottom: 24px; }
+        .steps { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; width:100%; text-align:left; }
+        @media (max-width: 900px) { .steps { grid-template-columns: 1fr; } }
+        .step-card { background:var(--white); border:1px solid var(--border); border-radius:var(--radius-surface); padding:20px; box-shadow:var(--shadow-sm); }
+        .step-card h3 { font-size:16px; font-weight:600; margin-bottom:8px; }
+        .step-card h3 .step-n { display:inline-block; min-width:24px; padding:0 6px; margin-right:6px; border-radius:var(--radius-pill); background:var(--primary-tint); color:var(--primary-strong); font-size:12px; text-align:center; }
+        .step-card p { color:var(--slate); font-size:13px; line-height:1.6; }
+        .legal-note { margin-top:20px; color:#475467; font-size:12px; line-height:1.6; max-width:640px; }
+
+        /* Modais */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(11,18,32,0.55); z-index: 9999; display: none; align-items: center; justify-content: center; }
+        .readme-modal { background: var(--white); width: 90%; max-width: 800px; height: 85vh; border-radius: var(--radius-surface); border: 1px solid var(--border); display: flex; flex-direction: column; box-shadow: var(--shadow-md); overflow: hidden; animation: popIn 0.25s ease-out; }
+        .readme-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--surface); }
+        .readme-header h2 { font-size:18px; font-weight:600; color:var(--ink); }
+        .readme-content { padding: 24px; overflow-y: auto; color: var(--ink); font-size: 14px; line-height: 1.7; }
+        .readme-content h1, .readme-content h2, .readme-content h3 { color: var(--ink); margin-top: 1.2em; margin-bottom: 0.5em; font-weight:700; }
+        .readme-content h1 { font-size: 1.7em; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-top:0; }
+        .readme-content h2 { font-size: 1.3em; }
+        .readme-content h3 { font-size: 1.1em; }
+        .readme-content li { margin-bottom: 6px; margin-left: 20px; }
+        .readme-content p { margin-bottom: 14px; }
+        .readme-content blockquote { border-left: 4px solid var(--primary); padding: 8px 14px; margin-bottom: 14px; color: var(--slate); background: var(--primary-tint); border-radius: 0 var(--radius-control) var(--radius-control) 0; }
+        .readme-content pre, .readme-content code { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 12.5px; background: var(--surface-2); border-radius: 6px; }
+        .readme-content code { padding: 1px 5px; }
+        .readme-content pre { padding: 12px; margin-bottom: 14px; overflow-x: auto; white-space: pre; }
+        .readme-content a { color: var(--primary-strong); }
+        .close-btn { background: none; border: none; color: var(--slate); font-size: 24px; cursor: pointer; border-radius: var(--radius-control); padding: 0 8px; }
+        .close-btn:hover { color: var(--danger-strong); background: var(--danger-tint); }
+
+        #logs-content { background: var(--surface); flex: 1; overflow-y: auto; padding: 20px; }
+        .log-line { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 11px; white-space: pre-wrap; word-break: break-all; margin-bottom: 2px; }
+        .log-error { color: var(--danger-strong); font-weight: bold; }
+        .log-warn { color: var(--warning-strong); }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <button class="menu-toggle" id="menu-toggle" data-i18n-aria="menu.open" aria-label="Abrir menu lateral" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="brand" data-testid="brand">
+                <!-- Marca conceitual PRIVIO SENTRY (concept redraw, ver docs/brand/BRAND_GUIDELINES.md §11) -->
+                <svg class="brand-mark" data-testid="brand-logo" role="img" aria-label="PRIVIO SENTRY" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                    <defs>
+                        <linearGradient id="ps-grad" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0" stop-color="#2563EB"/>
+                            <stop offset=".52" stop-color="#3B82F6"/>
+                            <stop offset="1" stop-color="#6941C6"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="512" height="512" rx="112" fill="url(#ps-grad)"/>
+                    <path d="M118 101h210l66 66v228H118z" fill="#fff" fill-opacity=".98"/>
+                    <path d="M328 101v76h66" fill="#E8EEF9"/>
+                    <path d="M160 194h176v22H160zM160 243h176v22H160zM160 292h128v22H160z" fill="#08122E"/>
+                    <path d="M118 356h110l-50 55-60-30z" fill="#BFD3FF"/>
+                </svg>
+                <div>
+                    <div class="brand-name" data-testid="brand-name">PRIVIO SENTRY</div>
+                    <div class="brand-product" data-testid="brand-product">SENTRY Redact</div>
+                </div>
+            </div>
+            <div class="brand-descriptor" data-i18n="brand.descriptor">Local AI Privacy Infrastructure</div>
+        </div>
+        <div class="task-list" id="task-list"></div>
+        <div class="sidebar-footer">
+            <input type="file" id="file-input" style="display:none;" accept=".pdf" multiple>
+            <button class="tool-btn btn-primary btn-block" style="height:42px;" data-i18n="btn.add" onclick="document.getElementById('file-input').click()">Adicionar PDFs</button>
+            <button class="tool-btn btn-block" data-i18n="btn.processAll" onclick="processAll()">Processar todos</button>
+            <button class="tool-btn btn-block btn-danger-outline" data-i18n="btn.deleteAll" onclick="deleteAll()">Excluir todos</button>
+            <button class="tool-btn btn-block" data-i18n="btn.docs" onclick="openReadme()">Documentação</button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <div class="header-left">
+                <div id="doc-name" data-i18n="doc.waiting">Aguardando documento...</div>
+            </div>
+            <div class="toolbar" id="toolbar" style="display:none;">
+                <button class="tool-btn" id="btn-toggle" onclick="toggleRedactionsVisibility()"><span>Ocultar tarjas</span></button>
+                <div class="toolbar-sep"></div>
+                <button class="tool-btn active" id="btn-select" onclick="setMode('select')"><span data-i18n="btn.select">Selecionar</span></button>
+                <button class="tool-btn" id="btn-draw" onclick="setMode('draw')"><span data-i18n="btn.draw">Nova tarja</span></button>
+                <div class="toolbar-sep"></div>
+                <button class="tool-btn" id="btn-save" onclick="saveDraft()"><span data-i18n="btn.save">Salvar</span></button>
+                <button class="tool-btn btn-protect" id="btn-generate" onclick="generateNativePDF()"><span data-i18n="btn.generate">Aplicar proteção (modo nativo)</span></button>
+                <button class="tool-btn btn-warn" id="btn-reset-ai" onclick="reloadAIRedactions()"><span data-i18n="btn.resetAi">Recarregar sugestões da IA</span></button>
+            </div>
+            <div class="header-right">
+                <span class="local-badge" data-testid="local-badge" id="local-badge">LOCAL PROCESSING</span>
+                <select class="lang-select" id="lang-select" data-testid="lang-select" data-i18n-aria="lang.label" aria-label="Idioma" onchange="setLang(this.value)">
+                    <option value="pt-BR">Português (BR)</option>
+                    <option value="en-US">English (US)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="ai-notice" id="ai-notice" data-testid="ai-disclaimer" role="note">
+            <strong data-i18n="notice.ai.lead">A IA sugere; você confirma.</strong>
+            <span data-i18n="notice.ai.body">A detecção por IA é probabilística e pode errar. Revise todas as sugestões antes de proteger e exportar.</span>
+        </div>
+
+        <div class="pending-bar" id="pending-bar" role="region" data-i18n-aria="pending.region" aria-label="Páginas pendentes de revisão"></div>
+
+        <div class="workspace" id="workspace" onwheel="handleWheel(event)">
+            <div class="empty-state" id="empty-state" data-testid="empty-state">
+                <svg class="empty-mark" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                    <rect width="512" height="512" rx="112" fill="url(#ps-grad)"/>
+                    <path d="M118 101h210l66 66v228H118z" fill="#fff" fill-opacity=".98"/>
+                    <path d="M328 101v76h66" fill="#E8EEF9"/>
+                    <path d="M160 194h176v22H160zM160 243h176v22H160zM160 292h128v22H160z" fill="#08122E"/>
+                    <path d="M118 356h110l-50 55-60-30z" fill="#BFD3FF"/>
+                </svg>
+                <h2 data-i18n="empty.title">Nenhum documento ainda</h2>
+                <p class="empty-sub" data-i18n="empty.sub">Adicione um PDF para iniciar a detecção.</p>
+                <p class="empty-tagline" data-i18n="tagline">Proteja os dados antes que sejam expostos.</p>
+                <div class="steps">
+                    <div class="step-card">
+                        <h3><span class="step-n">1</span><span data-i18n="step.detect.title">Detectar</span></h3>
+                        <p data-i18n="step.detect.body">OCR, regras de validação e modelos locais sugerem possíveis CPFs, endereços e assinaturas.</p>
+                    </div>
+                    <div class="step-card">
+                        <h3><span class="step-n">2</span><span data-i18n="step.review.title">Revisar</span></h3>
+                        <p data-i18n="step.review.body">Cada sugestão aparece como uma região editável. Ajuste, mova ou remova antes de continuar.</p>
+                    </div>
+                    <div class="step-card">
+                        <h3><span class="step-n">3</span><span data-i18n="step.protect.title">Proteger</span></h3>
+                        <p data-i18n="step.protect.body">A proteção só é aplicada ao PDF depois da sua confirmação. Páginas incertas ficam marcadas como Requer revisão.</p>
+                    </div>
+                </div>
+                <p class="legal-note" data-i18n="empty.legal">Apoia práticas de privacidade e segurança, incluindo as relacionadas à LGPD. Não é aconselhamento jurídico e não assegura conformidade: a política de proteção e o resultado exigem revisão da sua organização.</p>
+            </div>
+
+            <div id="loader"><div class="spinner"></div><p id="loader-text">Carregando documento...</p></div>
+
+            <div id="document-viewer" style="display:none;">
+                <!-- As páginas serão geradas dinamicamente aqui -->
+            </div>
+            <div class="ghost" id="ghost"></div>
+        </div>
+
+        <!-- Menu de decisão para novas tarjas -->
+        <div class="decision-menu" id="decision-menu">
+            <button class="decision-btn" data-i18n="menu.pii" onclick="saveNewRedaction('pii')">Dados pessoais (PII)</button>
+            <button class="decision-btn sig" data-i18n="menu.sig" onclick="saveNewRedaction('signature')">Assinatura (manual)</button>
+            <button class="decision-btn cancel" data-i18n="menu.cancel" onclick="cancelNewRedaction()">Cancelar</button>
+        </div>
+
+        <div class="zoom-info" id="zoom-ui" style="display:none;">
+            <button class="zoom-btn" id="btn-zoom-out" data-i18n-aria="zoom.out" aria-label="Diminuir zoom" onclick="changeZoom(-0.2)">-</button>
+            <span id="zoom-text">80%</span>
+            <button class="zoom-btn" id="btn-zoom-in" data-i18n-aria="zoom.in" aria-label="Aumentar zoom" onclick="changeZoom(0.2)">+</button>
+        </div>
+
+        <div class="page-nav" id="page-nav" style="display:none;">
+            <button class="nav-btn" id="btn-prev" data-i18n-aria="nav.prev" aria-label="Página anterior" onclick="changePage(-1)">‹</button>
+            <span id="page-info" style="font-weight:600; font-size:13px; min-width:60px; text-align:center;">1 / 1</span>
+            <button class="nav-btn" id="btn-next" data-i18n-aria="nav.next" aria-label="Próxima página" onclick="changePage(1)">›</button>
+        </div>
+    </div>
+
+    <!-- Modal de documentação -->
+    <div class="modal-overlay" id="readme-overlay" role="dialog" aria-modal="true" data-i18n-aria="docs.label" aria-label="Documentação" onclick="if(event.target===this) closeReadme(event)">
+        <div class="readme-modal">
+            <div class="readme-header">
+                <h2 data-i18n="docs.title">PRIVIO SENTRY — Visão geral</h2>
+                <button class="close-btn" id="readme-close" data-i18n-aria="docs.close" aria-label="Fechar documentação" onclick="closeReadme(event)">&times;</button>
+            </div>
+            <div class="readme-content" id="readme-content">Carregando documentação...</div>
+        </div>
+    </div>
+
+    <!-- Modal de logs -->
+    <div class="modal-overlay" id="logs-overlay" role="dialog" aria-modal="true" data-i18n-aria="logs.label" aria-label="Logs da tarefa" onclick="if(event.target===this) this.style.display='none'">
+        <div class="readme-modal" style="width:90%; max-width:1100px; height:80vh;">
+            <div class="readme-header">
+                <h2 data-i18n="logs.title">Log de auditoria da tarefa</h2>
+                <button class="close-btn" id="logs-close" data-i18n-aria="logs.close" aria-label="Fechar logs" onclick="document.getElementById('logs-overlay').style.display='none'">&times;</button>
+            </div>
+            <div class="readme-content" id="logs-content"></div>
+        </div>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+        // ---------------------------------------------------------------- i18n
+        // Chaves no estilo de docs/brand/UX_SPEC.md. Padrão: pt-BR (a UI não depende do idioma do navegador).
+        const I18N = {
+            'pt-BR': {
+                'brand.descriptor': 'Local AI Privacy Infrastructure',
+                'tagline': 'Proteja os dados antes que sejam expostos.',
+                'doc.waiting': 'Aguardando documento...',
+                'notice.ai.lead': 'A IA sugere; você confirma.',
+                'notice.ai.body': 'A detecção por IA é probabilística e pode errar. Revise todas as sugestões antes de proteger e exportar.',
+                'btn.add': 'Adicionar PDFs', 'btn.processAll': 'Processar todos', 'btn.deleteAll': 'Excluir todos', 'btn.docs': 'Documentação',
+                'btn.select': 'Selecionar', 'btn.draw': 'Nova tarja', 'btn.save': 'Salvar', 'btn.saved': 'Salvo!',
+                'btn.generate': 'Aplicar proteção (modo nativo)', 'btn.resetAi': 'Recarregar sugestões da IA',
+                'btn.hide': 'Ocultar tarjas', 'btn.show': 'Mostrar tarjas',
+                'menu.open': 'Abrir menu lateral', 'lang.label': 'Idioma',
+                'menu.pii': 'Dados pessoais (PII)', 'menu.sig': 'Assinatura (manual)', 'menu.cancel': 'Cancelar',
+                'zoom.in': 'Aumentar zoom', 'zoom.out': 'Diminuir zoom', 'nav.prev': 'Página anterior', 'nav.next': 'Próxima página',
+                'pending.region': 'Páginas pendentes de revisão', 'pending.title': 'Requer revisão', 'pending.only': 'Só páginas pendentes', 'pending.page': 'Pág',
+                'empty.title': 'Nenhum documento ainda', 'empty.sub': 'Adicione um PDF para iniciar a detecção.',
+                'step.detect.title': 'Detectar', 'step.detect.body': 'OCR, regras de validação e modelos locais sugerem possíveis CPFs, endereços e assinaturas.',
+                'step.review.title': 'Revisar', 'step.review.body': 'Cada sugestão aparece como uma região editável. Ajuste, mova ou remova antes de continuar.',
+                'step.protect.title': 'Proteger', 'step.protect.body': 'A proteção só é aplicada ao PDF depois da sua confirmação. Páginas incertas ficam marcadas como Requer revisão.',
+                'empty.legal': 'Apoia práticas de privacidade e segurança, incluindo as relacionadas à LGPD. Não é aconselhamento jurídico e não assegura conformidade: a política de proteção e o resultado exigem revisão da sua organização.',
+                'docs.label': 'Documentação', 'docs.title': 'PRIVIO SENTRY — Visão geral', 'docs.close': 'Fechar documentação', 'docs.loading': 'Carregando documentação...', 'docs.error': 'Erro ao carregar a documentação.',
+                'logs.label': 'Logs da tarefa', 'logs.title': 'Log de auditoria da tarefa', 'logs.close': 'Fechar logs', 'logs.request': 'Solicitando logs...', 'logs.fail': 'Não foi possível ler o log da tarefa.',
+                'task.actions': 'Ações de {file}', 'task.reprocess': 'Reprocessar', 'task.logs': 'Ver logs', 'task.delete': 'Excluir',
+                'task.view': 'Ver', 'task.download': 'Baixar PDF', 'task.review': 'Requer revisão',
+                'task.complete': 'Proteção concluída · Processado localmente',
+                'region.possible': 'Possível CPF ou endereço — verifique antes de proteger',
+                'region.signature': 'Possível assinatura — verifique antes de proteger',
+                'region.manual': 'Região adicionada manualmente',
+                'region.signatureLabel': 'POSSÍVEL ASSINATURA', 'region.manualSignatureLabel': 'ASSINATURA',
+                'page.alt': 'Página {n}',
+                'loader.loading': 'Carregando documento...', 'loader.saving': 'Salvando rascunho...',
+                'loader.savingMarks': 'Salvando marcações...',
+                'loader.applying': 'Aplicando as tarjas confirmadas ao PDF original (modo nativo)...\n(Aguarde, concluindo em segundos...)',
+                'err.default': 'Erro', 'err.connection': 'falha de conexão',
+                'err.save': 'Erro ao salvar', 'err.saveMarks': 'Erro ao salvar marcações', 'err.native': 'Erro ao iniciar a geração Nativa',
+                'err.nativeResult': 'Erro ao gerar PDF Nativo', 'err.upload': 'Falha no upload de {file}',
+                'err.reload': 'Erro ao recarregar a IA', 'err.delete': 'Erro ao excluir', 'err.reprocess': 'Erro ao reprocessar',
+                'err.process': 'Erro ao processar', 'err.deleteAll': 'Erro ao excluir tudo',
+                'ok.reload': 'Tarjas restauradas para as sugestões da IA.',
+                'confirm.reload': 'Isso apagará todas as suas alterações manuais não salvas e recarregará apenas as sugestões da IA. Confirmar?',
+                'confirm.native': 'Aplicar a proteção em modo nativo? As tarjas confirmadas serão aplicadas diretamente no PDF nativo original. Revise o resultado antes de compartilhar.',
+                'confirm.delete': 'Excluir permanentemente este documento?',
+                'confirm.reprocess': 'Reprocessar arquivo?',
+                'confirm.processAll': 'Iniciar processamento em lote de todos os arquivos parados?',
+                'confirm.deleteAll': 'ALERTA CRÍTICO: Excluir todos os arquivos e limpar o banco de dados?'
+            },
+            'en-US': {
+                'brand.descriptor': 'Local AI Privacy Infrastructure',
+                'tagline': 'Protect data before it is exposed.',
+                'doc.waiting': 'Waiting for a document...',
+                'notice.ai.lead': 'AI suggests; you confirm.',
+                'notice.ai.body': 'AI detection is probabilistic and can be wrong. Review every suggestion before protecting and exporting.',
+                'btn.add': 'Add PDFs', 'btn.processAll': 'Process all', 'btn.deleteAll': 'Delete all', 'btn.docs': 'Documentation',
+                'btn.select': 'Select', 'btn.draw': 'New redaction', 'btn.save': 'Save', 'btn.saved': 'Saved!',
+                'btn.generate': 'Apply protection (native mode)', 'btn.resetAi': 'Reload AI suggestions',
+                'btn.hide': 'Hide redactions', 'btn.show': 'Show redactions',
+                'menu.open': 'Open sidebar', 'lang.label': 'Language',
+                'menu.pii': 'Personal data (PII)', 'menu.sig': 'Signature (manual)', 'menu.cancel': 'Cancel',
+                'zoom.in': 'Zoom in', 'zoom.out': 'Zoom out', 'nav.prev': 'Previous page', 'nav.next': 'Next page',
+                'pending.region': 'Pages pending review', 'pending.title': 'Needs review', 'pending.only': 'Pending pages only', 'pending.page': 'Page',
+                'empty.title': 'No documents yet', 'empty.sub': 'Add a PDF to begin detection.',
+                'step.detect.title': 'Detect', 'step.detect.body': 'OCR, validation rules and local models suggest potential CPF numbers, addresses and signatures.',
+                'step.review.title': 'Review', 'step.review.body': 'Each suggestion appears as an editable region. Adjust, move or remove it before continuing.',
+                'step.protect.title': 'Protect', 'step.protect.body': 'Protection is applied to the PDF only after you confirm. Uncertain pages stay marked as Needs review.',
+                'empty.legal': 'Supports privacy and security practices, including those related to the LGPD. It is not legal advice and does not ensure compliance: the protection policy and the output require review by your organization.',
+                'docs.label': 'Documentation', 'docs.title': 'PRIVIO SENTRY — Overview', 'docs.close': 'Close documentation', 'docs.loading': 'Loading documentation...', 'docs.error': 'Could not load the documentation.',
+                'logs.label': 'Task logs', 'logs.title': 'Task audit log', 'logs.close': 'Close logs', 'logs.request': 'Requesting logs...', 'logs.fail': 'Could not read the task log.',
+                'task.actions': 'Actions for {file}', 'task.reprocess': 'Reprocess', 'task.logs': 'View logs', 'task.delete': 'Delete',
+                'task.view': 'View', 'task.download': 'Download PDF', 'task.review': 'Needs review',
+                'task.complete': 'Protection complete · Processed locally',
+                'region.possible': 'Potential CPF or address — verify before protecting',
+                'region.signature': 'Potential signature — verify before protecting',
+                'region.manual': 'Manually added region',
+                'region.signatureLabel': 'POTENTIAL SIGNATURE', 'region.manualSignatureLabel': 'SIGNATURE',
+                'page.alt': 'Page {n}',
+                'loader.loading': 'Loading document...', 'loader.saving': 'Saving draft...',
+                'loader.savingMarks': 'Saving redactions...',
+                'loader.applying': 'Applying the confirmed redactions to the original PDF (native mode)...\n(Please wait, finishing in seconds...)',
+                'err.default': 'Error', 'err.connection': 'connection failure',
+                'err.save': 'Error saving', 'err.saveMarks': 'Error saving redactions', 'err.native': 'Error starting native generation',
+                'err.nativeResult': 'Error generating native PDF', 'err.upload': 'Upload failed for {file}',
+                'err.reload': 'Error reloading AI suggestions', 'err.delete': 'Error deleting', 'err.reprocess': 'Error reprocessing',
+                'err.process': 'Error processing', 'err.deleteAll': 'Error deleting everything',
+                'ok.reload': 'Redactions restored to the AI suggestions.',
+                'confirm.reload': 'This discards all your unsaved manual changes and reloads only the AI suggestions. Confirm?',
+                'confirm.native': 'Apply protection in native mode? The confirmed redactions will be applied directly to the original native PDF. Review the output before sharing.',
+                'confirm.delete': 'Permanently delete this document?',
+                'confirm.reprocess': 'Reprocess file?',
+                'confirm.processAll': 'Start batch processing of all idle files?',
+                'confirm.deleteAll': 'CRITICAL WARNING: Delete all files and clear the database?'
+            }
+        };
+        let lang = 'pt-BR';
+        try { const saved = localStorage.getItem('privio.lang'); if (saved && I18N[saved]) lang = saved; } catch (e) {}
+
+        function t(key, vars) {
+            let s = (I18N[lang] && I18N[lang][key]) || I18N['pt-BR'][key] || key;
+            if (vars) Object.keys(vars).forEach(k => { s = s.split('{' + k + '}').join(String(vars[k])); });
+            return s;
+        }
+
+        function applyI18n() {
+            document.documentElement.lang = lang;
+            document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+            document.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
+            document.getElementById('btn-toggle').querySelector('span').textContent = redactionsHidden ? t('btn.show') : t('btn.hide');
+            if (!currentTaskId) document.getElementById('doc-name').textContent = t('doc.waiting');
+            if (!document.getElementById('readme-content').dataset.loaded) document.getElementById('readme-content').textContent = t('docs.loading');
+            document.getElementById('lang-select').value = lang;
+        }
+
+        function setLang(l) {
+            if (!I18N[l]) return;
+            lang = l;
+            try { localStorage.setItem('privio.lang', l); } catch (e) {}
+            applyI18n();
+            fetchTasks();
+            updatePendingBar(true);
+            renderRedactions();
+        }
+
+        // ---------------------------------------------------------------- estado
+        let tasks = {};
+        let currentTaskId = null;
+        let currentPage = 1;
+        let totalPages = 1;
+        let redactions = [];
+        let zoom = 1.0;
+        let mode = 'select';
+        let redactionsHidden = false;
+
+        let isDown = false;
+        let startX, startY;
+        let fStartX, fStartY; // Fixed start coords for ghost
+        let selectedBox = null;
+        let movingBox = null;
+        let resizingBox = null;
+        let resizeDir = '';
+        let offsetX, offsetY;
+        let pendingRedaction = null;
+
+        const ghost = document.getElementById('ghost');
+        const dMenu = document.getElementById('decision-menu');
+
+        // Escapa texto vindo do servidor (nome de arquivo, status, alertas) antes de usar em innerHTML/atributos
+        function esc(v) {
+            return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        let openMenuId = null;
+
+        function toast(msg, ok = false) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.className = ok ? 'ok' : '';
+            el.style.display = 'block';
+            clearTimeout(toast._t);
+            toast._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
+        }
+
+        // fetch com tratamento de erro: devolve {ok, data}; avisa o usuário em falhas HTTP/rede
+        async function api(url, opts = {}, errPrefix) {
+            errPrefix = errPrefix || t('err.default');
+            try {
+                const r = await fetch(url, opts);
+                let data = null;
+                try { data = await r.json(); } catch (e) {}
+                if (!r.ok) {
+                    const detail = (data && data.detail) ? (typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)) : ('HTTP ' + r.status);
+                    toast(`${errPrefix}: ${detail}`);
+                }
+                return { ok: r.ok, status: r.status, data };
+            } catch (e) {
+                toast(`${errPrefix}: ${t('err.connection')}`);
+                return { ok: false, status: 0, data: null };
+            }
+        }
+
+        function resetEditorView() {
+            currentTaskId = null;
+            redactions = [];
+            document.getElementById('document-viewer').style.display = 'none';
+            document.getElementById('document-viewer').innerHTML = '';
+            document.getElementById('empty-state').style.display = 'flex';
+            document.getElementById('toolbar').style.display = 'none';
+            document.getElementById('page-nav').style.display = 'none';
+            document.getElementById('zoom-ui').style.display = 'none';
+            document.getElementById('doc-name').innerText = t('doc.waiting');
+            updatePendingBar();
+        }
+
+        // Alertas no formato "Pág N: motivo" -> itens de páginas pendentes
+        function parseAlerts(alerts) {
+            return (alerts || []).map(a => {
+                const m = /^P[áa]g(?:ina)?\.?\s*(\d+)\s*:\s*(.*)$/i.exec(String(a));
+                return m ? { page: parseInt(m[1], 10), reason: m[2] } : { page: null, reason: String(a) };
+            });
+        }
+
+        let pendingOnly = false;
+        let pendingPages = new Set();
+
+        function applyPendingState() {
+            document.querySelectorAll('.page-wrapper').forEach(w => {
+                const n = parseInt(w.dataset.page, 10);
+                w.classList.toggle('pending', pendingPages.has(n));
+                w.style.display = (pendingOnly && pendingPages.size && !pendingPages.has(n)) ? 'none' : '';
+            });
+        }
+
+        function goToPage(n) {
+            const el = document.getElementById(`page-wrapper-${n}`);
+            if (!el) return;
+            if (el.style.display === 'none') { pendingOnly = false; applyPendingState(); updatePendingBar(true); }
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function togglePendingOnly(v) { pendingOnly = !!v; applyPendingState(); }
+
+        function updatePendingBar(force = false) {
+            const bar = document.getElementById('pending-bar');
+            const task = currentTaskId ? tasks[currentTaskId] : null;
+            const items = task ? parseAlerts(task.alerts) : [];
+            if (!task || (!task.needs_review && !items.length)) {
+                pendingPages = new Set(); pendingOnly = false;
+                bar.style.display = 'none'; bar.innerHTML = ''; bar.dataset.sig = '';
+                applyPendingState();
+                return;
+            }
+            const byPage = new Map(); const general = [];
+            items.forEach(it => {
+                if (it.page === null) general.push(it.reason);
+                else byPage.set(it.page, (byPage.get(it.page) || []).concat(it.reason));
+            });
+            pendingPages = new Set(byPage.keys());
+            const pages = Array.from(byPage.keys()).sort((a, b) => a - b);
+            const html = `<strong>⚠ ${esc(t('pending.title'))}</strong>` +
+                pages.map(n => {
+                    const reasons = byPage.get(n).join('; ');
+                    return `<button type="button" class="pending-chip" data-page="${esc(n)}" title="${esc(reasons)}" onclick="goToPage(${n})">${esc(t('pending.page'))} ${esc(n)} · ${esc(reasons)}</button>`;
+                }).join('') +
+                general.map(r => `<span class="pending-note">${esc(r)}</span>`).join('') +
+                (pages.length ? `<label class="pending-filter"><input type="checkbox" id="pending-only" ${pendingOnly ? 'checked' : ''} onchange="togglePendingOnly(this.checked)"> ${esc(t('pending.only'))}</label>` : '');
+            if (force || bar.dataset.sig !== html) { bar.innerHTML = html; bar.dataset.sig = html; }
+            bar.style.display = 'flex';
+            applyPendingState();
+        }
+
+        async function fetchTasks() {
+            try {
+                const r = await fetch('/tasks');
+                const data = await r.json();
+                const list = document.getElementById('task-list');
+
+                // Remove deleted items from DOM
+                Array.from(list.children).forEach(child => {
+                    const id = child.id.substring(2);
+                    if (!data[id]) {
+                        list.removeChild(child);
+                        if (currentTaskId === id) resetEditorView();
+                    }
+                });
+
+                // Sort data by created_at descending
+                const sortedEntries = Object.entries(data).sort((a, b) => {
+                    const dA = a[1].created_at ? new Date(a[1].created_at).getTime() : 0;
+                    const dB = b[1].created_at ? new Date(b[1].created_at).getTime() : 0;
+                    return dB - dA; // Newest first
+                });
+
+                sortedEntries.forEach(([id, tk], index) => {
+                    let el = document.getElementById(`t-${id}`);
+                    if(!el) {
+                        el = document.createElement('div'); el.id = `t-${id}`;
+                        el.className = 'task-item'; el.onclick = () => selectTask(id, tk.file);
+                        el.tabIndex = 0;
+                        el.onkeydown = (ev) => {
+                            if (ev.target === el && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); selectTask(id, (tasks[id] || tk).file); }
+                        };
+                        list.appendChild(el);
+                    }
+
+                    // Reorder in DOM
+                    if (list.children[index] !== el) {
+                        list.insertBefore(el, list.children[index]);
+                    }
+
+                    const isDone = tk.completed || tk.percentage === 100;
+                    let downloadHtml = '';
+                    if(isDone) {
+                        downloadHtml = `
+                        <div style="display:flex; gap:6px; margin-top:8px;">
+                            <button class="tool-btn btn-view" style="padding:4px 10px; font-size:12px;" onclick="event.stopPropagation(); window.open('/download/${id}?inline=true', '_blank')">${esc(t('task.view'))}</button>
+                            <button class="tool-btn btn-success btn-download" style="padding:4px 10px; font-size:12px;" onclick="event.stopPropagation(); window.location.href='/download/${id}'">${esc(t('task.download'))}</button>
+                        </div>`;
+                    }
+
+                    const dateStr = tk.created_at ? new Date(tk.created_at).toLocaleDateString(lang, {hour: '2-digit', minute:'2-digit'}) : '';
+
+                    let alertsHtml = '';
+                    if (tk.alerts && tk.alerts.length > 0) {
+                        const alertText = tk.alerts.join('\n');
+                        alertsHtml = `<span class="alert-icon" style="color:var(--warning-strong); cursor:help; font-size:14px; margin-left:6px;" title="${esc(alertText)}">⚠</span>`;
+                    }
+                    const badgeHtml = tk.needs_review ? `<div><span class="badge-review" data-testid="badge-review">${esc(t('task.review'))}</span></div>` : '';
+                    const completeHtml = (isDone && !tk.needs_review && !tk.error) ? `<div class="task-complete" data-testid="task-complete">${esc(t('task.complete'))}</div>` : '';
+
+                    const cls = `task-item ${currentTaskId === id ? 'active' : ''}`;
+                    const html = `
+                        <div class="task-actions">
+                            <button type="button" class="task-menu-btn" aria-label="${esc(t('task.actions', {file: tk.file}))}" aria-haspopup="menu" onclick="event.stopPropagation(); toggleMenu('${id}')">⋮</button>
+                            <div id="m-${id}" class="dropdown-menu" role="menu" style="${openMenuId === id ? 'display:block' : ''}">
+                                <button type="button" role="menuitem" data-action="reprocess" onclick="event.stopPropagation(); reprocessTask('${id}')">${esc(t('task.reprocess'))}</button>
+                                <button type="button" role="menuitem" data-action="logs" onclick="event.stopPropagation(); showLogs('${id}')">${esc(t('task.logs'))}</button>
+                                <button type="button" role="menuitem" data-action="delete" class="danger" onclick="event.stopPropagation(); deleteTask('${id}')">${esc(t('task.delete'))}</button>
+                            </div>
+                        </div>
+                        <div class="task-title" title="${esc(tk.file)}">${esc(tk.file)}${alertsHtml}</div>
+                        <div class="task-meta"><span class="task-status">${esc(tk.status)} ${!isDone ? '('+esc(tk.percentage)+'%)' : ''}</span><span>${dateStr}</span></div>
+                        ${badgeHtml}
+                        ${completeHtml}
+                        ${downloadHtml}
+                    `;
+                    // Só re-renderiza quando algo mudou (evita fechar o menu aberto a cada polling)
+                    if (el.dataset.sig !== cls + html) {
+                        el.className = cls;
+                        el.innerHTML = html;
+                        el.dataset.sig = cls + html;
+                    }
+                });
+                tasks = data;
+                updatePendingBar();
+            } catch(e) { console.error('Erro ao atualizar tarefas:', e); }
+        }
+
+        async function selectTask(id, name) {
+            currentTaskId = id; currentPage = 1; zoom = 0.8;
+            redactions = []; // Limpa tarjas do documento anterior
+            if(window.innerWidth < 1024) document.querySelector('.sidebar').classList.remove('open');
+            document.getElementById('doc-name').innerText = name;
+
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('toolbar').style.display = 'flex';
+            document.getElementById('page-nav').style.display = 'flex';
+            document.getElementById('zoom-ui').style.display = 'flex';
+            document.getElementById('document-viewer').style.display = 'flex';
+
+            await fetchTasks();
+            await loadMetadata();
+            initDocumentView((tasks[currentTaskId] && tasks[currentTaskId].total) || 1);
+            updatePendingBar(true);
+        }
+
+        let lazyObserver = null;
+        let pageObserver = null;
+
+        function initDocumentView(total) {
+            totalPages = total;
+            const viewer = document.getElementById('document-viewer');
+            const loader = document.getElementById('loader');
+            viewer.innerHTML = '';
+            viewer.style.display = 'flex';
+            loader.style.display = 'none';
+
+            // Limpa observers antigos
+            if(lazyObserver) lazyObserver.disconnect();
+            if(pageObserver) pageObserver.disconnect();
+
+            // Lazy Loading Observer
+            lazyObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if(entry.isIntersecting) {
+                        const img = entry.target.querySelector('img');
+                        if(img && img.dataset.src && !img.src) {
+                            img.src = img.dataset.src;
+                            img.onload = () => { entry.target.style.minHeight = 'fit-content'; renderRedactions(); updateCurrentPage(); };
+                        }
+                    }
+                });
+            }, { root: document.querySelector('.workspace'), rootMargin: '1000px' });
+
+            // Page Indicator Observer: recalcula a página mais visível (o IntersectionObserver sozinho
+            // não reavalia quando as imagens carregam e mudam a altura das páginas)
+            pageObserver = new IntersectionObserver(() => updateCurrentPage(), { root: document.querySelector('.workspace'), threshold: [0, 0.25, 0.5, 0.75, 1] });
+
+            for(let i = 1; i <= total; i++) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'page-wrapper';
+                wrapper.id = `page-wrapper-${i}`;
+                wrapper.dataset.page = i;
+
+                const img = document.createElement('img');
+                img.className = 'page-img';
+                img.dataset.src = `/previews/${currentTaskId}/${i}?t=${Date.now()}`;
+                img.alt = t('page.alt', {n: i});
+
+                const layer = document.createElement('div');
+                layer.className = 'redaction-layer';
+                layer.id = `layer-${i}`;
+
+                wrapper.appendChild(img);
+                wrapper.appendChild(layer);
+                viewer.appendChild(wrapper);
+
+                lazyObserver.observe(wrapper);
+                pageObserver.observe(wrapper);
+            }
+
+            updateZoom();
+            updateNavButtons();
+            renderRedactions();
+            applyPendingState();
+            updateCurrentPage();
+        }
+
+        function updateCurrentPage() {
+            const ws = document.getElementById('workspace').getBoundingClientRect();
+            let best = currentPage, bestVis = 0;
+            document.querySelectorAll('.page-wrapper').forEach(w => {
+                if (w.style.display === 'none') return;
+                const r = w.getBoundingClientRect();
+                const vis = Math.min(r.bottom, ws.bottom) - Math.max(r.top, ws.top);
+                if (vis > bestVis) { bestVis = vis; best = parseInt(w.dataset.page, 10); }
+            });
+            currentPage = best;
+            document.getElementById('page-info').innerText = `${currentPage} / ${totalPages}`;
+            updateNavButtons();
+        }
+        document.getElementById('workspace').addEventListener('scroll', () => requestAnimationFrame(updateCurrentPage));
+
+        function updateNavButtons() {
+            document.getElementById('btn-prev').disabled = currentPage <= 1;
+            document.getElementById('btn-next').disabled = currentPage >= totalPages;
+        }
+
+        async function loadMetadata() {
+            if(!currentTaskId) return;
+            try {
+                const r = await fetch(`/metadata/${currentTaskId}`);
+                const data = await r.json();
+                redactions = data.redactions || [];
+            } catch(e) { console.error("Erro ao carregar metadados:", e); }
+        }
+
+        async function reloadAIRedactions() {
+            if(!currentTaskId) return;
+            if(!confirm(t('confirm.reload'))) return;
+            selectedBox = null;
+            const res = await api(`/reprocess-metadata/${currentTaskId}`, { method:'POST' }, t('err.reload'));
+            if(res.ok) {
+                await loadMetadata();
+                renderRedactions();
+                toast(t('ok.reload'), true);
+            }
+        }
+
+        function updateZoom() {
+            document.getElementById('zoom-text').innerText = Math.round(zoom * 100) + '%';
+            document.getElementById('document-viewer').style.transform = `scale(${zoom})`;
+        }
+
+        function changeZoom(delta) { zoom = Math.min(4, Math.max(0.1, zoom + delta)); updateZoom(); }
+        function handleWheel(e) { if(e.ctrlKey) { e.preventDefault(); changeZoom(e.deltaY > 0 ? -0.1 : 0.1); } }
+
+        function changePage(delta) {
+            let next = currentPage + delta;
+            while (next >= 1 && next <= totalPages) {
+                const el = document.getElementById(`page-wrapper-${next}`);
+                if (el && el.style.display !== 'none') { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+                next += delta;
+            }
+        }
+
+        // Navegação por teclado: setas e N/P (próxima/anterior, DESIGN_GUIDELINES); Esc fecha diálogos
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('readme-overlay').style.display = 'none';
+                document.getElementById('logs-overlay').style.display = 'none';
+                if (pendingRedaction) cancelNewRedaction();
+                return;
+            }
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.key === 'ArrowLeft' || e.key === 'p' || e.key === 'P') changePage(-1);
+            if (e.key === 'ArrowRight' || e.key === 'n' || e.key === 'N') changePage(1);
+        });
+
+        function setMode(m) {
+            mode = m;
+            document.getElementById('btn-select').classList.toggle('active', mode === 'select');
+            document.getElementById('btn-draw').classList.toggle('active', mode === 'draw');
+            document.getElementById('document-viewer').style.cursor = mode === 'draw' ? 'crosshair' : 'default';
+            if(mode === 'draw') selectedBox = null;
+            renderRedactions();
+        }
+
+        function renderRedactions() {
+            // Limpa todos os layers antes de renderizar
+            document.querySelectorAll('.redaction-layer').forEach(l => l.innerHTML = '');
+
+            redactions.forEach((r) => {
+                const layer = document.getElementById(`layer-${r.page}`);
+                if(!layer) return;
+
+                const wrapper = layer.parentElement;
+                const img = wrapper.querySelector('img');
+                if(!img || !img.naturalWidth) return;
+
+                const srcW = r.image_width || img.naturalWidth;
+                const srcH = r.image_height || img.naturalHeight;
+                const sX = img.width / srcW;
+                const sY = img.height / srcH;
+
+                const box = document.createElement('div');
+                const isSignature = r.type === 'signature' || r.source === 'YOLO_Vision';
+                const isManual = r.source === 'Manual';
+                box.className = `redaction-box ${selectedBox === r ? 'selected' : ''} ${isSignature ? 'type-signature' : ''}`;
+                box.dataset.testid = 'redaction-box';
+                box.setAttribute('data-testid', 'redaction-box');
+                // A IA SUGERE: rótulo de possível detecção (nunca só por cor)
+                const label = isSignature ? (isManual ? t('region.signature') : t('region.signature')) : (isManual ? t('region.manual') : t('region.possible'));
+                box.title = label;
+                box.setAttribute('aria-label', label);
+                if (isSignature) box.dataset.label = isManual ? t('region.manualSignatureLabel') : t('region.signatureLabel');
+                box.style.left = (r.coords[0] * sX) + 'px'; box.style.top = (r.coords[1] * sY) + 'px';
+                box.style.width = ((r.coords[2] - r.coords[0]) * sX) + 'px'; box.style.height = ((r.coords[3] - r.coords[1]) * sY) + 'px';
+
+                const del = document.createElement('div'); del.className = 'box-delete'; del.innerHTML = '&times;';
+                del.onmousedown = (e) => { e.stopPropagation(); redactions = redactions.filter(item => item !== r); renderRedactions(); };
+                box.appendChild(del);
+
+                ['se'].forEach(dir => {
+                    const h = document.createElement('div'); h.className = `resize-handle handle-${dir}`;
+                    h.onmousedown = (e) => { e.stopPropagation(); isDown = true; resizingBox = r; resizeDir = dir; activePageNum = r.page; };
+                    box.appendChild(h);
+                });
+
+                box.onmousedown = (e) => {
+                    if(mode !== 'select') return; e.stopPropagation(); isDown = true; movingBox = r; selectedBox = r; activePageNum = r.page;
+                    const rRect = box.getBoundingClientRect(); offsetX = (e.clientX - rRect.left) / zoom; offsetY = (e.clientY - rRect.top) / zoom;
+                    renderRedactions();
+                };
+                layer.appendChild(box);
+            });
+        }
+
+        let activePageNum = null;
+
+        window.onmousedown = (e) => {
+            const wrapper = e.target.closest('.page-wrapper');
+            if(!wrapper) {
+                if(mode === 'select') { selectedBox = null; renderRedactions(); dMenu.style.display='none'; }
+                return;
+            }
+
+            activePageNum = parseInt(wrapper.dataset.page);
+            if(mode === 'select' && !e.target.closest('.redaction-box')) {
+                selectedBox = null; renderRedactions(); dMenu.style.display='none';
+                return;
+            }
+
+            if(mode === 'draw') {
+                isDown = true;
+                const rect = wrapper.getBoundingClientRect();
+                startX = (e.clientX - rect.left) / zoom; startY = (e.clientY - rect.top) / zoom;
+                fStartX = e.clientX; fStartY = e.clientY;
+                ghost.style.left = fStartX + 'px'; ghost.style.top = fStartY + 'px';
+                ghost.style.width = '0px'; ghost.style.height = '0px'; ghost.style.display = 'block';
+
+                // Mas precisamos saber as coordenadas RELATIVAS à página para salvar
+                const pRect = wrapper.getBoundingClientRect();
+                pStartX = (e.clientX - pRect.left) / zoom; pStartY = (e.clientY - pRect.top) / zoom;
+            }
+        };
+
+        let pStartX, pStartY;
+
+        window.onmousemove = (e) => {
+            if(!isDown) return;
+            const wsRect = document.getElementById('workspace').getBoundingClientRect();
+            const curX = (e.clientX - wsRect.left); const curY = (e.clientY - wsRect.top);
+
+            if(mode === 'draw') {
+                const curFX = e.clientX; const curFY = e.clientY;
+                ghost.style.width = Math.abs(curFX - fStartX) + 'px'; ghost.style.height = Math.abs(curFY - fStartY) + 'px';
+                ghost.style.left = Math.min(curFX, fStartX) + 'px'; ghost.style.top = Math.min(curFY, fStartY) + 'px';
+            } else if((movingBox || resizingBox) && activePageNum) {
+                const wrapper = document.getElementById(`page-wrapper-${activePageNum}`);
+                const rect = wrapper.getBoundingClientRect();
+                const pCurX = (e.clientX - rect.left) / zoom; const pCurY = (e.clientY - rect.top) / zoom;
+                const img = wrapper.querySelector('img');
+
+                const srcW = movingBox ? (movingBox.image_width || img.naturalWidth) : (resizingBox ? (resizingBox.image_width || img.naturalWidth) : img.naturalWidth);
+                const srcH = movingBox ? (movingBox.image_height || img.naturalHeight) : (resizingBox ? (resizingBox.image_height || img.naturalHeight) : img.naturalHeight);
+                const sX = srcW / img.width;
+                const sY = srcH / img.height;
+
+                if(movingBox) {
+                    const w = (movingBox.coords[2] - movingBox.coords[0]); const h = (movingBox.coords[3] - movingBox.coords[1]);
+                    const nx = (pCurX - offsetX) * sX; const ny = (pCurY - offsetY) * sY;
+                    movingBox.coords = [nx, ny, nx + w, ny + h]; renderRedactions();
+                } else if(resizingBox) {
+                    resizingBox.coords[2] = pCurX * sX; resizingBox.coords[3] = pCurY * sY; renderRedactions();
+                }
+            }
+        };
+
+        window.onmouseup = (e) => {
+            if(mode === 'draw' && isDown && activePageNum) {
+                const wrapper = document.getElementById(`page-wrapper-${activePageNum}`);
+                const rect = wrapper.getBoundingClientRect();
+                const pCurX = (e.clientX - rect.left) / zoom; const pCurY = (e.clientY - rect.top) / zoom;
+                const img = wrapper.querySelector('img');
+                const sX = img.naturalWidth / img.width; const sY = img.naturalHeight / img.height;
+
+                const x0 = Math.min(pStartX, pCurX) * sX; const y0 = Math.min(pStartY, pCurY) * sY;
+                const x1 = Math.max(pStartX, pCurX) * sX; const y1 = Math.max(pStartY, pCurY) * sY;
+
+                if(Math.abs(x1-x0) > 4) {
+                    pendingRedaction = {
+                        page: activePageNum,
+                        coords: [x0, y0, x1, y1],
+                        source: 'Manual',
+                        image_width: img.naturalWidth,
+                        image_height: img.naturalHeight
+                    };
+                    dMenu.style.left = e.clientX + 'px'; dMenu.style.top = e.clientY + 'px'; dMenu.style.display = 'flex';
+                } else {
+                    ghost.style.display = 'none';
+                }
+            }
+            isDown = false; movingBox = null; resizingBox = null; activePageNum = null;
+        };
+
+        function saveNewRedaction(type) {
+            if(pendingRedaction) {
+                pendingRedaction.type = type; redactions.push(pendingRedaction);
+                pendingRedaction = null; dMenu.style.display = 'none'; ghost.style.display = 'none'; renderRedactions();
+            }
+        }
+        function cancelNewRedaction() { pendingRedaction = null; dMenu.style.display = 'none'; ghost.style.display = 'none'; }
+
+        function toggleRedactionsVisibility() {
+            redactionsHidden = !redactionsHidden;
+            const btn = document.getElementById('btn-toggle');
+            btn.innerHTML = '<span></span>';
+            btn.querySelector('span').textContent = redactionsHidden ? t('btn.show') : t('btn.hide');
+            btn.classList.toggle('active', redactionsHidden);
+
+            document.querySelectorAll('.redaction-layer').forEach(l => {
+                l.style.opacity = redactionsHidden ? '0' : '1';
+            });
+        }
+
+        async function saveDraft() {
+            if(!currentTaskId) return;
+            const loader = document.getElementById('loader');
+            const loaderText = document.getElementById('loader-text');
+            loader.style.display = 'flex';
+            loaderText.innerText = t('loader.saving');
+
+            const res = await api(`/update-redactions/${currentTaskId}`, {
+                method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(redactions)
+            }, t('err.save'));
+
+            loader.style.display = 'none';
+            if(res.ok) {
+                const btn = document.getElementById('btn-save');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<span></span>';
+                btn.querySelector('span').textContent = t('btn.saved');
+                setTimeout(() => btn.innerHTML = originalHTML, 2000);
+            }
+        }
+
+        let activePolls = new Set();
+
+        async function generateNativePDF() {
+            if(!currentTaskId || activePolls.has(currentTaskId)) return;
+            const targetId = currentTaskId;
+            if(!confirm(t('confirm.native'))) return;
+
+            activePolls.add(targetId);
+            const loader = document.getElementById('loader');
+            const loaderText = document.getElementById('loader-text');
+            loader.style.display = 'flex';
+            loaderText.innerText = t('loader.savingMarks');
+
+            const saved = await api(`/update-redactions/${targetId}`, {
+                method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(redactions)
+            }, t('err.saveMarks'));
+            if(!saved.ok) { activePolls.delete(targetId); loader.style.display = 'none'; return; }
+
+            loaderText.innerText = t('loader.applying');
+            const r = await api(`/finalize-native/${targetId}`, { method:'POST' }, t('err.native'));
+
+            if(r.ok) {
+                let pollFinished = false;
+                const checkInterval = setInterval(async () => {
+                    if (pollFinished) return;
+                    try {
+                        const tr = await fetch('/tasks');
+                        const latestTasks = await tr.json();
+                        const task = latestTasks[targetId];
+
+                        if(task && task.status) {
+                            loaderText.innerText = `${task.status} (${task.percentage || 0}%)`;
+                        }
+
+                        if (task && (task.completed || task.percentage === 100)) {
+                            if (!pollFinished) {
+                                pollFinished = true;
+                                clearInterval(checkInterval);
+                                activePolls.delete(targetId);
+                                loader.style.display = 'none';
+                                window.location.href = `/download/${targetId}`;
+                            }
+                        } else if (task && task.error) {
+                            pollFinished = true;
+                            clearInterval(checkInterval);
+                            activePolls.delete(targetId);
+                            loader.style.display = 'none';
+                            toast(t('err.nativeResult') + ": " + task.status);
+                        }
+                    } catch(e) { console.error("Erro polling nativo:", e); }
+                }, 1500);
+            } else {
+                activePolls.delete(targetId);
+                loader.style.display = 'none';
+            }
+        }
+
+        async function handleUpload(file, force = false) {
+            const fd = new FormData(); fd.append('file', file);
+            const res = await api(`/upload${force ? '?force=true' : ''}`, { method:'POST', body: fd }, t('err.upload', {file: file.name}));
+            if(res.ok && res.data && res.data.status === 'confirm') {
+                if(confirm(res.data.message)) await handleUpload(file, true);
+            }
+            fetchTasks();
+        }
+
+        document.getElementById('file-input').onchange = async (e) => {
+            for(let f of e.target.files) await handleUpload(f);
+            e.target.value = '';
+        };
+
+        function toggleMenu(id) {
+            openMenuId = (openMenuId === id) ? null : id;
+            document.querySelectorAll('.dropdown-menu').forEach(m => {
+                m.style.display = (m.id === `m-${openMenuId}`) ? 'block' : 'none';
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (openMenuId && !e.target.closest('.task-actions')) {
+                openMenuId = null;
+                document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+            }
+        });
+
+        async function deleteTask(id) {
+            openMenuId = null;
+            if(!confirm(t('confirm.delete'))) return;
+            await api(`/task/${id}`, { method:'DELETE' }, t('err.delete'));
+            fetchTasks();
+        }
+
+        async function reprocessTask(id) {
+            openMenuId = null;
+            if(!confirm(t('confirm.reprocess'))) return;
+            await api(`/reprocess/${id}`, { method:'POST' }, t('err.reprocess'));
+            fetchTasks();
+        }
+
+        async function processAll() {
+            if(!confirm(t('confirm.processAll'))) return;
+            await api('/process-all', { method:'POST' }, t('err.process'));
+            fetchTasks();
+        }
+
+        async function deleteAll() {
+            if(!confirm(t('confirm.deleteAll'))) return;
+            const res = await api('/delete-all', { method:'DELETE' }, t('err.deleteAll'));
+            if(res.ok) {
+                document.getElementById('task-list').innerHTML = '';
+                resetEditorView();
+            }
+            fetchTasks();
+        }
+
+        function logLine(text, cls) {
+            const el = document.createElement('div');
+            el.className = 'log-line' + (cls ? ' ' + cls : '');
+            el.textContent = text;
+            return el;
+        }
+
+        async function showLogs(id) {
+            const lc = document.getElementById('logs-content');
+            lc.innerHTML = '';
+            lc.appendChild(logLine(t('logs.request')));
+            document.getElementById('logs-overlay').style.display = 'flex';
+            try {
+                const r = await fetch(`/logs/${id}`);
+                const data = await r.json();
+                const logRaw = data.log || JSON.stringify(data);
+
+                lc.innerHTML = '';
+                logRaw.split(/\r?\n/).forEach(line => {
+                    let cls = '';
+                    if (line.includes('ERRO') || line.includes('FATAL')) cls = 'log-error';
+                    else if (line.includes('WARNING') || line.includes('IGNORANDO')) cls = 'log-warn';
+                    lc.appendChild(logLine(line, cls));
+                });
+
+                setTimeout(() => lc.scrollTop = lc.scrollHeight, 100);
+            } catch(e) {
+                lc.innerHTML = '';
+                lc.appendChild(logLine(t('logs.fail'), 'log-error'));
+            }
+        }
+
+        // ---------------------------------------------------------------- documentação (Markdown mínimo, local)
+        // Substitui a biblioteca "marked" carregada de CDN: o app é local-first e não faz chamadas externas.
+        // Constrói o DOM com createElement/textContent (nunca innerHTML com texto do arquivo): sem XSS.
+        function renderInline(parent, text) {
+            const re = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/g;
+            let last = 0, m;
+            while ((m = re.exec(text)) !== null) {
+                if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+                const tok = m[0];
+                if (tok.startsWith('**')) { const b = document.createElement('strong'); b.textContent = tok.slice(2, -2); parent.appendChild(b); }
+                else if (tok.startsWith('`')) { const c = document.createElement('code'); c.textContent = tok.slice(1, -1); parent.appendChild(c); }
+                else {
+                    const lm = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(tok);
+                    if (lm && /^https?:\/\//i.test(lm[2])) {
+                        const a = document.createElement('a'); a.textContent = lm[1]; a.href = lm[2]; a.target = '_blank'; a.rel = 'noopener noreferrer'; parent.appendChild(a);
+                    } else { parent.appendChild(document.createTextNode(lm ? lm[1] : tok)); }
+                }
+                last = m.index + tok.length;
+            }
+            if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+        }
+
+        function renderMarkdown(container, md) {
+            container.innerHTML = '';
+            const lines = String(md || '').split(/\r?\n/);
+            let i = 0, para = [], list = null;
+            const flushPara = () => { if (para.length) { const p = document.createElement('p'); renderInline(p, para.join(' ')); container.appendChild(p); para = []; } };
+            const flushList = () => { list = null; };
+            while (i < lines.length) {
+                const line = lines[i];
+                let m;
+                if (/^```/.test(line)) {
+                    flushPara(); flushList();
+                    const buf = []; i++;
+                    while (i < lines.length && !/^```/.test(lines[i])) { buf.push(lines[i]); i++; }
+                    const pre = document.createElement('pre'); pre.textContent = buf.join('\n'); container.appendChild(pre);
+                } else if ((m = /^(#{1,3})\s+(.*)$/.exec(line))) {
+                    flushPara(); flushList();
+                    const h = document.createElement('h' + m[1].length); renderInline(h, m[2]); container.appendChild(h);
+                } else if ((m = /^\s*[-*]\s+(.*)$/.exec(line))) {
+                    flushPara();
+                    if (!list) { list = document.createElement('ul'); container.appendChild(list); }
+                    const li = document.createElement('li'); renderInline(li, m[1]); list.appendChild(li);
+                } else if ((m = /^>\s?(.*)$/.exec(line))) {
+                    flushPara(); flushList();
+                    const bq = document.createElement('blockquote'); renderInline(bq, m[1]); container.appendChild(bq);
+                } else if (/^\s*\|/.test(line)) {
+                    flushPara(); flushList();
+                    const buf = [];
+                    while (i < lines.length && /^\s*\|/.test(lines[i])) { buf.push(lines[i]); i++; }
+                    i--;
+                    const pre = document.createElement('pre'); pre.textContent = buf.join('\n'); container.appendChild(pre);
+                } else if (!line.trim()) {
+                    flushPara(); flushList();
+                } else {
+                    flushList(); para.push(line.trim());
+                }
+                i++;
+            }
+            flushPara();
+        }
+
+        async function openReadme() {
+            document.getElementById('readme-overlay').style.display = 'flex';
+            const rc = document.getElementById('readme-content');
+            try {
+                const r = await fetch('/readme');
+                const data = await r.json();
+                renderMarkdown(rc, data.content);
+                rc.dataset.loaded = '1';
+            } catch(e) {
+                rc.innerHTML = '';
+                const p = document.createElement('p'); p.style.color = 'var(--danger-strong)'; p.textContent = t('docs.error'); rc.appendChild(p);
+            }
+        }
+
+        function closeReadme(e) {
+            if(e) e.stopPropagation();
+            document.getElementById('readme-overlay').style.display = 'none';
+        }
+
+        applyI18n();
+        setInterval(fetchTasks, 3000); fetchTasks();
+    </script>
+</body>
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRIVIO SENTRY — Gatekeeper</title>
+    <!-- Local-first: sem fontes, scripts ou ícones de CDN. Favicon embutido (data URI) derivado de assets/favicon.svg. -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%232563EB%22/%3E%3Cstop offset=%221%22 stop-color=%22%236941C6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%22512%22 height=%22512%22 rx=%22112%22 fill=%22url%28%23g%29%22/%3E%3Cpath d=%22M118 101h210l66 66v228H118z%22 fill=%22%23fff%22/%3E%3Cpath d=%22M150 190h196v34H150zM150 258h196v34H150zM150 326h128v34H150z%22 fill=%22%2308122E%22/%3E%3C/svg%3E">
+    <style>
+        /* Tokens: docs/brand/design-tokens.json (PRIVIO SENTRY). Tons "-strong"/"-tint" são derivações para contraste AA. */
+        :root {
+            --ink: #0B1220; --primary: #2563EB; --primary-strong: #1D4ED8; --primary-tint: #EFF4FF;
+            --teal: #14B8A6; --teal-strong: #0F766E; --purple: #6941C6; --slate: #667085;
+            --border: #D0D5DD; --surface: #F8FAFC; --surface-2: #EEF2F6; --white: #FFFFFF;
+            --danger: #D92D20; --danger-strong: #B42318; --danger-tint: #FEF3F2;
+            --success: #039855; --success-strong: #027A48; --success-tint: #ECFDF3;
+            --radius-control: 8px; --radius-card: 12px; --radius-surface: 16px;
+            --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06); --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.10);
+            --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: var(--font); }
+        body { background: var(--surface); color: var(--ink); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 14px; }
+        :where(button, input, a, select):focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+        .container { width: 100%; max-width: 600px; padding: 2rem; }
+        header { text-align: center; margin-bottom: 2rem; }
+        .brand { display: inline-flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+        .brand-mark { width: 44px; height: 44px; border-radius: 11px; }
+        h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.06em; }
+        .brand-product { font-size: 0.8rem; font-weight: 600; color: var(--primary-strong); letter-spacing: 0.04em; }
+        p.subtitle { color: var(--slate); font-size: 0.95rem; margin-top: 4px; }
+        .local-badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 4px 10px; border-radius: 999px; background: #E6F7F5; color: var(--teal-strong); border: 1px solid var(--teal); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
+        .local-badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--teal); }
+        .control-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-surface); padding: 1.5rem; box-shadow: var(--shadow-md); }
+        .service-item { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); margin-bottom: 1rem; }
+        .service-item:last-child { margin-bottom: 0; }
+        .service-info { display: flex; align-items: center; gap: 1rem; }
+        .icon-box { width: 44px; height: 44px; background: var(--primary-tint); border-radius: var(--radius-card); display: flex; align-items: center; justify-content: center; color: var(--primary-strong); }
+        .icon-box svg { width: 22px; height: 22px; }
+        .service-details h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+        .status-badge { font-size: 0.75rem; padding: 2px 10px; border-radius: 999px; background: var(--danger-tint); color: var(--danger-strong); border: 1px solid var(--danger); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
+        .status-badge.online { background: var(--success-tint); color: var(--success-strong); border-color: var(--success); }
+        .status-badge.ready { background: var(--surface-2); color: var(--slate); border-color: var(--border); }
+        .switch { position: relative; display: inline-block; width: 52px; height: 28px; }
+        .switch input { opacity: 0; position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 2; }
+        .slider { position: absolute; inset: 0; background-color: var(--border); transition: .3s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; box-shadow: var(--shadow-sm); }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(24px); }
+        input:focus-visible + .slider { outline: 3px solid var(--primary); outline-offset: 2px; }
+        .btn-access { display: none; align-items: center; gap: 0.5rem; background: var(--primary); color: var(--white); padding: 0.4rem 0.9rem; border-radius: var(--radius-control); text-decoration: none; font-size: 0.85rem; font-weight: 600; }
+        .btn-access:hover { background: var(--primary-strong); }
+        .btn-access.show { display: flex; }
+        .footer { margin-top: 1.5rem; color: var(--slate); font-size: 0.8rem; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.5; }
+        .loading-overlay { position: fixed; inset: 0; background: rgba(248, 250, 252, 0.88); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        .spinner { width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #toast { position: fixed; bottom: 2rem; right: 2rem; padding: 0.9rem 1.4rem; background: var(--ink); color: var(--white); border-left: 4px solid var(--primary); border-radius: var(--radius-control); transform: translateY(120px); transition: transform 0.3s ease; z-index: 2000; display: flex; align-items: center; gap: 0.75rem; box-shadow: var(--shadow-md); }
+        #toast.error { border-left-color: var(--danger); }
+        #toast.show { transform: translateY(0); }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="brand" data-testid="brand">
+                <svg class="brand-mark" data-testid="brand-logo" role="img" aria-label="PRIVIO SENTRY" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                    <defs><linearGradient id="ps-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563EB"/><stop offset=".52" stop-color="#3B82F6"/><stop offset="1" stop-color="#6941C6"/></linearGradient></defs>
+                    <rect width="512" height="512" rx="112" fill="url(#ps-grad)"/>
+                    <path d="M118 101h210l66 66v228H118z" fill="#fff" fill-opacity=".98"/>
+                    <path d="M328 101v76h66" fill="#E8EEF9"/>
+                    <path d="M160 194h176v22H160zM160 243h176v22H160zM160 292h128v22H160z" fill="#08122E"/>
+                    <path d="M118 356h110l-50 55-60-30z" fill="#BFD3FF"/>
+                </svg>
+                <div style="text-align:left;">
+                    <h1>PRIVIO SENTRY</h1>
+                    <div class="brand-product">SENTRY Redact · Gatekeeper</div>
+                </div>
+            </div>
+            <p class="subtitle">Gerenciador de serviços local</p>
+            <span class="local-badge" data-testid="local-badge">LOCAL PROCESSING</span>
+        </header>
+
+        <div class="control-card">
+            <div class="service-item">
+                <div class="service-info">
+                    <div class="icon-box" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <div class="service-details">
+                        <h3>SENTRY Redact</h3>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span id="app-status" class="status-badge">Offline</span>
+                            <a href="/" id="app-access" class="btn-access">Acessar aplicativo</a>
+                        </div>
+                    </div>
+                </div>
+                <label class="switch" aria-label="Ligar ou desligar o SENTRY Redact">
+                    <input type="checkbox" id="app-toggle" onchange="toggleService('app')">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="service-item" style="opacity: 0.6;">
+                <div class="service-info">
+                    <div class="icon-box" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg>
+                    </div>
+                    <div class="service-details">
+                        <h3>Backup Engine</h3>
+                        <span class="status-badge ready">Pronto</span>
+                    </div>
+                </div>
+                <label class="switch" aria-label="Backup Engine (indisponível)">
+                    <input type="checkbox" disabled>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="footer">
+            <span>Protect data before it is exposed. A detecção por IA é probabilística: revise antes de compartilhar.</span>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <p style="margin-top: 1rem; color: var(--slate);">Modificando estado do serviço...</p>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite">
+        <span id="toast-msg">Mensagem</span>
+    </div>
+
+    <script>
+        async function updateStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                const badge = document.getElementById('app-status');
+                const toggle = document.getElementById('app-toggle');
+                const btnAccess = document.getElementById('app-access');
+
+                if (data.app_running) {
+                    badge.textContent = 'Online';
+                    badge.classList.add('online');
+                    toggle.checked = true;
+                    btnAccess.classList.add('show');
+                } else {
+                    badge.textContent = 'Offline';
+                    badge.classList.remove('online');
+                    toggle.checked = false;
+                    btnAccess.classList.remove('show');
+                }
+            } catch (e) {
+                console.error("Erro ao buscar status:", e);
+            }
+        }
+
+        async function toggleService(service) {
+            const overlay = document.getElementById('loading');
+            const toggle = document.getElementById('app-toggle');
+            const targetState = toggle.checked;
+
+            overlay.style.display = 'flex';
+
+            try {
+                const res = await fetch('/api/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: targetState ? 'start' : 'stop' })
+                });
+
+                if (res.ok) {
+                    showToast(targetState ? 'Serviço iniciado.' : 'Serviço interrompido.');
+                    // Aguarda um pouco para o serviço subir/descer
+                    setTimeout(() => {
+                        overlay.style.display = 'none';
+                        updateStatus();
+                        if (targetState) {
+                            // Se iniciou, recarrega em 1,5 s para o proxy do servidor nos levar ao app
+                            setTimeout(() => window.location.reload(), 1500);
+                        }
+                    }, 2000);
+                } else {
+                    throw new Error("Falha na operação");
+                }
+            } catch (e) {
+                overlay.style.display = 'none';
+                toggle.checked = !targetState;
+                showToast("Erro ao alterar estado do serviço", true);
+            }
+        }
+
+        function showToast(msg, error = false) {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-msg');
+            msgEl.textContent = msg;
+            toast.classList.toggle('error', !!error);
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // Check status periodically
+        setInterval(updateStatus, 5000);
+        updateStatus();
+    </script>
+</body>
+</html>

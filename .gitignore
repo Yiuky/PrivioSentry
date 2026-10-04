@@ -1,0 +1,81 @@
+# ---------------------------------------------------------------------------
+# Secrets and local configuration
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------------
+# Processed documents and runtime artifacts (contain PII -- NEVER publish)
+# ---------------------------------------------------------------------------
+output/
+WEB_INPUT/
+documentos_finais/
+input/
+benchmark_resolutions/
+tasks.json
+.gatekeeper_state
+*.log
+service_heartbeat.log
+pdf_text.txt
+
+# Any PDF/image is ignored by default; only the synthetic sample is allowed
+*.pdf
+!examples/sample_input.pdf
+*.jpg
+*.jpeg
+*.png
+!docs/img/*.png
+
+# ---------------------------------------------------------------------------
+# Models / data
+# ---------------------------------------------------------------------------
+# Raw (unsanitized) training checkpoint: exposes training paths/metadata. Never publish.
+best_yolo.pt
+# Only the sanitized detector is distributed
+*.pt
+!models/signature_stamp_detector.pt
+# Tesseract language data (~16 MB): install via apt / tesseract-ocr-por or download from
+# https://github.com/tesseract-ocr/tessdata_fast  (see docs/configuration.md)
+tessdata/
+*.traineddata
+
+# ---------------------------------------------------------------------------
+# Local working files of the maintainer (not part of the public repository)
+# ---------------------------------------------------------------------------
+CLAUDE.md
+PROJECT_NOTES.md
+tasks/
+.claude/
+# Leftover runtime files (logs/images) of the experimental agent loop
+experimental/agent_loop/*.txt
+experimental/agent_loop/*.jpg
+/agent_loop/
+
+# ---------------------------------------------------------------------------
+# Python / tooling
+# ---------------------------------------------------------------------------
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+test-results/
+playwright-report/
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+INFORMATION_BASE/

@@ -1,0 +1,29 @@
+# PRIVIO SENTRY - SENTRY Redact. Run the web app in a container. Ollama is NOT included: run it on the host
+# (https://ollama.com) and pull the models you configured in .env.
+services:
+  app:
+    build: .
+    image: privio-sentry:latest
+    ports:
+      # Published on localhost only. Do not change to 0.0.0.0 without setting API_TOKEN.
+      - "127.0.0.1:8001:8001"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Ollama running on the host machine
+      OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # needed on Linux
+    volumes:
+      - privio_sentry_output:/app/output
+      - privio_sentry_input:/app/WEB_INPUT
+      - privio_sentry_final:/app/documentos_finais
+      - privio_sentry_state:/app/state
+    restart: unless-stopped
+
+volumes:
+  privio_sentry_output:
+  privio_sentry_input:
+  privio_sentry_final:
+  privio_sentry_state:
