@@ -242,6 +242,8 @@ class SentryApp:
     def run_phase_1(self):
         """Fase 1: OCR (duas passadas por página, páginas em paralelo) + texto digital do PDF, se houver."""
         self.logger.info("--- PHASE 1: OCR SCANNING (01_OCR_RESULTS) ---")
+        if any(t in pii_detect.runnable_actions(self.policy_profile) for t in pii_detect.ner.TYPES):
+            pii_detect.ner.preload()  # o modelo de nomes carrega enquanto o OCR roda (~20-35 s a menos por tarefa)
         total = len(self.image_paths)
         workers = ocr_workers(self.base_dpi, total)
         sparse_psm = os.getenv("TESSERACT_SPARSE_PSM", "")

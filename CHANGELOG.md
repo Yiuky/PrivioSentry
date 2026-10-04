@@ -11,6 +11,14 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 - **Retorno do revisor por detector** (com `LEARNING_ENABLED=1`): ao aplicar a proteção, conta por tipo as tarjas sugeridas que o revisor manteve, removeu ou acrescentou (só contagens, ligadas à tarefa e apagadas com ela). `python -m utils.decisions detectores` mostra a precisão observada e **sugestões**; nada é mudado sozinho.
 - **Nomes de pessoa e filiação com GLiNER local, opcional** (`pip install -e ".[nomes]"`, `NER_ENGINE=gliner`; modelo multilíngue com commit fixado): confiança alta vira tarja sugerida, média vira região a revisar; detector ligado que falha manda o documento para revisão. Vale nos perfis que pedem nomes (`lgpd_publicacao`, `gdpr`, `saude_hipaa`). Novo estado "opcional" no catálogo e campo `rodando` em `/policy/profiles`.
 
+### Corrigido (7 documentos reais testados, 69 páginas; analisados só por formato, sem expor valores)
+- **Falso alarme "CPF no original sem tarja"** (2 documentos): duas coordenadas geográficas em graus lidas lado a lado pelo OCR da verificação formavam um número que passa no dígito verificador de CPF. Coordenadas em graus, o começo de CNPJ cortado por borda de tabela ("12.345.678/0001-" + "|") e o número único de processo federal ("12345.123456/2018-11") nunca são lidos como CPF. Esses dois últimos viravam tarja de "CPF" a mais. O CPF verdadeiro ao lado continua achado (teste).
+- **E-mail tarjado pela metade:** quando o OCR lia o "@" como "(" + uma letra fora da lista, ou perdia o "@" e separava o nome, só o domínio era tarjado e o nome antes do "@" ficava visível. Depois de "e-mail", a tarja cobre o endereço inteiro (o rótulo "e-mail" nunca entra).
+- **Nomes: papéis marcados como pessoa.** O modelo marcava "analista" (25 vezes num parecer), "síndico", "interessado", "devedor", "beneficiário", "o(s)", "Responsável Técnico"... Papéis, cargos e conectores (lista em `contextos.json`, `nunca_nome`) não viram nome e saem das pontas do nome antes da tarja. Nos documentos testados: palavras soltas marcadas como nome 51 → 14; conferido palavra a palavra que nenhum nome verdadeiro deixou de ser marcado.
+- O modelo de nomes carrega **em segundo plano durante o OCR** (antes: ~35 s parados em cada tarefa, até em documento de 1 página).
+- O alerta de endereços não localizados contava repetições do LLM ("9 endereços" com 4 distintos).
+- Novo modelo fictício `parecer_tecnico` no corpus com esses formatos.
+
 ### Corrigido (achados do corpus)
 - **E-mail em documento digitalizado:** o Tesseract em português lê "@" como "(D"/"(W" (até em imagem limpa), e e-mails passavam sem tarja (revocação 0% no modo OCR). A regra aceita essas variantes, o nome partido pelo OCR e, logo depois de "e-mail", o "@" trocado por uma letra. 0% → 100%.
 - **Placa com "O" no lugar de "0"** (leitura do OCR) é aceita quando há "placa"/"veículo" perto. 88% → 100% no modo OCR.

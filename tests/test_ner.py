@@ -130,3 +130,39 @@ def test_model_revision_is_always_pinned(tmp_path):
     assert ner.revision_for(str(tmp_path)) is None                       # pasta local
     with pytest.raises(ValueError):
         ner.revision_for("alguem/outro-modelo")                          # remoto sem commit fixo
+
+
+def test_roles_marked_as_person_are_not_names():
+    # Medido nos documentos testados: o modelo marca "analista", "síndico", "o(s) devedor(es)"... como pessoa
+    g = grounding("O analista Fulano Exemplo e o síndico emitiram parecer ao devedor")
+    engine = FakeEngine({"analista": 0.8, "Fulano Exemplo": 0.9, "síndico": 0.9, "devedor": 0.75})
+    hits = ner.find_names(g, engine)
+    assert hits["nome_pessoa"]["valores"] == {"fulano exemplo"}
+    assert ids(hits["nome_pessoa"]["tarjar"]) == {2, 3}
+
+
+def test_role_words_at_the_edges_are_trimmed_but_the_name_is_kept():
+    g = grounding("Responsável Técnico Fulano Exemplo, o(s) herdeiro(s) Beltrano Teste")
+    engine = FakeEngine({"Responsável Técnico Fulano Exemplo": 0.9, "o(s) herdeiro(s) Beltrano Teste": 0.9})
+    hits = ner.find_names(g, engine)
+    assert hits["nome_pessoa"]["valores"] == {"fulano exemplo", "beltrano teste"}  # vírgula do OCR fica fora
+    assert ids(hits["nome_pessoa"]["tarjar"]) == {2, 3, 6, 7}
+
+
+def test_preload_loads_once_in_background(monkeypatch):
+    monkeypatch.setenv("NER_ENGINE", "gliner")
+    ner.reset()
+    loads = []
+
+    class Slow:
+        def __init__(self):
+            loads.append(1)
+    monkeypatch.setattr(ner, "GlinerEngine", Slow)
+    ner.preload().join(5)
+    assert isinstance(ner.get_engine(), Slow) and loads == [1]
+    ner.reset()
+
+
+def test_preload_does_nothing_when_disabled(monkeypatch):
+    monkeypatch.delenv("NER_ENGINE", raising=False)
+    assert ner.preload() is None

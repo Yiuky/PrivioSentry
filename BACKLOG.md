@@ -23,7 +23,7 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
 | 🟠 P1 | 13 | Falhar fechado em mais situações (OCR, respostas da IA, tarjas manuais, rotação) |
 | 🟡 P2 | 10 | Robustez dos processos, limites de recursos, Docker e editor |
 | 🔵 P3 | 5 | Limpeza de código, lint e marca |
-| 🧠 Roteiro | 11 | Detecção configurável (nomes, telefones, RG...), GLiNER e decisor Laya que aprende (B-71 a B-82) |
+| 🧠 Roteiro | 13 | Detecção configurável (nomes, telefones, RG...), GLiNER e decisor Laya que aprende (B-71 a B-84) |
 | 🔭 Visão | 5 | Auditoria, políticas e novos módulos SENTRY |
 
 ---
@@ -62,6 +62,8 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 | B-78 | P1 | **Avaliação realista do decisor**: conjunto fictício mais difícil que o sintético (endereços ambíguos, OCR ruidoso) para o portão de qualidade | B-70, B-01 |
 | B-80 | P2 | **Contexto decidido pelo Laya em vez de listas de palavras:** hoje "isto é um RG/telefone/data de nascimento?" depende das palavras de `utils/detect/data/contextos.json`; com as contagens do revisor (`python -m utils.decisions detectores`) e os documentos testados pelos usuários, treinar perguntas de contexto no decisor, com o mesmo portão e nunca reduzindo proteção sozinho | B-70, B-78 |
 | B-81 | P1 | **Corpus a partir dos testes reais:** cada erro achado num documento real vira um modelo fictício em `benchmarks/pii_corpus.py` (mais modelos: boletim, processo administrativo, nota fiscal, tabela com várias colunas) e o modo `--ocr` com fontes e ruídos variados | B-72 |
+| B-83 | P1 | **Nome de servidor no exercício da função (LAI):** nos documentos testados, metade dos nomes estava perto de "analista", "síndico", "responsável técnico", "procurador". Hoje o perfil `lgpd_publicacao` os tarja/alerta como qualquer nome; decidir com o usuário (perfil, lista de cargos ou B-74 com o Laya) | B-73 |
+| B-84 | P2 | **Retorno por detector só existe depois de "Aplicar proteção":** nenhum dos 7 documentos testados foi finalizado, então nada foi contado. Mostrar isso na interface e contar também as tarjas removidas/acrescentadas ao salvar no editor | B-82 |
 | B-82 | P2 | **Painel do retorno por detector na interface** (precisão observada por tipo e sugestões, só contagens), junto do painel de aprendizado | B-77 |
 | B-79 | P3 | **Instalação offline e mais rápida**: modelo em pasta local / `HF_HUB_OFFLINE`, versão ONNX na CPU (`laya.onnx_agent`), cache compartilhado | B-70 |
 

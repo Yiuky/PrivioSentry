@@ -114,3 +114,11 @@ def test_words_with_only_punctuation_are_never_redacted(redactor):
 ])
 def test_is_immune_table(word, expected):
     assert is_immune(word) is expected
+
+
+def test_repeated_unlocated_address_is_counted_once(redactor):
+    # Documento testado: o LLM devolveu o mesmo endereço 5 vezes e o alerta dizia "9 endereços" (4 distintos)
+    gm = [{"id": 0, "text": "Floresta", "box": {"x": 0, "y": 0, "w": 90, "h": 20}}]
+    addresses = pessoal("Rua Flores, Santa Rita") * 5
+    redactor.refine_redaction_with_text_ai(1, "", addresses, gm)
+    assert redactor.unlocated[1] == ["Rua Flores, Santa Rita"]

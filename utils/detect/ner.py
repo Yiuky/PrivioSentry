@@ -22,6 +22,7 @@ Filiação: um nome logo depois de "filho de", "mãe", "genitora"... (contextos.
 import importlib.util
 import logging
 import os
+import re
 import threading
 
 from . import config
@@ -104,6 +105,21 @@ def get_engine():
         return _engine
 
 
+def preload():
+    """Começa a carregar o modelo em segundo plano (get_engine depois espera o fim, pelo mesmo lock)."""
+    if not enabled():
+        return None
+
+    def run():
+        try:
+            get_engine()
+        except NERUnavailable:
+            pass  # o erro fica guardado e a fase de política o trata (revisão)
+    thread = threading.Thread(target=run, name="ner-preload", daemon=True)
+    thread.start()
+    return thread
+
+
 def reset():
     """Para testes."""
     global _engine, _engine_error
@@ -123,6 +139,35 @@ def _chunks(text, size):
         start = end
 
 
+def _role_matcher():
+    """Palavras que nunca são nome (contextos.json, nome_pessoa.nunca_nome; '*' = prefixo) + conectores."""
+    exact, prefixes = set(), []
+    for item in config.strings("nome_pessoa", "nunca_nome"):
+        item = _norm(item)
+        if item.endswith("*"):
+            prefixes.append(item.rstrip("*"))
+        else:
+            exact.add(item)
+    exact |= {c.lower() for c in config.lexicon()["conectores_sem_acento"]}
+
+    def is_role(token):
+        tok = re.sub(r"\((?:s|es|as|os|a|o)\)$", "", _norm(token).strip(".,:;!?\"'")).strip("()")
+        if not tok:
+            return True  # "(s)", pontuação solta
+        return tok in exact or any(tok.startswith(p) for p in prefixes)
+    return is_role
+
+
+def _trim(text, start, end, is_role):
+    """Tira das pontas do trecho as palavras de papel/conectores. Devolve (início, fim) ou None se não sobrar nada."""
+    tokens = [(start + m.start(), start + m.end()) for m in re.finditer(r"\S+", text[start:end])]
+    while tokens and is_role(text[tokens[0][0]:tokens[0][1]]):
+        tokens.pop(0)
+    while tokens and is_role(text[tokens[-1][0]:tokens[-1][1]]):
+        tokens.pop()
+    return (tokens[0][0], tokens[-1][1]) if tokens else None
+
+
 def find_names(grounding, engine=None):
     """
     Nomes no mapa de palavras. Devolve {tipo: {"tarjar": comandos, "alertar": comandos, "valores": set}},
@@ -139,6 +184,7 @@ def find_names(grounding, engine=None):
     labels = config.strings("nome_pessoa", "rotulos_ner") or ("person",)
     filiation_ctx = config.context("filiacao")[0]
     norm_text = _norm(text)
+    is_role = _role_matcher()
     out = {}
     for offset, chunk in _chunks(text, size):
         for ent in engine.predict(chunk, labels, low) or []:
@@ -148,6 +194,12 @@ def find_names(grounding, engine=None):
                 continue
             if score < low or start >= end:
                 continue
+            # "analista", "Responsável Técnico Fulano", "o(s) devedor(es)": o modelo marca papéis como pessoa.
+            # Só o nome é tarjado; trecho só de papéis é descartado.
+            span = _trim(text, start, end, is_role)
+            if span is None:
+                continue
+            start, end = span
             before = norm_text[max(0, start - window):start] if len(norm_text) == len(text) else \
                 _norm(text[max(0, start - window):start])
             type_id = "filiacao" if filiation_ctx is not None and filiation_ctx.search(before) else "nome_pessoa"

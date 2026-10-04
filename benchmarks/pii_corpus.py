@@ -181,7 +181,33 @@ def atendimento_saude(rng):
     return d
 
 
-TEMPLATES = [ata_condominio, contrato_locacao, ficha_cadastro, oficio_publico, atendimento_saude]
+def gen_nup(rng):
+    """Número único de processo federal (5.6/4-2), sem dígito verificador real."""
+    return f"{rng.randint(10000, 99999)}.{rng.randint(100000, 999999)}/20{rng.randint(10, 26)}-{rng.randint(10, 99)}"
+
+
+def gen_coord(rng, hemi):
+    return f"{rng.randint(1, 60)}°{rng.randint(0, 59):02d}'{rng.randint(0, 59):02d},{rng.randint(0, 9999):04d}\"{hemi}"
+
+
+def parecer_tecnico(rng):
+    """Formatos achados nos documentos testados (valores fictícios): CNPJ cortado por borda de tabela, número de
+    processo federal, coordenadas em graus coladas e e-mail com o "@" lido como "(" + letra."""
+    d = Doc("parecer_tecnico", [])
+    nome, cpf, cnpj, nup = _person(rng), gen_cpf(rng), gen_cnpj(rng), gen_nup(rng)
+    lat, lon = gen_coord(rng, "S"), gen_coord(rng, "W")
+    local = nome.split()[0].lower().replace("ã", "a").replace("é", "e").replace("í", "i").replace("ó", "o")
+    email = f"{local}.{rng.randint(1, 99)}@example.com"
+    d.lines += ["PARECER TÉCNICO — ANÁLISE DE CADASTRO",
+                f"Processo SUSEP nº {nup}, empresa CNPJ {cnpj[:-2]} | {cnpj[-2:]} Responsável",
+                f"Interessado: {nome}, CPF {cpf}, e-mail: {email.replace('@', '(G')}",
+                f"Coordenadas do imóvel: {lon} {lat}, conforme a analista responsável."]
+    d.gabarito += [("cpf", cpf), ("email", email)]
+    d.iscas += [("processo", nup), ("cnpj", cnpj), ("coordenada", lon), ("coordenada", lat)]
+    return d
+
+
+TEMPLATES = [ata_condominio, contrato_locacao, ficha_cadastro, oficio_publico, atendimento_saude, parecer_tecnico]
 
 
 def generate(n=50, seed=2026):

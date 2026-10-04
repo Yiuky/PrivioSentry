@@ -457,3 +457,35 @@ def test_email_ocr_tolerance_does_not_invent_emails(text):
 ])
 def test_plate_survives_ocr_letter_for_digit(text, expected):
     assert _found(text, "placa_veiculo") == expected
+
+
+# --- 12. documentos testados pelo usuário (formatos reproduzidos com valores fictícios) -----------------------
+@pytest.mark.parametrize("text, expected_ids", [
+    ("através do e-mail: protocolo3a(Gexample.gov através", {3}),   # "@" lido como "(" + letra fora da lista
+    ("E-mail: fulano example.com, de", {1, 2}),                    # "@" perdido: o nome antes também é tarjado
+    ("e-mail maria.84Dexample.com.", {1}),                         # o rótulo "e-mail" nunca entra na tarja
+])
+def test_email_without_at_covers_the_whole_address(text, expected_ids):
+    res = rules.find_in_grounding(words(text), ["email"])
+    assert set(res["email"][0]) == expected_ids
+
+
+@pytest.mark.parametrize("make", [
+    lambda d: [f"{d[:2]}.{d[2:5]}.{d[5:8]}/{d[8:12]}-", "|", d[12:14]],    # CNPJ cortado pela borda da tabela
+    lambda d: [f"{d[:5]}.{d[5:11]}/{d[11:15]}-{d[15:17]}"],                 # número único de processo federal
+    lambda d: [f"{d[:2]}°{d[2:4]}'{d[4:6]},{d[6:10]}\"W", f"{d[10:12]}°{d[12:14]}'{d[14:16]},{d[16:19]}\"S,"],  # coordenadas
+])
+def test_shapes_that_are_never_cpf(make):
+    from utils.validators import is_valid_cpf
+    rng = random.Random(4)
+    # Gera dígitos em que TODA janela de 11 começando no início passa no DV de CPF: pior caso para o detector
+    while True:
+        d = "".join(str(rng.randint(0, 9)) for _ in range(19))
+        if is_valid_cpf(d[:11]) and is_valid_cpf(d[1:12]):
+            break
+    assert _cpfs(*make(d)) == set()
+
+
+def test_formatted_cpf_next_to_cnpj_fragment_is_still_found():
+    cnpj_part = "12.345.678/0001-"
+    assert _cpfs(cnpj_part, "|", "90", "Responsável", CPF_A_FMT) == {CPF_A}

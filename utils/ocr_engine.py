@@ -225,7 +225,11 @@ class OCREngine:
         # Valor em reais ("1.500,00", "R$ 350,00"): nunca participa da montagem de um CPF com dígitos vizinhos.
         # Exceção: palavra com exatamente 11 dígitos continua valendo (CPF lido com vírgula no lugar do hífen).
         money_pattern = re.compile(r'^[(\[]?(?:R\$)?\d{1,3}(?:\.\d{3})*,\d{2}[)\].,;:]*$')
-        
+        # Formatos que nunca são CPF (achados nos documentos testados): começo de CNPJ cortado pelo OCR
+        # ("12.345.678/0001-" + borda de tabela), número único de processo federal ("12345.123456/2018-11")
+        # e coordenada em graus ("15°35'12,5"W"). Dentro deles cabe por acaso uma janela que passa no DV de CPF.
+        non_cpf_pattern = re.compile(r"\d{2}\.?\d{3}\.?\d{3}/\d{4}|\d{5}\.?\d{6}/\d{4}|\d{1,3}\s?[°º]\s?\d{1,2}\s?['’′]")
+
         excluded_ids = set()
         prev_text = ""
         
@@ -241,7 +245,8 @@ class OCREngine:
             is_money = n_digits != 11 and (money_pattern.match(text.strip()) or
                                            (prev_text.strip().upper() in ("R$", "R$:") and n_digits and "," in text))
             prev_text = text
-            if date_pattern.search(text) or time_pattern.search(text) or is_money or _looks_like_ocr_noise(text):
+            if date_pattern.search(text) or time_pattern.search(text) or is_money or _looks_like_ocr_noise(text) \
+                    or (n_digits != 11 and non_cpf_pattern.search(text)):
                 digits_only += "X"
                 digit_to_source.append(("X", -1, -1))
                 excluded_ids.add(word_id)

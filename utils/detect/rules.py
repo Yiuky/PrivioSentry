@@ -123,7 +123,11 @@ def _email_pattern():
     # o OCR também parte o nome ("beatriz.7" + "1(Dexample.com"): junta a palavra anterior se ela tem "." ou "_"
     split_local = rf"(?:[A-Za-z0-9%+\-]*[._][A-Za-z0-9._%+\-]*\s)?{_EMAIL_LOCAL}"
     ocr = rf"{split_local}\s?(?:{alts})[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.(?:{ends})\b" if alts else None
-    loose = rf"(?<![\w@.])[A-Za-z0-9._%+\-]*[A-Za-z][A-Za-z0-9._%+\-]*\.(?:{ends})\b(?!\.?[A-Za-z0-9])"
+    # Sem "@" reconhecível (só vale depois de "e-mail"): a tarja cobre a palavra INTEIRA, inclusive um "(" com
+    # letra fora da lista ("nome(Gdominio.gov") e o nome logo antes quando o OCR perdeu o "@" ("nome gmail.com").
+    # Antes, só o domínio era tarjado e o nome ficava visível (achado nos documentos testados).
+    loose = (rf"(?<![\w@.])(?:(?!(?i:e-?mail|mail|eletr[oô]nico)\s)[A-Za-z0-9._%+\-(]+\s)?[A-Za-z0-9._%+\-(]*[A-Za-z][A-Za-z0-9._%+\-(]*\.(?:{ends})\b"
+             rf"(?!\.?[A-Za-z0-9])")
     # Só começa no início de um token: sem isso, uma palavra gigante ("12.12.12...") faz o regex retroceder
     # a partir de cada caractere (tempo quadrático; pego pela contra-análise)
     start = r"(?<![A-Za-z0-9._%+\-@])"

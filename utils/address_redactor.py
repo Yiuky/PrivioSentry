@@ -293,7 +293,7 @@ class AddressRedactor:
         ids_to_redact = []
         for addr in pessoais:
             spans = locate_address_spans(addr, coordinate_map)
-            if not spans:
+            if not spans and addr not in self.unlocated[page_num]:  # o LLM às vezes repete o mesmo endereço
                 self.unlocated[page_num].append(addr)
             for span in spans:
                 for idx in span:

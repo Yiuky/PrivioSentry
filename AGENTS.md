@@ -11,7 +11,8 @@ em documentos. O único produto existente é o **SENTRY Redact**: um pipeline qu
 sugere tarjas, verifica a saída e só gera o PDF final depois da revisão humana num editor web.
 
 **SENTRY Detect** existe em parte: catálogo de PII, perfis de política e detectores por regra (`utils/detect/`).
-Nomes, rostos e dados sensíveis estão no catálogo como *planejados*; não os descreva como detectados.
+Nomes de pessoa e filiação têm detector **opcional** (GLiNER local, `NER_ENGINE=gliner`, desligado por padrão);
+rostos e dados sensíveis estão no catálogo como *planejados*; não os descreva como detectados.
 Os módulos Mask/Transform, Gateway e Audit são **visão**, não código: não os descreva como existentes.
 
 ## 2. Invariantes (não negociáveis)
