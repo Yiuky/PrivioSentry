@@ -88,6 +88,7 @@ ruff check .                         # lint (regras em pyproject.toml)
 pytest --ignore=tests/ui             # unidade e integração
 pytest tests/ui                      # interface (Playwright + Chromium: playwright install chromium)
 python scripts/audit_public_tree.py  # dados pessoais / segredos / caminhos locais
+pre-commit install                   # opcional: lint + auditoria + versão a cada commit
 python -m benchmarks.run_benchmark   # benchmark sintético (opcional; precisa de Tesseract; ver docs/benchmarks.md)
 ```
 
@@ -98,6 +99,8 @@ interface.
 
 - Documentação e interface em **português (pt-BR) primeiro**; o `README.en.md` acompanha o `README.md`.
   Atualize os dois quando o comportamento mudar.
+- Mudanças na interface ou no fluxo do usuário atualizam o [manual de uso](docs/MANUAL_DE_USO.md); o índice
+  da documentação fica em [docs/README.md](docs/README.md).
 - Toda mudança de comportamento ou configuração atualiza `CHANGELOG.md` (seção *Não publicado*),
   `docs/configuration.md` e `.env.example` quando couber.
 - Commits com *sign-off* (`git commit -s`, DCO). Um assunto por PR, com testes.

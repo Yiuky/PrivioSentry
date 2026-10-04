@@ -1,0 +1,23 @@
+# Verificações antes de cada commit (opcional, recomendado):
+#   pip install pre-commit && pre-commit install
+# Os ganchos usam as ferramentas do seu ambiente (requirements-dev.txt), sem baixar nada.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        entry: ruff check
+        language: system
+        types: [python]
+      - id: audit-public-tree
+        name: auditoria de dados pessoais, segredos e caminhos locais
+        entry: python scripts/audit_public_tree.py
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: check-versions
+        name: versão igual em pyproject.toml, CITATION.cff e CHANGELOG.md
+        entry: python scripts/check_versions.py
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|CITATION\.cff|CHANGELOG\.md)$

@@ -69,6 +69,12 @@ python scripts/audit_public_tree.py       # dados pessoais / segredos / caminhos
 
 Os testes não podem depender do Ollama nem de GPU: use *fakes*/*stubs* para o LLM e o YOLO.
 
+Para rodar o lint, a auditoria e a checagem de versão automaticamente a cada commit:
+
+```bash
+pip install pre-commit && pre-commit install     # usa .pre-commit-config.yaml
+```
+
 ## Pull requests
 
 - Um assunto por PR, com testes. Explique o *porquê* (item do [BACKLOG.md](BACKLOG.md), issue ou pedido).

@@ -29,7 +29,7 @@ PRIVIO SENTRY is a local-first project for detecting and protecting personal, se
 > **AI suggests. The policy constrains. The human confirms. The system records.**
 
 * The models only **suggest** *potential* detections; every suggestion appears as an editable region that a person can accept, move, resize or remove.
-* Nothing becomes the final PDF until the reviewer confirms it. When the pipeline is unsure (an AI call failed, a CPF found in the original is not covered, a page could not be verified) it **fails closed**: the document is marked **"Requer revisão" (Needs review)** instead of "Concluído" (Completed), with per-page alerts.
+* Automatic processing produces only a *preliminary* PDF with the AI suggestions; the version meant for use comes from the reviewer checking the boxes and clicking **Apply protection** in the editor. When the pipeline is unsure (an AI call failed, a CPF found in the original is not covered, a page could not be verified) it **fails closed**: the document is marked **"Requer revisão" (Needs review)** instead of "Concluído" (Completed), with per-page alerts.
 * "The policy constrains" and "the system records" are the design direction: today the policy is fixed (CPF + personal addresses) and the only record is the task log. A configurable policy engine and an audit trail are **planned, not implemented** (see [Vision](#vision-future-not-implemented)).
 
 ## Read this first: it assists, it does not guarantee

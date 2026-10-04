@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Infraestrutura local de privacidade com IA · produto atual: SENTRY Redact</strong><br>
-  <em>Encontra CPFs e endereços pessoais em PDFs, sugere as tarjas e só gera o documento final depois da revisão humana</em>
+  <em>Encontra CPFs e endereços pessoais em PDFs, sugere as tarjas e leva tudo para revisão humana num editor web</em>
 </p>
 
 <p align="center">
@@ -23,7 +23,8 @@
 <p align="center">
   <a href="#-instalação"><strong>⚡ Instalar</strong></a> •
   <a href="#-uso-rápido"><strong>🚀 Usar</strong></a> •
-  <a href="docs/"><strong>📖 Documentação</strong></a> •
+  <a href="docs/MANUAL_DE_USO.md"><strong>📘 Manual</strong></a> •
+  <a href="docs/README.md"><strong>📖 Documentação</strong></a> •
   <a href="docs/limitations.md"><strong>⚠️ Limitações</strong></a> •
   <a href="CHANGELOG.md"><strong>📋 Novidades</strong></a> •
   <a href="https://github.com/Yiuky/privio-sentry/issues/new/choose"><strong>🐞 Relatar problema</strong></a> •
@@ -62,7 +63,7 @@ documentos a nuvens de terceiros.
 | | Como funciona hoje |
 |---|---|
 | 🤖 **A IA sugere** | Os modelos só apontam detecções *potenciais*; cada uma vira uma caixa editável que a pessoa aceita, move, redimensiona ou remove |
-| 🙋 **O humano confirma** | Nada vira PDF final antes da confirmação do revisor |
+| 🙋 **O humano confirma** | O processamento automático gera só um PDF **preliminar**, com as sugestões da IA; a versão para uso sai quando o revisor confere as caixas e clica em **Aplicar proteção** |
 | 🔒 **Falha fechado** | Na dúvida (IA falhou, CPF do original sem tarja, página não verificada), o documento fica como **"Requer revisão"** em vez de "Concluído", com alertas por página |
 | 📜 **Política e registro** | Hoje a política é fixa (CPF + endereços pessoais) e o único registro é o log da tarefa. Motor de políticas configurável e trilha de auditoria estão **planejados, não implementados** ([Visão](#-visão-futuro-não-implementado)) |
 
@@ -108,6 +109,24 @@ endereços residenciais (dados pessoais) são alvo. Veja
 | 📄 **Exportação** | PDF final por **tarja nativa** sobre o original (remove o texto e queima os pixels) ou por páginas rasterizadas, mais um JSON com as caixas |
 | ✅ **Verificação pós-tarja** | Relê a saída e confronta o *original* (OCR em DPI maior) para garantir que todo CPF encontrado esteja coberto |
 | 🖊️ **Editor web** | Adicionar, mover, apagar e aprovar tarjas antes de gerar o PDF final |
+
+### Como funciona
+
+```mermaid
+flowchart LR
+    A[📄 PDF] --> B[🖼️ Renderização<br>+ OCR Tesseract]
+    B --> C[🔢 CPFs<br>dígitos verificadores]
+    B --> D[✍️ Assinaturas<br>YOLO + LLM de visão]
+    B --> E[🏠 Endereços<br>LLM de visão]
+    C --> F{{🖊️ Revisão humana<br>no editor}}
+    D --> F
+    E --> F
+    F --> G[🔒 Tarja nativa<br>ou raster]
+    G --> H{✅ Verificação<br>pós-tarja}
+    H -- sem alertas --> I[Concluído]
+    H -- dúvida --> J[⚠️ Requer revisão]
+    J --> F
+```
 
 ### Destaques
 
@@ -294,6 +313,46 @@ O processamento é local. Os artefatos de cada tarefa (imagens das páginas, sa�
 [docs/configuration.md](docs/configuration.md)). Vulnerabilidades: relate de forma privada, conforme o
 [SECURITY.md](SECURITY.md).
 
+## ❓ Perguntas frequentes
+
+<details>
+<summary><strong>Preciso de internet ou de GPU?</strong></summary>
+
+Internet só para instalar as dependências e baixar o modelo do Ollama. Depois, OCR, YOLO e LLM rodam na sua
+máquina. GPU não é obrigatória, mas acelera muito o LLM de visão; sem ela, prefira modelos menores e um
+`BASE_DPI` mais baixo.
+</details>
+
+<details>
+<summary><strong>O documento marcado como "Concluído" está livre de dados pessoais?</strong></summary>
+
+Não necessariamente. "Concluído" significa que as verificações automáticas não deixaram alerta pendente. A
+detecção é probabilística e só cobre CPF e endereços pessoais: **sempre revise** antes de publicar.
+</details>
+
+<details>
+<summary><strong>Por que nomes não são tarjados?</strong></summary>
+
+É uma regra de negócio deliberada do caso de uso original. Isso pode tornar a
+pessoa identificável mesmo sem CPF/endereço; veja as [limitações](docs/limitations.md). Outros tipos de dado
+estão no [backlog](BACKLOG.md).
+</details>
+
+<details>
+<summary><strong>Qual a diferença entre o modo nativo e o raster?</strong></summary>
+
+O **nativo** aplica a tarja sobre o PDF original (remove o texto e queima os pixels), mantendo a qualidade. O
+**raster** reconstrói o PDF a partir de imagens das páginas, com resolução menor e sem texto selecionável.
+Detalhes no [manual](docs/MANUAL_DE_USO.md).
+</details>
+
+<details>
+<summary><strong>Posso usar com vários usuários na rede?</strong></summary>
+
+Dá para expor o serviço com `APP_HOST=0.0.0.0` **e** `API_TOKEN`, atrás de um proxy HTTPS. Não há contas de
+usuário, TLS nem trilha de auditoria embutidos: avalie isso antes de usar com dados sensíveis.
+</details>
+
 ## 🤝 Contribuindo
 
 - Como relatar problemas, sugerir melhorias e enviar código: [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -317,7 +376,8 @@ documents. Its first capability, **SENTRY Redact**, finds **Brazilian CPF number
 
 - **Local pipeline:** Tesseract OCR, a YOLO signature detector and a vision LLM served by Ollama, all running
   on your machine; the UI loads no external assets.
-- **Human in the loop:** the AI only *suggests*; nothing becomes the final PDF until a reviewer confirms it.
+- **Human in the loop:** the AI only *suggests*; automatic processing yields a *preliminary* PDF, and the protected
+  version comes from the reviewer applying the reviewed boxes in the editor.
 - **Fails closed:** a post-redaction verifier re-reads the output and cross-checks the original; any doubt
   marks the document as *needs review* (CLI exit code `3`).
 - **Honest scope:** early stage, measured only on synthetic data, no audit trail yet, and it does **not**
