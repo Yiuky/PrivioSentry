@@ -128,6 +128,8 @@ def test_stop_on_posix_terminates_process(gk, fake_popen, monkeypatch):
 def test_stop_on_windows_uses_taskkill_tree(gk, fake_popen, monkeypatch):
     calls = []
     monkeypatch.setattr(gk, "IS_WINDOWS", True)
+    # a constante só existe no Windows; no CI (Linux) o start simulado precisa dela
+    monkeypatch.setattr(gk.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200, raising=False)
     monkeypatch.setattr(gk.subprocess, "call", lambda cmd: calls.append(cmd))
     gk.manage_process("start")
     gk.manage_process("stop")
