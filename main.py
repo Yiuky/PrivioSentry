@@ -16,6 +16,7 @@ from utils.address_redactor import AddressRedactor
 from utils.lexicon import is_immune
 from utils.pii import mask_text
 from utils import decisions
+from utils import detect as pii_detect
 from utils.decisions import feedback as decision_feedback
 from utils.decisions.questions import normalize_state
 
@@ -60,6 +61,9 @@ class SentryApp:
         self.review_marks = []  # regiões a revisar: {"page", "reason", "box": [x0, y0, x1, y1] relativos}
         self.timings = {}  # segundos por etapa (para acompanhar o desempenho)
         self.grounding_maps_native = []  # palavras do texto digital do PDF (passada extra de CPF), por página
+        self.policy_profile = pii_detect.active_profile_id()  # perfil de política (utils/detect/profiles.py)
+        self.pii_summary = {}   # tipo do catálogo -> quantidade de valores distintos achados (sem os valores)
+        self.box_labels = defaultdict(dict)  # página -> {assinatura da caixa: rótulo do tipo} (mostrado no editor)
 
     def add_review(self, page_num, reason, boxes=None):
         """Marca uma página como 'requer revisão' e registra o alerta (sem duplicar).
@@ -105,9 +109,13 @@ class SentryApp:
                 "alerts": self.alerts,
                 "review_marks": self.review_marks,
                 "timings": self.timings,
+                "policy_profile": self.policy_profile,
+                "pii_summary": self.pii_summary,
+                "pii_found": self.pii_found(),
             }
         return {"status": "Concluído", "percentage": 100, "completed": True, "needs_review": False,
-                "alerts": self.alerts, "review_marks": self.review_marks, "timings": self.timings}
+                "alerts": self.alerts, "review_marks": self.review_marks, "timings": self.timings,
+                "policy_profile": self.policy_profile, "pii_summary": self.pii_summary, "pii_found": self.pii_found()}
 
     def run(self, progress_callback=None, manual_redactions=None, native_mode=False):
         """Executa o pipeline completo com suporte a notificações de progresso."""
@@ -134,6 +142,7 @@ class SentryApp:
                 (self.run_phase_0, "Renderizando PDF", 10),
                 (self.run_phase_1, "OCR Scanning", 20),
                 (self.run_phase_2, "Busca de CPFs", 30),
+                (self.run_policy_phase, "Outros dados pessoais (perfil)", 35),
                 (self.run_phase_3, "Busca Visual (YOLO)", 40),
                 (self.run_phase_4, "Micro-Auditoria", 50),
                 (self.run_address_discovery, "Análise Semântica (IA)", 65),
@@ -286,7 +295,53 @@ class SentryApp:
             
         self.session.save_detected_cpfs(all_found_cpfs)
         self.known_cpfs = list(all_found_cpfs)
+        if all_found_cpfs:
+            self.pii_summary["cpf"] = len(all_found_cpfs)
         self.logger.info(f"[+] Fase 2 concluída: {len(all_found_cpfs)} CPFs identificados.")
+
+    def pii_found(self):
+        """Resumo legível por tipo do catálogo: nome, nível e quantidade (nunca os valores)."""
+        out = []
+        for type_id, count in self.pii_summary.items():
+            t = pii_detect.catalog.BY_ID.get(type_id)
+            if t:
+                out.append({"id": type_id, "nome": t.nome, "nivel": t.nivel, "quantidade": count})
+        return out
+
+    def run_policy_phase(self):
+        """
+        Demais tipos de PII do perfil ativo (SENTRY Detect): regras sobre as três leituras de cada página
+        (OCR padrão, OCR esparso e texto digital). "tarjar" vira tarja sugerida; "alertar" marca a região.
+        CPF e endereço residencial têm fases próprias.
+        """
+        actions = {t: a for t, a in pii_detect.runnable_actions(self.policy_profile).items()
+                   if t not in ("cpf", "endereco_residencial")}
+        self.logger.info(f"--- POLÍTICA: perfil '{self.policy_profile}' ({len(actions)} tipo(s) com detector) ---")
+        if not actions:
+            return
+        found_values = defaultdict(set)
+        for i in range(len(self.grounding_maps)):
+            page_num = i + 1
+            maps = [m for m in (self.grounding_maps[i],
+                                self.grounding_maps_sparse[i] if i < len(self.grounding_maps_sparse) else [],
+                                self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else []) if m]
+            for gmap in maps:
+                for type_id, (commands, values) in pii_detect.find_in_grounding(gmap, list(actions)).items():
+                    found_values[type_id] |= {f"{page_num}:{v}" for v in values}
+                    boxes = self.session.get_redaction_boxes(gmap, commands)
+                    label = pii_detect.catalog.get(type_id).nome
+                    if actions[type_id] == pii_detect.TARJAR:
+                        for b in boxes:
+                            self.global_redactions[page_num].append(b)
+                            self.box_labels[page_num][f"{b['x']}_{b['y']}_{b['w']}_{b['h']}"] = label
+                    else:
+                        self.add_review(page_num, f"{label}: possível dado pessoal (perfil manda alertar). Revisar.",
+                                        self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in boxes]))
+        for type_id, vals in found_values.items():
+            self.pii_summary[type_id] = len(vals)
+        if found_values:
+            resumo = ", ".join(f"{pii_detect.catalog.get(t).nome}: {n}" for t, n in self.pii_summary.items() if t in actions)
+            self.logger.info(f"[+] Política: {resumo}.")
 
     def run_phase_3(self):
         """Fase 3: Mapeador Visual YOLO (02_DISCOVERY & CROPPING)"""
@@ -470,7 +525,27 @@ class SentryApp:
                             self.address_redactions[page_num].append(box)
                     except: continue
         
+        self._apply_address_policy()
         self.logger.info("[+] Fase 6 concluída.")
+
+    def _apply_address_policy(self):
+        """Endereço residencial segue o perfil: tarjar (padrão), alertar (vira região a revisar) ou ignorar."""
+        action = pii_detect.runnable_actions(self.policy_profile).get("endereco_residencial")
+        found = {p: list(b) for p, b in self.address_redactions.items() if b}
+        # Conta ENDEREÇOS (não as palavras tarjadas) das páginas onde algum foi localizado
+        n_addresses = sum(1 for page, addrs in self.address_redactor.results.items() if page in found
+                          for a in addrs if a.get("type") == "pessoal")
+        if found:
+            self.pii_summary["endereco_residencial"] = n_addresses or len(found)
+        if action == pii_detect.TARJAR:
+            return
+        for page_num, boxes in found.items():
+            ids = {id(b) for b in boxes}
+            self.global_redactions[page_num] = [b for b in self.global_redactions[page_num] if id(b) not in ids]
+            if action == pii_detect.ALERTAR:
+                self.add_review(page_num, "Endereço residencial: possível dado pessoal (perfil manda alertar). Revisar.",
+                                self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in boxes]))
+        self.address_redactions = defaultdict(list)
 
     def run_signature_audit(self):
         """Fase 7: Auditoria de Assinaturas (IA Visual) para verificar CPFs não tarjados."""
@@ -662,15 +737,16 @@ class SentryApp:
                 box_sig = f"{bx}_{by}_{bw}_{bh}"
                 
                 if box_sig in addr_boxes:
-                    rtype = 'pii'
+                    rtype, label = 'pii', "Endereço residencial"
                 elif box_sig in cpf_boxes:
-                    rtype = 'signature'
+                    rtype, label = 'signature', "CPF"
                 else:
-                    rtype = 'pii'
-                    
+                    rtype, label = 'pii', self.box_labels.get(page_num, {}).get(box_sig)
+
                 frontend_redactions.append({
                     "page": page_num,
                     "type": rtype,
+                    "label": label,
                     "coords": [bx, by, bx + bw, by + bh],
                     "source": "AI_Engine",
                     "image_width": orig_w,

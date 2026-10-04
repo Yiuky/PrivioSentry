@@ -91,12 +91,13 @@ def test_native_text_is_an_extra_cpf_pass(tmp_path, monkeypatch):
 def test_timings_are_recorded_per_phase(tmp_path, monkeypatch):
     monkeypatch.setenv("BASE_DPI", "40")
     app = SentryApp(make_text_pdf(tmp_path / "t.pdf"))
-    for name in ("run_phase_0", "run_phase_1", "run_phase_2", "run_phase_3", "run_phase_4", "run_address_discovery",
+    for name in ("run_phase_0", "run_phase_1", "run_phase_2", "run_policy_phase", "run_phase_3", "run_phase_4",
+                 "run_address_discovery",
                  "run_phase_6", "run_signature_audit", "run_phase_5", "run_verification"):
         monkeypatch.setattr(app, name, lambda: time.sleep(0.01))
     app.run()
     timings = app.final_state()["timings"]
-    assert len(timings) == 10 and all(v >= 0 for v in timings.values())
+    assert len(timings) == 11 and all(v >= 0 for v in timings.values())
     app.session.close()
 
 

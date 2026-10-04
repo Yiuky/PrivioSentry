@@ -37,6 +37,6 @@ A ferramenta ajuda a remover **dados pessoais (CPF, endereços residenciais)** d
 
 ## Considerações sobre a LGPD (não exaustivas)
 * A anonimização sob a LGPD (art. 12) exige que os dados **não possam ser reidentificados por meios razoáveis**; uma tarja visual com nomes, contexto ou metadados remanescentes ainda pode permitir a reidentificação. Avalie caso a caso.
-* A LGPD distingue *dados pessoais* de *dados pessoais sensíveis* (saúde, biométricos, genéticos etc.). Esta ferramenta atualmente tem como alvo apenas números de CPF e endereços residenciais (dados pessoais); ela não detecta categorias sensíveis.
+* A LGPD distingue *dados pessoais* de *dados pessoais sensíveis* (saúde, biométricos, genéticos etc.). As categorias sensíveis estão mapeadas no [catálogo](catalogo-pii.md), mas ainda **não** são detectadas; os dados pessoais cobertos dependem do perfil de política.
 * Mantenha uma **política de retenção** para os artefatos (apague `output/`; veja `RETENTION_DAYS` em [configuration.md](configuration.md)).
 * O operador continua sendo o **controlador/operador** dos dados e é responsável pela base legal, pelos registros das operações de tratamento e pelo tratamento de incidentes. Este projeto não oferece nenhuma garantia (veja LICENSE, seção 7).

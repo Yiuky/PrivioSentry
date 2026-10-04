@@ -3,7 +3,8 @@
 Seja explícito sobre o que esta ferramenta não consegue fazer. Sempre combine o uso com revisão humana. O PRIVIO SENTRY / SENTRY Redact está em **estágio inicial**: a IA **sugere**, uma pessoa **confirma**.
 
 ## Escopo da tarja
-* **Apenas números de CPF e endereços pessoais (residenciais)** são alvo. Não são tarjados: nomes, RG e outros documentos de identificação, telefones, e-mails, dados bancários/financeiros, placas de veículos, fotografias/rostos, QR codes/códigos de barras, as próprias assinaturas (apenas CPFs próximos a elas), datas de nascimento, metadados/anexos/anotações/marcadores do PDF (inspecione esses itens separadamente).
+* **O que é tarjado depende do perfil de política** (`POLICY_PROFILE`, ver [catálogo](catalogo-pii.md)). O padrão (`cpf_endereco`) cobre só CPF e endereço residencial; os perfis LGPD, GDPR e saúde acrescentam RG, CNH, título de eleitor, PIS/NIS, Cartão SUS, passaporte, CTPS, telefone, e-mail, dados bancários, chave Pix, data de nascimento, placa e IP, detectados por regras (dígito verificador, formato e palavra de contexto). **Não são detectados em nenhum perfil:** nomes, filiação, fotografias/rostos, dados sensíveis (saúde, religião, opinião política...), QR codes/códigos de barras, as próprias assinaturas (apenas CPFs próximos a elas) e metadados/anexos/anotações/marcadores do PDF (inspecione esses itens separadamente).
+* Os detectores por regra só foram testados com valores gerados (sem medida de revocação em documentos reais). A verificação pós-tarja confere só CPF: os outros tipos dependem da revisão humana.
 * Nomes de pessoas deliberadamente **não** são tarjados (uma regra de negócio do caso de uso original), o que pode tornar um indivíduo identificável mesmo sem CPF/endereço.
 
 ## Qualidade da detecção

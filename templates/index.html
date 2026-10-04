@@ -146,6 +146,8 @@
         @media (prefers-reduced-motion: reduce) { .review-mark.flash { animation: none; outline: 4px solid var(--warning-strong); } }
         .redaction-box { position:absolute; background:rgba(11,18,32,0.45); border:2px solid var(--primary); pointer-events:auto; z-index:2; }
         .redaction-box.type-signature { border-color: var(--teal); background: rgba(20, 184, 166, 0.40); }
+        .redaction-box.type-labelled::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--primary); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
+        .task-pii { font-size:12px; color:var(--slate); margin-top:2px; cursor:help; }
         .redaction-box.type-signature::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--teal-strong); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
 
         .redaction-box.selected { border:3px solid var(--white); box-shadow:0 0 0 2px var(--primary), 0 0 14px rgba(37,99,235,0.6); z-index:10; }
@@ -404,7 +406,7 @@
                 'task.actions': 'Ações de {file}', 'task.reprocess': 'Reprocessar', 'task.logs': 'Ver logs', 'task.delete': 'Excluir',
                 'task.view': 'Ver', 'task.download': 'Baixar PDF', 'task.review': 'Requer revisão',
                 'task.complete': 'Proteção concluída · Processado localmente',
-                'region.possible': 'Possível CPF ou endereço — verifique antes de proteger',
+                'region.possible': 'Possível dado pessoal — verifique antes de proteger', 'region.possibleType': 'Possível {type} — verifique antes de proteger', 'pii.found': 'Dados encontrados',
                 'region.signature': 'Possível assinatura — verifique antes de proteger',
                 'region.manual': 'Região adicionada manualmente',
                 'region.signatureLabel': 'POSSÍVEL ASSINATURA', 'region.manualSignatureLabel': 'ASSINATURA',
@@ -451,7 +453,7 @@
                 'task.actions': 'Actions for {file}', 'task.reprocess': 'Reprocess', 'task.logs': 'View logs', 'task.delete': 'Delete',
                 'task.view': 'View', 'task.download': 'Download PDF', 'task.review': 'Needs review',
                 'task.complete': 'Protection complete · Processed locally',
-                'region.possible': 'Potential CPF or address — verify before protecting',
+                'region.possible': 'Potential personal data — verify before protecting', 'region.possibleType': 'Potential {type} — verify before protecting', 'pii.found': 'Data found',
                 'region.signature': 'Potential signature — verify before protecting',
                 'region.manual': 'Manually added region',
                 'region.signatureLabel': 'POTENTIAL SIGNATURE', 'region.manualSignatureLabel': 'SIGNATURE',
@@ -709,6 +711,13 @@
                     }
 
                     const dateStr = tk.created_at ? new Date(tk.created_at).toLocaleDateString(lang, {hour: '2-digit', minute:'2-digit'}) : '';
+                    // Tipos de dado pessoal encontrados (catálogo), sem os valores
+                    let piiHtml = '';
+                    if (isDone && Array.isArray(tk.pii_found) && tk.pii_found.length) {
+                        const items = tk.pii_found.map(p => `${String(p.nome)} ${Number(p.quantidade) || 0}`);
+                        const detail = tk.pii_found.map(p => `${String(p.nome)} (${String(p.nivel)}): ${Number(p.quantidade) || 0}`).join('\n');
+                        piiHtml = `<div class="task-pii" title="${esc(detail)}" data-testid="task-pii">🔎 ${esc(items.join(' · '))}</div>`;
+                    }
                     // Tempo por etapa (desempenho): total no cartão, detalhe ao passar o mouse
                     let timeHtml = '';
                     if (isDone && tk.timings && typeof tk.timings === 'object') {
@@ -743,6 +752,7 @@
                         <div class="task-meta"><span class="task-status">${esc(tk.status)} ${!isDone ? '('+esc(tk.percentage)+'%)' : ''}</span><span>${dateStr}</span></div>
                         ${badgeHtml}
                         ${completeHtml}
+                        ${piiHtml}
                         ${timeHtml}
                         ${downloadHtml}
                     `;
@@ -966,10 +976,13 @@
                 box.dataset.testid = 'redaction-box';
                 box.setAttribute('data-testid', 'redaction-box');
                 // A IA SUGERE: rótulo de possível detecção (nunca só por cor)
-                const label = isSignature ? (isManual ? t('region.signature') : t('region.signature')) : (isManual ? t('region.manual') : t('region.possible'));
+                const typed = !isSignature && !isManual && r.label;  // tipo do catálogo (ex.: Telefone, RG)
+                const label = isSignature ? t('region.signature') : (isManual ? t('region.manual')
+                    : (typed ? t('region.possibleType', {type: String(r.label)}) : t('region.possible')));
                 box.title = label;
                 box.setAttribute('aria-label', label);
                 if (isSignature) box.dataset.label = isManual ? t('region.manualSignatureLabel') : t('region.signatureLabel');
+                if (typed) { box.classList.add('type-labelled'); box.dataset.label = String(r.label); }
                 box.style.left = (r.coords[0] * sX) + 'px'; box.style.top = (r.coords[1] * sY) + 'px';
                 box.style.width = ((r.coords[2] - r.coords[0]) * sX) + 'px'; box.style.height = ((r.coords[3] - r.coords[1]) * sY) + 'px';
 

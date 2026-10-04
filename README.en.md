@@ -38,14 +38,14 @@ PRIVIO SENTRY is a local-first project for detecting and protecting personal, se
 
 * Every output **must be reviewed by a person** before publication or sharing.
 * "Concluído" means *no pending alert was detected by the automatic checks*, not that the document is guaranteed clean.
-* Only **CPF** and **personal addresses** are targeted. Names, phone numbers, e-mails, RG, bank data, photos, QR codes, metadata, etc. are **not** redacted. See [docs/limitations.md](docs/limitations.md) and [docs/threat-model-lgpd.md](docs/threat-model-lgpd.md).
+* What gets redacted depends on the **policy profile** (`POLICY_PROFILE`). The default covers only **CPF** and **residential addresses**; the LGPD, GDPR and health profiles add RG, CNH, voter ID, PIS/NIS, SUS health card, passport, CTPS, phone, e-mail, bank data, Pix key, date of birth, plate and IP ([PII catalog](docs/catalogo-pii.md), in Portuguese). Names, parents' names, faces, sensitive data (health, religion...), QR codes and metadata are **not yet** detected. See [docs/limitations.md](docs/limitations.md) and [docs/threat-model-lgpd.md](docs/threat-model-lgpd.md).
 * Never use real documents to report bugs or in tests; see [SECURITY.md](SECURITY.md).
 
 ## LGPD positioning
 
 PRIVIO SENTRY is a **technical control that can support privacy and security practices**, including those related to Brazil's data-protection law (**LGPD**, Lei 13.709/2018). It is **not** an "LGPD compliance" engine, it is not legal advice, and using it does not by itself make any document or process compliant: that depends on purpose, legal basis, necessity, governance, data lifecycle and roles. Local processing is an architectural choice, not a legal conclusion; actual guarantees depend on your deployment (network configuration, logging, temporary files, model behavior). The UI label **LOCAL PROCESSING** describes where processing happens; it does not claim the machine is offline.
 
-The LGPD separates *personal data* from *sensitive personal data* (health, biometric, genetic...). Today only CPF numbers and residential addresses (personal data) are targeted. See [docs/brand/LGPD_PRODUCT_POSITIONING.md](docs/brand/LGPD_PRODUCT_POSITIONING.md) and the official sources: [LGPD](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm), [ANPD](https://www.gov.br/anpd/pt-br).
+The LGPD separates *personal data* from *sensitive personal data* (health, biometric, genetic...). Sensitive categories are mapped in the PII catalog but not yet detected. See [docs/brand/LGPD_PRODUCT_POSITIONING.md](docs/brand/LGPD_PRODUCT_POSITIONING.md) and the official sources: [LGPD](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm), [ANPD](https://www.gov.br/anpd/pt-br).
 
 ## What SENTRY Redact does today
 
@@ -163,7 +163,7 @@ Brand, design and UX guidelines live in [docs/brand/](docs/brand/) (including th
 
 ## Limitations
 
-* Only CPF and personal addresses; no names, phones, e-mails, faces, etc.
+* Names, parents' names, faces and sensitive data are not yet detected; other types depend on the policy profile.
 * Recall of the detection and of the verification was only measured on synthetic data (see [docs/benchmarks.md](docs/benchmarks.md) when available); real-world scans can be worse.
 * Handwriting and low-quality scans are the weakest point. The signature detector has modest accuracy (see model card).
 * Address redaction depends on an LLM classification and on fuzzy matching: it can over- or under-redact.

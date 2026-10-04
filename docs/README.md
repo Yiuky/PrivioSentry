@@ -8,6 +8,7 @@ Ponto de partida para usar, operar e desenvolver o **SENTRY Redact**. Comece pel
 | Documento | Conteúdo |
 |---|---|
 | [Manual de uso](MANUAL_DE_USO.md) | Instalação passo a passo, editor web, linha de comando, resultados, solução de problemas e perguntas frequentes |
+| [Catálogo de dados pessoais](catalogo-pii.md) | Tipos de PII, enquadramento (LGPD, GDPR, ISO/IEC 29100, NIST, HIPAA) e como cada um é detectado |
 | [Configuração](configuration.md) | Todas as variáveis de ambiente (`.env`), com valores padrão |
 | [Limitações](limitations.md) | O que a ferramenta **não** faz: leia antes de confiar nos resultados |
 

@@ -5,6 +5,14 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Adicionado (critérios de dados pessoais)
+- **Catálogo de PII** (`utils/detect/catalog.py`, documentação gerada em `docs/catalogo-pii.md`): 30 tipos com enquadramento em **LGPD** (art. 5º, I e II), **GDPR** (art. 4, 9 e 10), **ISO/IEC 29100**, **NIST SP 800-122** e **HIPAA Safe Harbor**, nível (identificador direto, dado pessoal, sensível, indireto) e forma de detecção. Tipos sem detector ficam como *planejados* (nomes, rostos, dados sensíveis).
+- **Perfis de política** (`POLICY_PROFILE`): `cpf_endereco` (padrão, comportamento original), `lgpd_publicacao` (LAI), `lgpd_interno`, `gdpr` e `saude_hipaa`; cada tipo é tarjado (sugestão para revisão) ou só alertado (região a revisar). O endereço residencial também obedece ao perfil.
+- **Novos detectores por regra** sobre as três leituras de cada página (OCR padrão, OCR esparso, texto digital): RG, CNH, título de eleitor, PIS/NIS, Cartão SUS, passaporte, CTPS, telefone, e-mail, dados bancários, chave Pix, data de nascimento, placa e IP. Cada regra exige dígito verificador oficial, formato distintivo ou palavra de contexto; a palavra de contexto nunca é tarjada.
+- O editor mostra o **tipo** de cada tarja sugerida (ex.: "Possível Telefone"), e o cartão da tarefa mostra o **resumo dos tipos encontrados** (quantidades, nunca os valores).
+- API só de leitura `GET /policy/catalog` e `GET /policy/profiles` (contrato de um futuro serviço SENTRY Detect).
+- No documento real de teste, o perfil `lgpd_publicacao` passou a encontrar RG e telefone, antes não tarjados.
+
 ### Alterado
 - **Mais rápido e mais preciso:** um documento real digitalizado de 10 páginas caiu de **~14 min para ~3 min** (OCR de ~510 s para ~19 s).
   - **`BASE_DPI` padrão: 1000 → 300.** Medido (`docs/benchmarks.md`): a 300 DPI a revocação de CPF foi de 100% contra ~60% a 1000 DPI (o Tesseract quebra os dígitos em pedaços em imagens grandes), e a verificação achou 16/16 vazamentos contra 11–13/16. No documento real, os CPFs achados a 1000 DPI foram todos achados a 300 DPI. **Atenção:** quem define `BASE_DPI` no `.env` deve revisar o valor (e `YOLO_CROP_PADDING`, que é em pixels).

@@ -69,6 +69,14 @@ Ambas são lidas em `utils/session.py` e `app_service.py`.
 | `FINAL_JPEG_QUALITY` | `75` | Qualidade JPEG (1-95; valores fora do intervalo voltam ao padrão) dessas páginas. |
 | `RETENTION_DAYS` | `0` (desativado) | Na inicialização, exclui tarefas (e todos os seus artefatos) com mais de N dias; `0`/não definido mantém tudo. `POST /purge/{id}` remove sob demanda as imagens originais das páginas de uma tarefa. Sempre exclua `output/` quando terminar: ele contém imagens das páginas e texto de OCR com dados pessoais. |
 
+## Política de dados pessoais
+
+Detalhes no [catálogo de PII](catalogo-pii.md).
+
+| Variável | Padrão | Lida em | Descrição |
+|---|---|---|---|
+| `POLICY_PROFILE` | `cpf_endereco` | `utils/detect/profiles.py` | Perfil de política: `cpf_endereco` (original), `lgpd_publicacao`, `lgpd_interno`, `gdpr`, `saude_hipaa`. Define o que é tarjado e o que só é alertado. Valor desconhecido volta ao padrão. |
+
 ## Decisor local e automelhoramento (opcional)
 
 Detalhes em [decisions.md](decisions.md). Exige `pip install -e ".[laya]"`.

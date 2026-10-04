@@ -64,9 +64,10 @@ processamento ocorre (arquitetura); ele não afirma que a máquina esteja descon
 
 ### 1.2 O que não é
 
-- **Não** é uma ferramenta de anonimização completa. Só **CPF** e **endereços pessoais** são alvo. Nomes, RG,
-  telefones, e-mails, dados bancários, placas, fotos/rostos, QR codes, as próprias assinaturas, datas de
-  nascimento e metadados/anexos/anotações do PDF **não** são tarjados.
+- **Não** é uma ferramenta de anonimização completa. O que é tarjado depende do perfil de política
+  (`POLICY_PROFILE`): o padrão cobre só **CPF** e **endereço residencial**; os perfis LGPD, GDPR e saúde
+  acrescentam RG, CNH, título de eleitor, PIS/NIS, Cartão SUS, passaporte, CTPS, telefone, e-mail, dados bancários, chave Pix, data de nascimento, placa e IP ([catálogo](catalogo-pii.md)). Nomes, filiação, fotos/rostos, dados sensíveis, QR
+  codes, as próprias assinaturas e metadados/anexos/anotações do PDF **ainda não** são tarjados.
 - **Não** é aconselhamento jurídico nem um motor de conformidade.
 - **Não** tem contas de usuário, TLS embutido nem trilha de auditoria (o único registro é o log da tarefa).
 - Está em **estágio inicial**: a acurácia foi medida apenas em dados sintéticos
@@ -649,7 +650,7 @@ sem página valem para o documento inteiro.
 |---|---|
 | `WEB_INPUT/` (PDFs enviados) | Sim, os originais completos |
 | `output/` (pastas de trabalho) | Sim: imagens sem tarja, OCR, recortes, prompts/respostas da IA |
-| `documentos_finais/` | Pode conter: só CPF e endereços pessoais são alvo; nomes e outros dados permanecem |
+| `documentos_finais/` | Pode conter os tipos que o perfil não cobre (nomes, dados sensíveis, etc.) |
 | `tasks.json` | Nomes de arquivos e alertas (com CPFs mascarados) |
 | `process_log.log` | Registros de processamento (com CPFs mascarados) |
 
@@ -871,7 +872,8 @@ Não. "Concluído" significa apenas que as verificações automáticas não deix
 humana faz parte do fluxo.
 
 **Quais dados são tarjados?**
-Apenas números de CPF e endereços pessoais (residenciais). Nomes de pessoas são deliberadamente mantidos.
+Depende do perfil (`POLICY_PROFILE`). O padrão: CPF e endereço residencial. Os perfis LGPD, GDPR e saúde
+acrescentam RG, CNH, título de eleitor, PIS/NIS, Cartão SUS, passaporte, CTPS, telefone, e-mail, dados bancários, chave Pix, data de nascimento, placa e IP. Nomes ainda não são detectados (planejado). Veja o [catálogo](catalogo-pii.md).
 
 **Endereços profissionais são tarjados?**
 Não. O LLM classifica cada endereço como pessoal, profissional ou secundário, e só os pessoais recebem tarja

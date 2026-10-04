@@ -306,6 +306,18 @@ async def internal_update(task_id: str, request: Request, data: dict = Body(...)
 async def index(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
 
+@app.get("/policy/catalog")
+async def policy_catalog():
+    """Catálogo de tipos de PII e enquadramento legal (sem nenhum dado pessoal)."""
+    from utils.detect import catalog
+    return {"tipos": [t.to_dict() for t in catalog.CATALOG]}
+
+@app.get("/policy/profiles")
+async def policy_profiles():
+    """Perfis de política e o perfil ativo (POLICY_PROFILE)."""
+    from utils.detect import profiles
+    return {"ativo": profiles.active_profile_id(), "perfis": profiles.describe_all()}
+
 @app.get("/readme")
 async def readme():
     path = os.path.join(BASE_DIR, "README.md")

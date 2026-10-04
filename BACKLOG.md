@@ -52,8 +52,8 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 
 | ID | Prioridade | Item | Depende de |
 |---|---|---|---|
-| B-71 | P1 | **Política configurável**: o usuário escolhe os tipos (CPF, endereço, nome, telefone, e-mail, RG...) na interface e na CLI; arquivo de política versionado; registrar qual política foi aplicada em cada tarefa | — |
-| B-72 | P1 | **Novos tipos por regras com validação**: RG, CNH, PIS/NIS, título de eleitor, telefone, e-mail, CEP, placa, cartão (dígito verificador quando houver), com testes e casos falsos positivos conhecidos | B-71 |
+| B-71 | P1 | **Política configurável — parte 1 concluída (não publicado):** catálogo com enquadramento legal, 5 perfis via `POLICY_PROFILE`, rótulo do tipo em cada tarja, resumo por documento, API `/policy/*`. **Falta:** escolher o perfil na interface e por tarefa, e registrar a política aplicada num relatório exportável | — |
+| B-72 | P1 | **Concluído (não publicado):** RG, CNH, título de eleitor, PIS/NIS, CNS, passaporte, CTPS, telefone, e-mail, IP, cartão (Luhn), conta bancária, chave Pix, data de nascimento e placa, com dígito verificador, formato ou contexto (`tests/test_detect.py`). **Falta:** medir revocação por tipo em documentos fictícios realistas e estender a verificação pós-tarja a esses tipos | B-71 |
 | B-73 | P1 | **Nomes e rótulos livres com GLiNER** (modo leve na CPU): o usuário escreve o rótulo ("nome de pessoa", "número de processo"); trechos mapeados para as caixas do OCR; confiança baixa → revisão | B-71 |
 | B-74 | P2 | **Exceções decididas pelo Laya**: "nome a proteger" × "servidor/signatário público" (LAI), com perguntas próprias, treino e portão | B-73, B-70 |
 | B-75 | P2 | **Perfis de política e roteamento**: perfis prontos (Transparência/LAI, Saúde, Jurídico, Só CPF) e o Laya sugerindo o perfil pelo tipo de documento | B-71, B-70 |

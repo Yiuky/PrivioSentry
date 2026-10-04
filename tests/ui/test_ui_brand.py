@@ -103,7 +103,7 @@ def test_detections_are_labelled_as_suggestions(page, live_app, open_task):
     open_task(tid)
     titles = page.eval_on_selector_all("[data-testid=redaction-box]", "els => els.map(e => e.title)")
     assert len(titles) == 3
-    assert any("Possível CPF ou endereço — verifique antes de proteger" == x for x in titles)
+    assert any("Possível dado pessoal — verifique antes de proteger" == x for x in titles)
     assert any("Possível assinatura — verifique antes de proteger" == x for x in titles)
     assert any("manualmente" in x for x in titles)
     # assinatura tem rótulo textual (não depende só de cor)

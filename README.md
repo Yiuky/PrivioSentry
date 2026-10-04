@@ -76,8 +76,10 @@ visíveis; também pode tarjar mais do que o necessário.
 - Toda saída **deve ser revisada por uma pessoa** antes de ser publicada ou compartilhada.
 - **"Concluído"** significa *nenhum alerta pendente nas verificações automáticas*, e não que o documento
   esteja garantidamente limpo.
-- Só **CPF** e **endereços pessoais** são alvo. Nomes, telefones, e-mails, RG, dados bancários, fotos,
-  QR codes, metadados etc. **não** são tarjados ([limitações](docs/limitations.md),
+- O que é tarjado depende do **perfil de política** (`POLICY_PROFILE`). O padrão cobre só **CPF** e
+  **endereço residencial**; os perfis LGPD, GDPR e saúde acrescentam RG, CNH, título de eleitor, PIS/NIS, Cartão SUS, passaporte, CTPS, telefone, e-mail, dados bancários, chave Pix, data de nascimento, placa e IP
+  ([catálogo](docs/catalogo-pii.md)). **Ainda não** são detectados: nomes, filiação, rostos, dados sensíveis
+  (saúde, religião...), QR codes e metadados ([limitações](docs/limitations.md),
   [modelo de ameaças](docs/threat-model-lgpd.md)).
 - Nunca use documentos reais para relatar bugs ou em testes ([SECURITY.md](SECURITY.md)).
 
@@ -145,6 +147,24 @@ flowchart LR
   `N`/`P`/`Esc`.
 
 ---
+
+## 🧾 Critérios de dados pessoais
+
+O [**catálogo de PII**](docs/catalogo-pii.md) lista cada tipo de dado pessoal com o enquadramento em **LGPD**
+(art. 5º, I e II), **GDPR** (art. 4, 9 e 10), **ISO/IEC 29100**, **NIST SP 800-122** e **HIPAA Safe Harbor**, o
+nível (identificador direto, dado pessoal, dado sensível, identificador indireto) e como é detectado. Os
+**perfis de política** dizem o que tarjar ou só alertar:
+
+| Perfil (`POLICY_PROFILE`) | Para quê |
+|---|---|
+| `cpf_endereco` (padrão) | Comportamento original: CPF e endereço residencial |
+| `lgpd_publicacao` | Publicar documentos (LAI art. 31): documentos, contato, financeiro e nascimento tarjados; indiretos e sensíveis alertados |
+| `lgpd_interno` | Circular internamente: documentos e financeiro tarjados; contato e sensíveis alertados |
+| `gdpr` | Identificadores diretos e online (inclui IP) tarjados; categorias especiais alertadas |
+| `saude_hipaa` | Identificadores da lista Safe Harbor que o projeto detecta, tarjados |
+
+Detectar e tarjar esses tipos **apoia** práticas alinhadas a essas referências; não torna um documento
+"conforme". A API só de leitura `GET /policy/catalog` e `GET /policy/profiles` expõe catálogo e perfis.
 
 ## 💻 Requisitos
 
@@ -300,7 +320,8 @@ O trabalho pendente e as prioridades estão no [BACKLOG.md](BACKLOG.md). Diretri
 
 ## 🚧 Limitações
 
-- Só CPF e endereços pessoais; sem nomes, telefones, e-mails, rostos etc.
+- Nomes, filiação, rostos e dados sensíveis (saúde, religião...) ainda não são detectados; os demais tipos
+  dependem do perfil de política ([catálogo](docs/catalogo-pii.md)).
 - Revocação da detecção e da verificação medida **só em dados sintéticos**; digitalizações reais podem ser
   piores.
 - Manuscritos e digitalizações de baixa qualidade são o ponto mais fraco; o detector de assinaturas tem

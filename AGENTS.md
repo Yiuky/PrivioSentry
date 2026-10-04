@@ -62,6 +62,7 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
 | `utils/session.py` | Pastas da tarefa, logs, exportação, reconstrução do PDF e tarja nativa (`apply_native_pdf_redactions`) |
 | `utils/verifier.py` | Verificação pós-tarja: relê o PDF final e confronta o original (`find_uncovered_cpfs`) |
 | `utils/pii.py` | Mascaramento de CPF em logs |
+| `utils/detect/` | SENTRY Detect: catálogo de PII com enquadramento legal (`catalog.py`), perfis de política (`profiles.py`, `POLICY_PROFILE`), detectores por regra (`rules.py`) e dígitos verificadores (`validators.py`). Pacote isolado, com contrato JSON (API `/policy/*`), pronto para virar serviço. `docs/catalogo-pii.md` é gerado: `python -m utils.detect --markdown` |
 | `utils/decisions/` | Decisor local (Laya) e automelhoramento: perguntas, motor, regra de combinação, treino com portão de qualidade e versões. Guia: [docs/decisions.md](docs/decisions.md) |
 | `utils/auth.py` | Autenticação por `API_TOKEN` com sessão aleatória (app e gatekeeper): `?token=` só abre a sessão e sai da URL |
 | `utils/net_guard.py` | Checagem de `Host`/`Origin` (anti *DNS rebinding* e CSRF) usada pelo app e pelo gatekeeper; `ALLOWED_HOSTS` |
