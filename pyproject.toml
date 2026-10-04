@@ -41,9 +41,9 @@ dev = ["pytest>=9.0", "pytest-cov>=7.0", "ruff==0.16.10"]
 ui = ["pytest-playwright>=0.7"]
 
 [project.urls]
-Homepage = "https://github.com/Yiuky/privio-sentry"
-Issues = "https://github.com/Yiuky/privio-sentry/issues"
-Changelog = "https://github.com/Yiuky/privio-sentry/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/Yiuky/PrivioSentry"
+Issues = "https://github.com/Yiuky/PrivioSentry/issues"
+Changelog = "https://github.com/Yiuky/PrivioSentry/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 py-modules = ["main", "app_service", "gatekeeper"]

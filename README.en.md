@@ -71,7 +71,7 @@ The LGPD separates *personal data* from *sensitive personal data* (health, biome
 
 ```bash
 sudo apt-get install -y tesseract-ocr tesseract-ocr-por tesseract-ocr-eng libgl1
-git clone https://github.com/Yiuky/privio-sentry.git && cd privio-sentry
+git clone https://github.com/Yiuky/PrivioSentry.git && cd PrivioSentry
 python3 -m venv venv && . venv/bin/activate
 pip install --extra-index-url https://download.pytorch.org/whl/cpu torch torchvision   # CPU-only PyTorch (optional, smaller)
 pip install -r requirements.txt
@@ -85,7 +85,7 @@ cp .env.example .env     # then edit
 3. In PowerShell:
 
 ```powershell
-git clone https://github.com/Yiuky/privio-sentry.git; cd privio-sentry
+git clone https://github.com/Yiuky/PrivioSentry.git; cd PrivioSentry
 python -m venv venv; .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env   # set TESSERACT_PATH=C:\Program Files\Tesseract-OCR\tesseract.exe

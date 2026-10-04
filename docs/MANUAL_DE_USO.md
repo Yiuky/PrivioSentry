@@ -113,7 +113,7 @@ em [threat-model-lgpd.md](threat-model-lgpd.md) e [brand/LGPD_PRODUCT_POSITIONIN
 3. No PowerShell, clone o projeto e instale as dependências:
 
    ```powershell
-   git clone https://github.com/Yiuky/privio-sentry.git; cd privio-sentry
+   git clone https://github.com/Yiuky/PrivioSentry.git; cd PrivioSentry
    python -m venv venv; .\venv\Scripts\Activate.ps1
    pip install -r requirements.txt
    Copy-Item .env.example .env
@@ -135,7 +135,7 @@ em [threat-model-lgpd.md](threat-model-lgpd.md) e [brand/LGPD_PRODUCT_POSITIONIN
 
 ```bash
 sudo apt-get install -y tesseract-ocr tesseract-ocr-por tesseract-ocr-eng libgl1
-git clone https://github.com/Yiuky/privio-sentry.git && cd privio-sentry
+git clone https://github.com/Yiuky/PrivioSentry.git && cd PrivioSentry
 python3 -m venv venv && . venv/bin/activate
 pip install --extra-index-url https://download.pytorch.org/whl/cpu torch torchvision   # opcional: PyTorch só CPU (menor)
 pip install -r requirements.txt

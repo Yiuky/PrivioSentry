@@ -38,7 +38,7 @@ Este Código de Conduta se aplica dentro de todos os espaços da comunidade e ta
 
 ## Aplicação
 
-Ocorrências de comportamentos abusivos, de assédio ou que sejam inaceitáveis por qualquer outro motivo poderão ser reportadas à liderança da comunidade responsável pela aplicação, ou seja, ao mantenedor do projeto, Joberth Firmino Gambati, pelo GitHub (perfil <https://github.com/Yiuky>) ou pelo LinkedIn (<https://www.linkedin.com/in/joberth-firmino-gambati-57248a94>). Para relatos sensíveis, use um [aviso de segurança privado](https://github.com/Yiuky/privio-sentry/security/advisories/new) ou peça um canal privado em uma issue pública, sem incluir detalhes. Todas as reclamações serão revisadas e investigadas imediatamente e de maneira justa.
+Ocorrências de comportamentos abusivos, de assédio ou que sejam inaceitáveis por qualquer outro motivo poderão ser reportadas à liderança da comunidade responsável pela aplicação, ou seja, ao mantenedor do projeto, Joberth Firmino Gambati, pelo GitHub (perfil <https://github.com/Yiuky>) ou pelo LinkedIn (<https://www.linkedin.com/in/joberth-firmino-gambati-57248a94>). Para relatos sensíveis, use um [aviso de segurança privado](https://github.com/Yiuky/PrivioSentry/security/advisories/new) ou peça um canal privado em uma issue pública, sem incluir detalhes. Todas as reclamações serão revisadas e investigadas imediatamente e de maneira justa.
 
 Os relatos nunca devem incluir dados pessoais ou documentos reais (regra do projeto); se for preciso ilustrar algo, use exemplos fictícios.
 

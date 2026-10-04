@@ -7,7 +7,7 @@
 **Não abra issue pública** para problemas de segurança.
 
 - Use o relato privado de vulnerabilidades do GitHub:
-  <https://github.com/Yiuky/privio-sentry/security/advisories/new>.
+  <https://github.com/Yiuky/PrivioSentry/security/advisories/new>.
 - Se não estiver disponível, abra uma issue pública dizendo apenas "pedido de contato de segurança" (sem
   detalhes) e o mantenedor combinará um canal privado.
 
@@ -53,7 +53,7 @@ Só a última versão/`main` recebe correções de segurança.
 ## English summary
 
 Do **not** open public issues for security problems: use GitHub private vulnerability reporting
-(<https://github.com/Yiuky/privio-sentry/security/advisories/new>) or open a public issue that only says
+(<https://github.com/Yiuky/PrivioSentry/security/advisories/new>) or open a public issue that only says
 "security contact request". Never attach real documents or personal data. In scope: the web service, the
 pipeline leaking data it was meant to redact because of a bug, and this repository's supply chain. Out of
 scope: general OCR/LLM accuracy limits, third-party vulnerabilities, attacks needing a compromised host. Only

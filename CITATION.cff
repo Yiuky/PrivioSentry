@@ -14,8 +14,8 @@ authors:
 version: 5.1.0
 date-released: 2026-10-04
 license: AGPL-3.0-or-later
-repository-code: "https://github.com/Yiuky/privio-sentry"
-url: "https://github.com/Yiuky/privio-sentry"
+repository-code: "https://github.com/Yiuky/PrivioSentry"
+url: "https://github.com/Yiuky/PrivioSentry"
 keywords:
   - privacy
   - redaction

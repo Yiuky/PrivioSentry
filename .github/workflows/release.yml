@@ -71,7 +71,7 @@ jobs:
           log = io.open("CHANGELOG.md", encoding="utf-8").read()
           m = re.search(r"^## \[%s\].*?$(.*?)(?=^## \[|\Z)" % re.escape(version), log, re.M | re.S)
           notes = m.group(1).strip() if m else "PRIVIO SENTRY %s" % version
-          notes += ("\n\n---\n**Instalação:** veja o [README](https://github.com/Yiuky/privio-sentry#-instalação). "
+          notes += ("\n\n---\n**Instalação:** veja o [README](https://github.com/Yiuky/PrivioSentry#-instalação). "
                     "A ferramenta apoia a revisão humana e **não garante** anonimização.")
           io.open("release_notes.md", "w", encoding="utf-8").write(notes)
       - name: Publicar Release

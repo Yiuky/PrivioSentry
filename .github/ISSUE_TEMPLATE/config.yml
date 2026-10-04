@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Vulnerabilidade de segurança / vazamento de dados
-    url: https://github.com/Yiuky/privio-sentry/security/advisories/new
+    url: https://github.com/Yiuky/PrivioSentry/security/advisories/new
     about: Relate de forma privada; não abra issue pública. / Report privately; do not open a public issue.

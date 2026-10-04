@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Yiuky/privio-sentry/releases/latest"><img src="https://img.shields.io/github/v/release/Yiuky/privio-sentry?label=Vers%C3%A3o&color=2E8B57" alt="Versão"></a>
-  <a href="https://github.com/Yiuky/privio-sentry/actions/workflows/ci.yml"><img src="https://github.com/Yiuky/privio-sentry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Yiuky/PrivioSentry/releases/latest"><img src="https://img.shields.io/github/v/release/Yiuky/PrivioSentry?label=Vers%C3%A3o&color=2E8B57" alt="Versão"></a>
+  <a href="https://github.com/Yiuky/PrivioSentry/actions/workflows/ci.yml"><img src="https://github.com/Yiuky/PrivioSentry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white" alt="Python"></a>
   <a href="https://github.com/tesseract-ocr/tesseract"><img src="https://img.shields.io/badge/OCR-Tesseract%205-5C2D91.svg" alt="Tesseract OCR"></a>
   <a href="https://ollama.com/"><img src="https://img.shields.io/badge/LLM%20local-Ollama-000000.svg?logo=ollama&logoColor=white" alt="Ollama"></a>
@@ -27,7 +27,7 @@
   <a href="docs/README.md"><strong>📖 Documentação</strong></a> •
   <a href="docs/limitations.md"><strong>⚠️ Limitações</strong></a> •
   <a href="CHANGELOG.md"><strong>📋 Novidades</strong></a> •
-  <a href="https://github.com/Yiuky/privio-sentry/issues/new/choose"><strong>🐞 Relatar problema</strong></a> •
+  <a href="https://github.com/Yiuky/PrivioSentry/issues/new/choose"><strong>🐞 Relatar problema</strong></a> •
   <a href="README.en.md"><strong>🌐 English</strong></a> •
   <a href="#-doe-um-café-para-o-dev"><strong>☕ Doe um café</strong></a>
 </p>
@@ -161,7 +161,7 @@ flowchart LR
 3. No PowerShell:
 
 ```powershell
-git clone https://github.com/Yiuky/privio-sentry.git; cd privio-sentry
+git clone https://github.com/Yiuky/PrivioSentry.git; cd PrivioSentry
 python -m venv venv; .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env   # defina TESSERACT_PATH=C:\Program Files\Tesseract-OCR\tesseract.exe
@@ -171,7 +171,7 @@ Copy-Item .env.example .env   # defina TESSERACT_PATH=C:\Program Files\Tesseract
 
 ```bash
 sudo apt-get install -y tesseract-ocr tesseract-ocr-por tesseract-ocr-eng libgl1
-git clone https://github.com/Yiuky/privio-sentry.git && cd privio-sentry
+git clone https://github.com/Yiuky/PrivioSentry.git && cd PrivioSentry
 python3 -m venv venv && . venv/bin/activate
 pip install --extra-index-url https://download.pytorch.org/whl/cpu torch torchvision   # PyTorch só CPU (opcional, menor)
 pip install -r requirements.txt

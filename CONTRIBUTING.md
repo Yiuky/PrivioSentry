@@ -20,7 +20,7 @@ Antes de mexer no código, leia o [AGENTS.md](AGENTS.md) (invariantes, arquitetu
 ## Relatar um problema
 
 1. Confira as [limitações conhecidas](docs/limitations.md) e se já existe uma
-   [issue](https://github.com/Yiuky/privio-sentry/issues) parecida.
+   [issue](https://github.com/Yiuky/PrivioSentry/issues) parecida.
 2. Abra uma issue com o modelo **Relatar problema**. Reproduza com o exemplo sintético e anexe só logs sem
    dados pessoais (revise antes de anexar).
 3. Falhas de segurança ou tarja que deixou vazar dado real **não** vão em issue pública: veja
@@ -49,7 +49,7 @@ A interface e a documentação seguem [docs/brand/](docs/brand/). Em resumo:
 ## Ambiente de desenvolvimento
 
 ```bash
-git clone https://github.com/Yiuky/privio-sentry.git && cd privio-sentry
+git clone https://github.com/Yiuky/PrivioSentry.git && cd PrivioSentry
 python -m venv venv && . venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements-dev.txt
 cp .env.example .env
