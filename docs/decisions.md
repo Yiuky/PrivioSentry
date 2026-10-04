@@ -98,6 +98,7 @@ Depois de algumas semanas de revisões, rode `train` de novo: o novo perfil só 
 | `python -m utils.decisions train` | Treina um candidato (saída `0` aprovado, `2` reprovado) |
 | `python -m utils.decisions rollback` | Volta ao perfil aprovado anterior (ou ao modo sem perfil) |
 | `python -m utils.decisions purge --yes` | Apaga exemplos, cache e perfis desta máquina |
+| `python -m utils.decisions detectores` | Precisão observada de cada detector pelo revisor (mantidas × removidas × acrescentadas) e **sugestões** para quem mantém as regras. Só contagens; nada é mudado sozinho: reduzir proteção exige uma pessoa, uma mudança em `utils/detect/data` e o corpus mostrando que não piorou |
 
 ## Privacidade
 

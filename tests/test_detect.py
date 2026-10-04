@@ -56,7 +56,7 @@ def test_catalog_is_consistent():
     ids = [t.id for t in catalog.CATALOG]
     assert len(ids) == len(set(ids))
     for t in catalog.CATALOG:
-        assert t.nivel in catalog.LEVELS and t.estado in (catalog.ATIVO, catalog.PLANEJADO)
+        assert t.nivel in catalog.LEVELS and t.estado in (catalog.ATIVO, catalog.OPCIONAL, catalog.PLANEJADO)
         assert t.lgpd and t.gdpr and t.nist and t.hipaa and t.iso29100
         if t.nivel == catalog.SENSIVEL:
             assert "art. 5º, II" in t.lgpd or "art. 4º" in t.lgpd
@@ -84,11 +84,14 @@ def test_default_profile_keeps_original_behavior(monkeypatch):
     assert profiles.active_profile_id() == "cpf_endereco"
 
 
-def test_planned_types_are_not_run_but_stay_in_profile(monkeypatch):
+def test_planned_and_disabled_optional_types_are_not_run_but_stay_in_profile(monkeypatch):
     monkeypatch.setenv("POLICY_PROFILE", "lgpd_publicacao")
+    monkeypatch.delenv("NER_ENGINE", raising=False)
     run = profiles.runnable_actions()
-    assert "nome_pessoa" not in run and "telefone" in run
-    assert profiles.describe_all()["lgpd_publicacao"]["acoes"]["nome_pessoa"]["estado"] == "planejado"
+    assert "nome_pessoa" not in run and "foto_rosto" not in run and "telefone" in run
+    acoes = profiles.describe_all()["lgpd_publicacao"]["acoes"]
+    assert acoes["nome_pessoa"] == {"acao": "tarjar", "estado": "opcional", "rodando": False}
+    assert acoes["foto_rosto"]["estado"] == "planejado" and acoes["telefone"]["rodando"]
 
 
 def test_generated_catalog_doc_is_in_sync():

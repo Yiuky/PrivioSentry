@@ -4,6 +4,7 @@ import re
 import threading
 import pytesseract
 from PIL import Image
+from utils.detect.validators import is_valid_cns
 from utils.validators import is_valid_cpf, is_valid_cnpj
 
 def ocr_workers(base_dpi=None, jobs=None):
@@ -40,9 +41,11 @@ def _looks_like_ocr_noise(text):
         return False
     classes = [("d" if ch.isdigit() else "a") for ch in core if ch.isalnum()]
     alternations = sum(1 for a, b in zip(classes, classes[1:]) if a != b)
-    if alternations >= 4 and letters >= digits:
+    from utils.detect import config  # limiares em utils/detect/data/parametros.json ("ruido_ocr")
+    if alternations >= config.param("ruido_ocr", "alternancias_minimas") and letters >= digits:
         return True  # "l1i3o7]x" -> textura/ruído
-    return digits <= 3 and classes[0] == "a" and classes[-1] == "a"  # "a1b", "Ol2x": dígito perdido no meio de letras
+    # "a1b", "Ol2x": dígito perdido no meio de letras
+    return digits <= config.param("ruido_ocr", "digitos_max_entre_letras") and classes[0] == "a" and classes[-1] == "a"
 
 
 class OCREngine:
@@ -272,24 +275,67 @@ class OCREngine:
         found_cpfs = set()
         
         if len(digits_only) >= 11:
-            # === PRE-FILTRO DE CNPJs ===
-            # CNPJs (14 digs) não devem ser tarjados. Sub-sequências de 11 num CNPJ podem colidir com CPFs!
-            if len(digits_only) >= 14:
-                chars_list = list(digits_only)
+            # === PRE-FILTRO DE OUTROS NÚMEROS COM DÍGITO VERIFICADOR (CNPJ 14, CNS 15) ===
+            # Sub-sequências de 11 dígitos dentro deles podem passar no DV de CPF por acaso. Só exclui número
+            # ALINHADO a palavras: uma janela que cruza dois números vizinhos ("CPF ... PIS ...") pode passar no DV
+            # por acaso e apagaria um CPF verdadeiro. E nunca exclui um trecho com uma palavra de exatamente 11
+            # dígitos (forma de CPF escrito). Na dúvida: tarja a mais.
+            chars_list = list(digits_only)
+            word_digits = {}
+            for _ch, w_id, _c in digit_to_source:
+                word_digits[w_id] = word_digits.get(w_id, 0) + 1
+            for size, valid in ((14, is_valid_cnpj), (15, is_valid_cns)):
                 j = 0
-                while j <= len(chars_list) - 14:
-                    candidate_cnpj = "".join(chars_list[j:j+14])
-                    if 'X' not in candidate_cnpj and is_valid_cnpj(candidate_cnpj):
-                        for k in range(j, j+14): chars_list[k] = 'X'
-                        j += 14 # Pula o CNPJ inteiro
+                while j <= len(chars_list) - size:
+                    candidate = "".join(chars_list[j:j + size])
+                    aligned = (j == 0 or digit_to_source[j - 1][1] != digit_to_source[j][1]) and                         (j + size == len(chars_list) or digit_to_source[j + size][1] != digit_to_source[j + size - 1][1])
+                    looks_cpf = any(word_digits[digit_to_source[k][1]] == 11 for k in range(j, j + size))
+                    if 'X' not in candidate and aligned and not looks_cpf and valid(candidate):
+                        for k in range(j, j + size):
+                            chars_list[k] = 'X'
+                        j += size
                     else:
                         j += 1
-                digits_only = "".join(chars_list)
+            digits_only = "".join(chars_list)
 
             # === BUSCA DE CPFs ===
+            # Passada 1: janelas ALINHADAS a palavras (começam no 1º dígito de uma palavra e terminam no último
+            # dígito de uma palavra). Um CPF escrito, mesmo partido pelo OCR em várias palavras, é assim. Isso evita
+            # que dígitos vizinhos ("unidade 14A, CPF ...", "CPF ... PIS ...") desloquem a janela e façam a
+            # varredura aceitar um número errado e pular o CPF verdadeiro.
+            used = set()
+
+            def accept(i, candidate):
+                found_cpfs.add(candidate)
+                for k in range(i, i + 11):
+                    _, w_id, c_idx = digit_to_source[k]
+                    redaction_commands.setdefault(w_id, set()).add(c_idx)
+                    used.add(k)
+
+            def word_of(k):
+                return digit_to_source[k][1]
+
+            n = len(digits_only)
+            for i in range(0, n - 10):
+                candidate = digits_only[i:i + 11]
+                if "X" in candidate:
+                    continue
+                starts = i == 0 or word_of(i - 1) != word_of(i)
+                ends = i + 11 == n or word_of(i + 11) != word_of(i + 10)
+                if not (starts and ends) or not is_valid_cpf(candidate):
+                    continue
+                if {word_of(k) for k in range(i, i + 11)}.issubset(excluded_ids):
+                    continue
+                accept(i, candidate)
+
+            # Passada 2: varredura original (casos bagunçados: dígitos grudados a outros na mesma palavra), sem
+            # sobrepor o que a passada 1 já achou
             i = 0
             while i <= len(digits_only) - 11:
                 candidate = digits_only[i:i+11]
+                if any(k in used for k in range(i, i + 11)):
+                    i += 1
+                    continue
                 
                 # Se houver uma quebra geográfica na string candidata, pula pra depois dela
                 x_pos = candidate.rfind('X')
@@ -306,13 +352,8 @@ class OCREngine:
                         i += 1
                         continue
                         
-                    found_cpfs.add(candidate)
-                    for k in range(i, i+11):
-                        _, w_id, c_idx = digit_to_source[k]
-                        if w_id not in redaction_commands:
-                            redaction_commands[w_id] = set()
-                        redaction_commands[w_id].add(c_idx)
-                    
+                    accept(i, candidate)
+
                     # PULO DO GATO: Se achou um CPF, pula 11 posições para evitar 'ecos'
                     i += 11
                 else:

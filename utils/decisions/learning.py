@@ -106,9 +106,12 @@ class LearningStore:
         return list(latest.values())
 
     def remove_task(self, task) -> int:
-        """Apaga os exemplos vindos de uma tarefa (direito de eliminação). Devolve quantos removeu."""
+        """Apaga os exemplos (e as contagens por detector) de uma tarefa (direito de eliminação).
+        Devolve quantas linhas removeu."""
+        from . import detector_stats
+        stats_removed = detector_stats.remove_task(self.root, task) if os.path.isdir(self.root) else 0
         if not task or not os.path.exists(self.examples_path):
-            return 0
+            return stats_removed
         kept, removed = [], 0
         with open(self.examples_path, encoding="utf-8") as f:
             for line in f:
@@ -124,7 +127,7 @@ class LearningStore:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.writelines(kept)
             os.replace(tmp, self.examples_path)
-        return removed
+        return removed + stats_removed
 
     # perfis -------------------------------------------------------------------------------------
     def manifest(self) -> Dict:
@@ -184,7 +187,8 @@ class LearningStore:
         aprendizado cria: se PRIVIO_LEARNING_DIR apontar por engano para uma pasta com outros arquivos,
         eles ficam intactos (e a pasta também).
         """
-        for path in (self.examples_path, self.cache_path, self.manifest_path):
+        from .detector_stats import STATS_FILE
+        for path in (self.examples_path, self.cache_path, self.manifest_path, os.path.join(self.root, STATS_FILE)):
             if os.path.isfile(path):
                 os.remove(path)
         if os.path.isdir(self.root):  # temporários de gravações interrompidas

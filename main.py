@@ -17,6 +17,7 @@ from utils.lexicon import is_immune
 from utils.pii import mask_text
 from utils import decisions
 from utils import detect as pii_detect
+from utils.decisions import detector_stats
 from utils.decisions import feedback as decision_feedback
 from utils.decisions.questions import normalize_state
 
@@ -153,6 +154,8 @@ class SentryApp:
             self._load_metadata_safely(manual_redactions)
             # Automelhoramento: as tarjas confirmadas pelo revisor viram exemplos (LEARNING_ENABLED=1)
             decision_feedback.capture_review(self.session.output_dir, manual_redactions)
+            # Retorno por detector (só contagens): mantidas/removidas/adicionadas pelo revisor
+            detector_stats.capture(self.session.output_dir, manual_redactions)
             phases = [
                 (self.run_native_phase, "Retarjamento PDF Nativo...", 90),
                 (self.run_verification, "Verificação pós-tarja...", 98)
@@ -344,9 +347,12 @@ class SentryApp:
         actions = {t: a for t, a in pii_detect.runnable_actions(self.policy_profile).items()
                    if t not in ("cpf", "endereco_residencial")}
         self.logger.info(f"--- POLÍTICA: perfil '{self.policy_profile}' ({len(actions)} tipo(s) com detector) ---")
-        if not actions:
-            return
         found_values = defaultdict(set)
+        self._run_names(actions, found_values)
+        actions = {t: a for t, a in actions.items() if t not in pii_detect.ner.TYPES}
+        if not actions:
+            self._log_policy_summary(found_values)
+            return
         for i in range(len(self.grounding_maps)):
             page_num = i + 1
             maps = [m for m in (self.grounding_maps[i],
@@ -364,11 +370,63 @@ class SentryApp:
                     else:
                         self.add_review(page_num, f"{label}: possível dado pessoal (perfil manda alertar). Revisar.",
                                         self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in boxes]))
+        self._log_policy_summary(found_values)
+
+    def _log_policy_summary(self, found_values):
         for type_id, vals in found_values.items():
             self.pii_summary[type_id] = len(vals)
         if found_values:
-            resumo = ", ".join(f"{pii_detect.catalog.get(t).nome}: {n}" for t, n in self.pii_summary.items() if t in actions)
+            resumo = ", ".join(f"{pii_detect.catalog.get(t).nome}: {len(v)}" for t, v in found_values.items())
             self.logger.info(f"[+] Política: {resumo}.")
+
+    def _run_names(self, actions, found_values):
+        """
+        Nomes (GLiNER, opcional): uma leitura por página (texto digital se houver, senão o OCR padrão).
+        Confiança alta + perfil "tarjar" = tarja sugerida; o resto acima do limiar de alerta = revisão.
+        Detector ligado que falha = revisão em todas as páginas (falha fechada).
+        """
+        wanted = [t for t in pii_detect.ner.TYPES if t in actions]
+        if not wanted:
+            return
+        try:
+            engine = pii_detect.ner.get_engine()
+        except Exception as e:
+            self.logger.error(f"[-] Detector de nomes indisponível: {e}")
+            for page_num in range(1, len(self.grounding_maps) + 1):
+                self.add_review(page_num, "Detector de nomes falhou: procure nomes de pessoa manualmente.")
+            return
+        for i in range(len(self.grounding_maps)):
+            page_num = i + 1
+            native = self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else []
+            gmap = native or self.grounding_maps[i]
+            if not gmap:
+                continue
+            try:
+                hits = pii_detect.ner.find_names(gmap, engine)
+            except Exception as e:
+                self.logger.error(f"[-] Detector de nomes falhou na pág {page_num}: {e}")
+                self.add_review(page_num, "Detector de nomes falhou nesta página: procure nomes manualmente.")
+                continue
+            for type_id, slot in hits.items():
+                if type_id not in wanted:
+                    continue
+                label = pii_detect.catalog.get(type_id).nome
+                found_values[type_id] |= {f"{page_num}:{v}" for v in slot["valores"]}
+                if actions[type_id] == pii_detect.TARJAR:
+                    for b in self.session.get_redaction_boxes(gmap, slot["tarjar"]):
+                        self.global_redactions[page_num].append(b)
+                        self.box_labels[page_num][f"{b['x']}_{b['y']}_{b['w']}_{b['h']}"] = label
+                    review = slot["alertar"]
+                    reason = f"{label}: nome com confiança média. Revisar."
+                else:
+                    review = {**slot["alertar"]}
+                    for wid, chars in slot["tarjar"].items():
+                        review.setdefault(wid, set()).update(chars)
+                    reason = f"{label}: possível dado pessoal (perfil manda alertar). Revisar."
+                if review:
+                    boxes = self.session.get_redaction_boxes(gmap, review)
+                    self.add_review(page_num, reason,
+                                    self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in boxes]))
 
     def run_phase_3(self):
         """Fase 3: Mapeador Visual YOLO (02_DISCOVERY & CROPPING)"""

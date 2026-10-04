@@ -122,3 +122,54 @@ de duas linhas, sem CPF inteiro numa palavra: provável falso positivo (vira tar
 **Decisão:** padrão `BASE_DPI=300`. Somado ao OCR das páginas em paralelo (`OCR_WORKERS`), o OCR deve ficar perto de
 10× mais rápido. As duas passadas de OCR (padrão + esparsa) foram mantidas de propósito: cada leitura a mais pode achar
 um CPF que a outra perdeu.
+
+## Corpus fictício de PII: revocação e precisão por tipo
+
+`benchmarks/pii_corpus.py` gera documentos **fictícios** de cinco modelos (ata de condomínio, contrato de locação, ficha
+de cadastro, ofício público, ficha de atendimento de saúde) com resposta conhecida (`gabarito`) e **iscas** que não
+devem ser achadas (outras datas, valores em reais, CNPJ, número de processo, protocolo). Números com dígito verificador
+são gerados na hora; e-mails usam `example.com`. `benchmarks/pii_eval.py` mede por **valor**, tipo a tipo.
+
+```bash
+python -m benchmarks.pii_eval --docs 200 --seed 7          # texto direto (rápido, sem OCR)
+python -m benchmarks.pii_eval --ocr --docs 40 --seed 2026  # desenha cada documento numa imagem com ruído e usa o OCR real (2 passadas)
+```
+
+O teste `tests/test_pii_corpus_gate.py` roda o modo texto em duas sementes a cada `pytest`: revocação abaixo de 100%
+ou precisão abaixo de 98% em qualquer tipo reprova.
+
+### Modo texto (200 documentos; sementes 7 e 2026)
+
+Todos os tipos com **100% de revocação e 100% de precisão** nas duas sementes (CPF 240/240 e 236/236, telefone
+200/200 e 196/196, data de nascimento 120/120, e-mail 80/80, CNS, PIS/NIS, placa e RG 40/40). O corpus encontrou e
+ajudou a corrigir quatro erros que já existiam no detector de CPF: dígitos vizinhos ("unidade 14A, CPF ...")
+deslocavam a janela e o CPF verdadeiro era pulado; CPF e PIS na mesma linha; o pré-filtro de CNPJ apagava um CPF
+quando uma janela cruzava dois números; e um pedaço do Cartão SUS (15 dígitos) passava no dígito verificador de CPF.
+
+### Modo OCR real (40 documentos, semente 2026; Tesseract 5.4.1 `por`, Arial 30 px, ruído sal e pimenta + desfoque)
+
+| Tipo | Esperados | Achados | Falsos positivos | Revocação | Precisão |
+|---|---:|---:|---:|---:|---:|
+| cns | 8 | 8 | 0 | 100% | 100% |
+| cpf | 45 | 45 | 3 | 100% | 94% |
+| data_nascimento | 24 | 24 | 0 | 100% | 100% |
+| email | 16 | 16 | 0 | 100% | 100% |
+| pis_nis | 8 | 8 | 0 | 100% | 100% |
+| placa_veiculo | 8 | 8 | 0 | 100% | 100% |
+| rg | 8 | 8 | 1 | 100% | 89% |
+| telefone | 37 | 37 | 0 | 100% | 100% |
+
+**O que o modo OCR revelou (e o modo texto escondia):**
+
+* **E-mail tinha 0% de revocação com OCR real.** O Tesseract em português lê "@" como "(D" ou "(W", **até em imagem
+  limpa** e em várias fontes, e às vezes parte o nome ("beatriz.7" + "1(Dexample.com"). Em documentos digitalizados
+  reais os e-mails provavelmente passavam sem tarja. A regra agora aceita essas variantes (lista em
+  `utils/detect/data/contextos.json`) e, quando o "@" vira uma letra solta, aceita o endereço logo depois da palavra
+  "e-mail" com domínio de extensão conhecida. Resultado: 0% → 100%.
+* **Placa:** o "0" saiu como "O" ("ZRDOD17"); com a palavra "placa" perto, a regra aceita a troca. 88% → 100%.
+* Os falsos positivos de CPF e RG que restam são leituras deformadas pelo ruído **em cima do próprio RG/CPF** (ex.:
+  "SSP" lido como "595" e juntado a dígitos vizinhos): tarja a mais no lugar certo, não vazamento.
+* Uma das passadas de OCR perdeu inteiramente o nome de um e-mail que a outra leu: mais um caso a favor de manter as
+  duas passadas.
+
+Como no resto desta página: imagem gerada é mais fácil que papel real. Trate como linha de base de regressão.

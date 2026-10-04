@@ -1,0 +1,159 @@
+{
+  "_sobre": "Palavras de contexto de cada detector (rules.py), em minúsculas e sem acento. 'palavras': precisam aparecer logo ANTES do valor. 'parar': se aparecerem entre a palavra de contexto e o valor, o contexto não vale. Frases com espaço aceitam qualquer espaçamento; '.' e '/' são literais. Palavra terminada em '*' é prefixo ('nascid*' casa 'nascido' e 'nascida').",
+  "rg": {
+    "palavras": [
+      "rg",
+      "r.g.",
+      "r. g.",
+      "identidade",
+      "registro geral"
+    ],
+    "parar": [
+      "cpf"
+    ]
+  },
+  "cnh": {
+    "palavras": [
+      "cnh",
+      "habilitacao"
+    ]
+  },
+  "titulo_eleitor": {
+    "palavras": [
+      "titulo de eleitor",
+      "titulo eleitor",
+      "titulo eleitoral",
+      "eleitor"
+    ]
+  },
+  "pis_nis": {
+    "palavras": [
+      "pis",
+      "pasep",
+      "nis",
+      "nit"
+    ]
+  },
+  "cns": {
+    "palavras": [
+      "cns",
+      "cartao sus",
+      "cartao do sus",
+      "cartao nacional de saude"
+    ]
+  },
+  "passaporte": {
+    "palavras": [
+      "passaporte"
+    ]
+  },
+  "ctps": {
+    "palavras": [
+      "ctps",
+      "carteira de trabalho"
+    ]
+  },
+  "telefone": {
+    "palavras": [
+      "tel",
+      "telefone",
+      "fone",
+      "celular",
+      "cel",
+      "whatsapp",
+      "contato"
+    ]
+  },
+  "cartao_pagamento": {
+    "palavras": [
+      "cartao*",
+      "credito*",
+      "debito*",
+      "visa*",
+      "master*",
+      "elo",
+      "amex*"
+    ]
+  },
+  "data_nascimento": {
+    "palavras": [
+      "nascid*",
+      "nascimento",
+      "nasc",
+      "d.n.",
+      "d. n.",
+      "dn"
+    ],
+    "parar": [
+      "emiss*",
+      "expedi*",
+      "validade",
+      "vencimento",
+      "admiss*"
+    ]
+  },
+  "placa_veiculo": {
+    "palavras": [
+      "placa",
+      "veiculo*",
+      "renavam*",
+      "automovel*"
+    ]
+  },
+  "email": {
+    "palavras": [
+      "e-mail",
+      "email",
+      "e mail",
+      "correio eletronico",
+      "endereco eletronico"
+    ],
+    "arroba_ocr": [
+      "(D",
+      "(W",
+      "(@",
+      "(Q",
+      "©",
+      "®"
+    ],
+    "dominios_finais": [
+      "com",
+      "com.br",
+      "net",
+      "net.br",
+      "org",
+      "org.br",
+      "gov.br",
+      "edu.br",
+      "br",
+      "edu",
+      "gov",
+      "io",
+      "me",
+      "info",
+      "biz",
+      "jus.br",
+      "mp.br",
+      "leg.br"
+    ]
+  },
+  "nome_pessoa": {
+    "palavras": [],
+    "rotulos_ner": [
+      "person"
+    ]
+  },
+  "filiacao": {
+    "palavras": [
+      "filho de",
+      "filha de",
+      "filiacao",
+      "mae",
+      "pai",
+      "genitora",
+      "genitor",
+      "nome da mae",
+      "nome do pai"
+    ]
+  }
+}

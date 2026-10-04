@@ -23,7 +23,7 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
 | 🟠 P1 | 13 | Falhar fechado em mais situações (OCR, respostas da IA, tarjas manuais, rotação) |
 | 🟡 P2 | 10 | Robustez dos processos, limites de recursos, Docker e editor |
 | 🔵 P3 | 5 | Limpeza de código, lint e marca |
-| 🧠 Roteiro | 9 | Detecção configurável (nomes, telefones, RG...), GLiNER e decisor Laya que aprende (B-71 a B-79) |
+| 🧠 Roteiro | 11 | Detecção configurável (nomes, telefones, RG...), GLiNER e decisor Laya que aprende (B-71 a B-82) |
 | 🔭 Visão | 5 | Auditoria, políticas e novos módulos SENTRY |
 
 ---
@@ -53,13 +53,16 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 | ID | Prioridade | Item | Depende de |
 |---|---|---|---|
 | B-71 | P1 | **Política configurável — parte 1 concluída (5.4.0):** catálogo com enquadramento legal, 5 perfis via `POLICY_PROFILE`, rótulo do tipo em cada tarja, resumo por documento, API `/policy/*`. **Falta:** escolher o perfil na interface e por tarefa, e registrar a política aplicada num relatório exportável | — |
-| B-72 | P1 | **Concluído (5.4.0):** RG, CNH, título de eleitor, PIS/NIS, CNS, passaporte, CTPS, telefone, e-mail, IP, cartão (Luhn), conta bancária, chave Pix, data de nascimento e placa, com dígito verificador, formato ou contexto (`tests/test_detect.py`). **Falta:** medir revocação por tipo em documentos fictícios realistas e estender a verificação pós-tarja a esses tipos | B-71 |
-| B-73 | P1 | **Nomes e rótulos livres com GLiNER** (modo leve na CPU): o usuário escreve o rótulo ("nome de pessoa", "número de processo"); trechos mapeados para as caixas do OCR; confiança baixa → revisão | B-71 |
+| B-72 | P1 | **Concluído (5.4.0):** RG, CNH, título de eleitor, PIS/NIS, CNS, passaporte, CTPS, telefone, e-mail, IP, cartão (Luhn), conta bancária, chave Pix, data de nascimento e placa, com dígito verificador, formato ou contexto (`tests/test_detect.py`). Revocação e precisão por tipo medidas no corpus fictício, com e sem OCR (`benchmarks/pii_eval.py`, portão em `tests/test_pii_corpus_gate.py`). **Falta:** estender a verificação pós-tarja a esses tipos | B-71 |
+| B-73 | P1 | **Nomes com GLiNER — parte 1 concluída (não publicado):** nome de pessoa e filiação com modelo local opcional (`NER_ENGINE=gliner`, commit fixado), confiança alta → tarja sugerida, média → revisão, falha → revisão. **Falta:** rótulos livres escritos pelo usuário ("número de processo"), medir nomes no corpus (com nomes de servidores e de lugares como iscas) e ligar/desligar na interface | B-71 |
 | B-74 | P2 | **Exceções decididas pelo Laya**: "nome a proteger" × "servidor/signatário público" (LAI), com perguntas próprias, treino e portão | B-73, B-70 |
 | B-75 | P2 | **Perfis de política e roteamento**: perfis prontos (Transparência/LAI, Saúde, Jurídico, Só CPF) e o Laya sugerindo o perfil pelo tipo de documento | B-71, B-70 |
 | B-76 | P2 | **Ajuste fino dos pesos do Laya** (hoje só a cabeça e os limiares são treinados): quando houver rotina pública de treino, ou com treinador próprio + LoRA, sempre com o mesmo portão | B-70 |
 | B-77 | P2 | **Painel de aprendizado na interface**: modo atual, perfil ativo e métricas, botão de treinar e de voltar versão, contador de correções guardadas | B-70 |
 | B-78 | P1 | **Avaliação realista do decisor**: conjunto fictício mais difícil que o sintético (endereços ambíguos, OCR ruidoso) para o portão de qualidade | B-70, B-01 |
+| B-80 | P2 | **Contexto decidido pelo Laya em vez de listas de palavras:** hoje "isto é um RG/telefone/data de nascimento?" depende das palavras de `utils/detect/data/contextos.json`; com as contagens do revisor (`python -m utils.decisions detectores`) e os documentos testados pelos usuários, treinar perguntas de contexto no decisor, com o mesmo portão e nunca reduzindo proteção sozinho | B-70, B-78 |
+| B-81 | P1 | **Corpus a partir dos testes reais:** cada erro achado num documento real vira um modelo fictício em `benchmarks/pii_corpus.py` (mais modelos: boletim, processo administrativo, nota fiscal, tabela com várias colunas) e o modo `--ocr` com fontes e ruídos variados | B-72 |
+| B-82 | P2 | **Painel do retorno por detector na interface** (precisão observada por tipo e sugestões, só contagens), junto do painel de aprendizado | B-77 |
 | B-79 | P3 | **Instalação offline e mais rápida**: modelo em pasta local / `HF_HUB_OFFLINE`, versão ONNX na CPU (`laya.onnx_agent`), cache compartilhado | B-70 |
 
 ## 🔴 P0 · Segurança e vazamento

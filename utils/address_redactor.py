@@ -27,7 +27,9 @@ def classify_address_type(value):
         return "nao_pessoal"
     return "desconhecido"
 
-_STOP = {"A", "AS", "O", "OS", "E", "DE", "DA", "DO", "DAS", "DOS", "EM", "NA", "NO", "NAS", "NOS", "AO", "AOS", "UM", "UMA"}
+from utils.detect import config as _config
+
+_STOP = _config.lexicon()["conectores_sem_acento"]  # utils/detect/data/lexico.json
 _DATE_OR_TIME = re.compile(r"^\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}[.,;]?$|^\d{1,2}[:h]\d{2}")
 _OCR_LOOKALIKE = str.maketrans({"0": "O", "1": "I", "5": "S", "8": "B"})
 
@@ -85,7 +87,7 @@ def _unit_for(word, units, abbreviations):
     return None
 
 
-def locate_address_spans(address, coordinate_map, min_coverage=0.5):
+def locate_address_spans(address, coordinate_map, min_coverage=None):
     """
     Trechos contínuos do OCR (listas de índices) que correspondem ao endereço.
 
@@ -98,9 +100,13 @@ def locate_address_spans(address, coordinate_map, min_coverage=0.5):
     units, significant, abbreviations = _address_units(address)
     if not significant:
         return []
+    # Limiares em utils/detect/data/parametros.json ("endereco")
+    if min_coverage is None:
+        min_coverage = _config.param("endereco", "cobertura_minima")
+    max_gap = _config.param("endereco", "folga_max_palavras")
     words = [_norm_token(str(w.get("text", ""))) for w in coordinate_map]
-    need = min(2, len(significant))
-    max_len = len(units) + 4
+    need = min(int(_config.param("endereco", "partes_minimas")), len(significant))
+    max_len = len(units) + int(_config.param("endereco", "comprimento_extra"))
 
     def step(j):
         """(unidade, quantas palavras consumiu) a partir de j, tentando também juntar j e j+1."""
@@ -130,7 +136,7 @@ def locate_address_spans(address, coordinate_map, min_coverage=0.5):
                 last, gap, j = j + used - 1, 0, j + used
                 continue
             gap += 1
-            if gap > 2:
+            if gap > max_gap:
                 break
             j += 1
         if len(matched) >= need and len(matched) / len(significant) >= min_coverage:

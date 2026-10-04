@@ -76,6 +76,26 @@ Detalhes no [catálogo de PII](catalogo-pii.md).
 | Variável | Padrão | Lida em | Descrição |
 |---|---|---|---|
 | `POLICY_PROFILE` | `cpf_endereco` | `utils/detect/profiles.py` | Perfil de política: `cpf_endereco` (original), `lgpd_publicacao`, `lgpd_interno`, `gdpr`, `saude_hipaa`. Define o que é tarjado e o que só é alertado. Valor desconhecido volta ao padrão. |
+| `NER_ENGINE` | *(vazio)* | `utils/detect/ner.py` | `gliner` liga o detector local de **nomes de pessoa e filiação** (exige `pip install -e ".[nomes]"`). Vale nos perfis que pedem nomes (`lgpd_publicacao`, `gdpr`, `saude_hipaa`). Ligado e com falha = documento vai para revisão |
+| `NER_MODEL` | `urchade/gliner_multi_pii-v1` | `utils/detect/ner.py` | Modelo GLiNER do Hugging Face ou pasta local |
+| `NER_MODEL_REVISION` | *(commit fixado no código)* | `utils/detect/ner.py` | Commit do modelo. O padrão já vem fixado; outro modelo remoto **exige** um commit (cadeia de suprimentos) |
+
+Instalar `.[nomes]` pode ajustar a versão do `transformers` (exigência do GLiNER); o decisor Laya funciona com ela.
+Medido com o modelo padrão na CPU: ~0,3 s por página e ~20 s para carregar o modelo uma vez.
+
+### Regras, listas e limiares como dados
+
+As palavras e limiares das heurísticas ficam em arquivos versionados, validados ao carregar (erro claro se o formato
+estiver errado), e não espalhados pelo código:
+
+| Arquivo | O que guarda |
+|---|---|
+| `utils/detect/data/contextos.json` | Palavras de contexto de cada detector (`palavras`, `parar`), variantes de "@" que o OCR produz e extensões de domínio do e-mail, rótulos e palavras de filiação do detector de nomes |
+| `utils/detect/data/parametros.json` | Limiares: casamento de endereços, filtro de ruído de OCR, confiança dos nomes (`limiar_tarjar`, `limiar_alertar`) e quando sugerir algo a partir do retorno do revisor |
+| `utils/detect/data/lexico.json` | Palavras que nunca são tarjadas como endereço (termos estruturais e conectores) |
+
+Mudou um arquivo? Rode `python -m benchmarks.pii_eval` (revocação e precisão por tipo num corpus fictício) e os testes:
+a mudança precisa manter ou melhorar as métricas ([benchmarks.md](benchmarks.md)).
 
 ## Decisor local e automelhoramento (opcional)
 
@@ -88,7 +108,7 @@ Detalhes em [decisions.md](decisions.md). Exige `pip install -e ".[laya]"`.
 | `LAYA_MODEL` | `convaiinnovations/laya-multilingual` | `utils/decisions/engine.py` | Modelo do Hugging Face ou pasta local |
 | `LAYA_DEVICE` | `cpu` | `utils/decisions/engine.py` | `cpu` ou `cuda` |
 | `LAYA_REVISION` | *(vazio)* | pacote `laya` | Commit fixo do modelo; `reviewed` usa os commits revisados pelo Laya |
-| `LEARNING_ENABLED` | `0` | `utils/decisions/feedback.py` | `1` guarda as correções do revisor como exemplos de treino |
+| `LEARNING_ENABLED` | `0` | `utils/decisions/feedback.py` | `1` guarda as correções do revisor como exemplos de treino e as **contagens por detector** (tarjas sugeridas mantidas, removidas e acrescentadas; nenhum texto) vistas em `python -m utils.decisions detectores` |
 | `PRIVIO_LEARNING_DIR` | `./learning` | `utils/decisions/learning.py` | Exemplos, cache e perfis versionados (**contém palavras de endereços**; fora do git) |
 
 ## Logging

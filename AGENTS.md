@@ -63,14 +63,14 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
 | `utils/session.py` | Pastas da tarefa, logs, exportação, reconstrução do PDF e tarja nativa (`apply_native_pdf_redactions`) |
 | `utils/verifier.py` | Verificação pós-tarja: relê o PDF final e confronta o original (`find_uncovered_cpfs`) |
 | `utils/pii.py` | Mascaramento de CPF em logs |
-| `utils/detect/` | SENTRY Detect: catálogo de PII com enquadramento legal (`catalog.py`), perfis de política (`profiles.py`, `POLICY_PROFILE`), detectores por regra (`rules.py`) e dígitos verificadores (`validators.py`). Pacote isolado, com contrato JSON (API `/policy/*`), pronto para virar serviço. `docs/catalogo-pii.md` é gerado: `python -m utils.detect --markdown` |
+| `utils/detect/` | SENTRY Detect: catálogo de PII com enquadramento legal (`catalog.py`), perfis de política (`profiles.py`, `POLICY_PROFILE`), detectores por regra (`rules.py`), nomes com GLiNER opcional (`ner.py`, `NER_ENGINE=gliner`), dígitos verificadores (`validators.py`) e **regras/limiares como dados** (`data/*.json`, lidos por `config.py`). Pacote isolado, com contrato JSON (API `/policy/*`), pronto para virar serviço. `docs/catalogo-pii.md` é gerado: `python -m utils.detect --markdown` |
 | `utils/decisions/` | Decisor local (Laya) e automelhoramento: perguntas, motor, regra de combinação, treino com portão de qualidade e versões. Guia: [docs/decisions.md](docs/decisions.md) |
 | `utils/auth.py` | Autenticação por `API_TOKEN` com sessão aleatória (app e gatekeeper): `?token=` só abre a sessão e sai da URL |
 | `utils/net_guard.py` | Checagem de `Host`/`Origin` (anti *DNS rebinding* e CSRF) usada pelo app e pelo gatekeeper; `ALLOWED_HOSTS` |
 | `templates/index.html` | Editor web autocontido; textos no objeto `I18N` (pt-BR padrão, en-US), chaves conforme `docs/brand/UX_SPEC.md`; renderizador Markdown próprio que **nunca** injeta HTML |
 | `templates/gatekeeper.html` | Página do painel quando o app está desligado |
 | `scripts/audit_public_tree.py` | Auditoria de dados pessoais, segredos e caminhos locais antes de publicar |
-| `benchmarks/` | Benchmark sintético (`python -m benchmarks.run_benchmark`); resultados em `benchmarks/results/` |
+| `benchmarks/` | Benchmark sintético de CPF (`python -m benchmarks.run_benchmark`; resultados em `benchmarks/results/`) e corpus fictício de PII com métricas por tipo (`pii_corpus.py`, `python -m benchmarks.pii_eval [--ocr]`) |
 | `experimental/agent_loop/` | Abordagem com agente LLM, inacabada e **fora** do pipeline e do lint |
 
 ## 5. Armadilhas conhecidas
@@ -81,6 +81,8 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
   local (`GET /readme`). Ele não interpreta HTML: as linhas HTML do topo aparecem como texto. Isso é
   proposital (ver `test_readme_renderer_is_local_and_escapes_html`); não troque por `innerHTML`.
 - **`BASE_DPI` padrão é 300** (era 1000 até a 5.3.0). Medido: acima de 300 o Tesseract fragmenta os dígitos e a revocação de CPF cai (docs/benchmarks.md). Não suba o padrão sem rodar o benchmark.
+- **Regras como dados.** Palavras de contexto, listas e limiares ficam em `utils/detect/data/*.json`, não no código. Antes e depois de mexer neles (ou em `rules.py`), rode `python -m benchmarks.pii_eval` e `pytest tests/test_pii_corpus_gate.py`: revocação abaixo de 100% no modo texto reprova. Ao achar um erro num documento real, transforme o caso (com valores **fictícios**) num modelo de `benchmarks/pii_corpus.py` ou numa regressão em `tests/test_counter_analysis.py`.
+- **Retorno do revisor nunca reduz proteção sozinho.** `python -m utils.decisions detectores` só sugere; a mudança é humana e medida no corpus.
 - **OCR em paralelo.** As páginas passam pelo OCR em threads (`ocr_workers`). Detecte falha do Tesseract com `OCREngine.thread_failures()` (por thread), nunca com o contador global, senão a falha de uma página é atribuída a outra. As duas passadas (padrão + esparsa) são mantidas de propósito.
 - **Artefatos com dados pessoais.** `output/`, `WEB_INPUT/`, `documentos_finais/` e `tasks.json` estão no
   `.gitignore` e nunca devem ser versionados.
@@ -98,6 +100,7 @@ pytest tests/ui                      # interface (Playwright + Chromium: playwri
 python scripts/audit_public_tree.py  # dados pessoais / segredos / caminhos locais
 pre-commit install                   # opcional: lint + auditoria + versão a cada commit
 python -m benchmarks.run_benchmark   # benchmark sintético (opcional; precisa de Tesseract; ver docs/benchmarks.md)
+python -m benchmarks.pii_eval        # revocação/precisão por tipo no corpus fictício (--ocr usa o Tesseract)
 ```
 
 O CI (`.github/workflows/ci.yml`) roda o lint, a suíte em Python 3.10/3.11/3.12 com cobertura e os testes de

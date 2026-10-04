@@ -1,21 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Termos estruturais de endereço que NUNCA devem ser tarjados (fonte única)."""
+"""Termos estruturais de endereço que NUNCA devem ser tarjados (dados em utils/detect/data/lexico.json)."""
 
-IMMUNE_WORDS = {
-    "RUA", "AVENIDA", "AV", "AV.", "PRAÇA", "PRACA", "PRAÇA/RUA", "TRAVESSA", "LOGRADOURO", "ALAMEDA", "RODOVIA", "BR", "MT", "KM",
-    "BAIRRO", "COMPLEMENTO", "NÚMERO", "NUMERO", "N", "N°", "Nº", "S/N", "LOTE", "LOTEAMENTO", "QUADRA", "QD", "LT",
-    "CIDADE", "MUNICÍPIO", "MUNICIPIO", "UF", "ESTADO", "PAÍS", "PAIS", "CEP", "COORDENADA", "COORDENADAS",
-    "DATA", "INICIAL", "FINAL", "INÍCIO", "INICIO", "TÉRMINO", "TERMINO", "CÓDIGO", "CODIGO", "TIPO", "PREVISÃO",
-    "PROPRIETÁRIO", "PROPRIETARIO", "CONTRATANTE", "CONTRATADO", "CONTRATO", "VALOR", "R$", "AÇÃO", "ACAO", "INSTITUCIONAL",
-    "FINALIDADE", "AMBIENTAL", "CPF", "CNPJ", "CPF/CNPJ", "ASSINATURA", "BRASIL", "ZONA", "RURAL", "URBANA",
-    "GLEBA", "FAZENDA", "SITIO", "SÍTIO", "CHACARA", "CHÁCARA", "ESTRADA", "VICINAL", "LINHA",
-    "SETOR", "RESIDENCIAL", "CONDOMINIO", "CONDOMÍNIO", "EDIFICIO", "EDIFÍCIO", "BLOCO", "APTO", "APARTAMENTO",
-    "SALA", "ANDAR", "ANEXO", "FUNDOS", "DADOS", "OBRA", "OBRA/SERVIÇO", "SERVIÇO", "SERVICO", "LOCAL",
-    "LOCALIZAÇÃO", "LOCALIZACAO", "SITUADO", "CELEBRADO", "EM"
-}
+from utils.detect import config as _config
 
-_SHORT_CONNECTORS = {"DE", "DO", "DA", "EM", "NO", "NA", "E", "A", "O", "AO", "AOS", "AS", "OS", "DOS", "DAS",
-                     "NOS", "NAS", "UM", "UMA"}
+# Fonte única: utils/detect/data/lexico.json (edite lá; os testes validam o formato)
+IMMUNE_WORDS = set(_config.lexicon()["imunes"])
+_SHORT_CONNECTORS = set(_config.lexicon()["conectores"])
 
 
 def _strip_accents(text):

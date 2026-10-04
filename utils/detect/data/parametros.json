@@ -1,0 +1,26 @@
+{
+  "_sobre": "Limiares das heurísticas. Mude só com o corpus de avaliação rodando (python -m benchmarks.pii_eval): a mudança precisa melhorar ou manter as métricas.",
+  "endereco": {
+    "_sobre": "locate_address_spans: trecho contínuo do OCR que corresponde ao endereço devolvido pelo LLM.",
+    "cobertura_minima": 0.5,
+    "partes_minimas": 2,
+    "folga_max_palavras": 2,
+    "comprimento_extra": 4
+  },
+  "ruido_ocr": {
+    "_sobre": "Palavra de ruído (letras e dígitos embaralhados) não completa CPF com vizinhas.",
+    "alternancias_minimas": 4,
+    "digitos_max_entre_letras": 3
+  },
+  "retorno_revisor": {
+    "amostras_minimas": 20,
+    "precisao_alerta": 0.7,
+    "fracao_adicionadas_alerta": 0.2
+  },
+  "nomes": {
+    "limiar_tarjar": 0.7,
+    "limiar_alertar": 0.4,
+    "tamanho_bloco": 1200,
+    "janela_filiacao": 30
+  }
+}

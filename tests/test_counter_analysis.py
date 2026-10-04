@@ -13,7 +13,7 @@ import pytest
 
 from main import SentryApp
 from sentry_testkit import CPF_A, CPF_A_FMT, make_text_pdf, word
-from utils.detect import catalog, profiles, rules
+from utils.detect import catalog, ner, profiles, rules
 
 ALL_RULE_TYPES = list(rules.RULES_BY_TYPE)
 
@@ -157,7 +157,8 @@ def test_every_profile_action_is_valid_and_runnable_types_have_rules():
     for pid in profiles.PROFILES:
         for type_id, action in profiles.runnable_actions(pid).items():
             assert action in (profiles.TARJAR, profiles.ALERTAR)
-            assert type_id in rules.RULES_BY_TYPE or type_id in ("cpf", "endereco_residencial"), (pid, type_id)
+            special = ("cpf", "endereco_residencial") + ner.TYPES   # fases próprias e detector de nomes
+            assert type_id in rules.RULES_BY_TYPE or type_id in special, (pid, type_id)
 
 
 def test_sensitive_types_are_never_silently_redacted():
@@ -399,3 +400,60 @@ def test_ocr_noise_words_do_not_complete_a_cpf(monkeypatch):
 def test_noise_word_classifier(text, expected):
     from utils.ocr_engine import _looks_like_ocr_noise
     assert _looks_like_ocr_noise(text) is expected
+
+
+# --- 10. corpus: pedaço do Cartão SUS (CNS, 15 dígitos) não vira CPF; CPF escrito ao lado continua CPF -------
+def _cns_with_cpf_prefix():
+    """CNS válido cujos 11 primeiros dígitos também passam no DV de CPF (gerado aqui, nada fica no código)."""
+    from utils.detect.validators import is_valid_cns
+    from utils.validators import is_valid_cpf
+    rng = random.Random(15)
+    while True:
+        d = "1" + "".join(str(rng.randint(0, 9)) for _ in range(14))
+        if is_valid_cns(d) and is_valid_cpf(d[:11]):
+            return d
+
+
+def test_cns_fragment_is_not_a_cpf():
+    cns = _cns_with_cpf_prefix()
+    assert _cpfs("Cartão", "SUS:", cns[:3], cns[3:7], cns[7:11], cns[11:]) == set()
+    assert _cpfs("CNS", cns) == set()
+
+
+def test_cpf_written_whole_next_to_digits_is_kept_even_if_they_form_a_cns():
+    # Fail-closed: uma palavra de exatamente 11 dígitos é forma de CPF e nunca é excluída como "parte de CNS"
+    cns = _cns_with_cpf_prefix()
+    assert _cpfs("CPF", cns[:11], cns[11:]) == {cns[:11]}
+
+
+# --- 11. OCR real (medido no corpus): "@" lido como "(D"/"(W"; nome partido; "0" da placa lido como "O" -------
+def _found(text, type_id):
+    return rules.find_in_grounding(words(text), [type_id]).get(type_id, ({}, set()))[1]
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("E-mail: maria.84(Dexample.com.", {"maria.84@example.com"}),
+    ("contato joao.1 (Wexample.com", {"joao.1@example.com"}),
+    ("E-mail: beatriz.7 1(Dexample.com", {"beatriz.71@example.com"}),   # nome partido pelo OCR
+    ("e-mail maria.84Dexample.com.", {"maria.84dexample.com"}),          # "@" virou letra: vale com "e-mail"
+    ("maria@example.com", {"maria@example.com"}),
+])
+def test_email_survives_ocr_misreads(text, expected):
+    assert _found(text, "email") == expected
+
+
+@pytest.mark.parametrize("text", ["maria.84Dexample.com sem rótulo", "acesse www.portal.gov.br", "conforme (Decreto nº 1",
+                                  "o arquivo relatorio.com foi", "site: exemplo.com.br"])
+def test_email_ocr_tolerance_does_not_invent_emails(text):
+    assert _found(text, "email") == set()
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Veículo placa ZRDOD17", {"zrd0d17"}),       # "0" lido como "O": só com contexto
+    ("placa ABCO234", {"abc0234"}),
+    ("ABC1I23", {"abc1i23"}),                      # Mercosul: "I" na 5ª posição é letra legítima
+    ("ZRDOD17 sem contexto", set()),
+    ("norma ISO-9001", set()),
+])
+def test_plate_survives_ocr_letter_for_digit(text, expected):
+    assert _found(text, "placa_veiculo") == expected

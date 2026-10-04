@@ -42,6 +42,8 @@ ui = ["pytest-playwright>=0.7"]
 # Decisor local opcional (modelo de decisão calibrado Laya, Apache-2.0) + certificados do sistema
 # (redes com proxy/inspeção TLS). Ver docs/decisions.md.
 laya = ["laya==0.3.26", "truststore==0.10.4"]  # versões exatas (cadeia de suprimentos)
+# Detector opcional de nomes de pessoa (GLiNER, local; NER_ENGINE=gliner). Ver docs/configuration.md.
+nomes = ["gliner==0.2.29", "protobuf==7.36.2", "truststore==0.10.4"]
 
 [project.urls]
 Homepage = "https://github.com/Yiuky/PrivioSentry"
@@ -50,7 +52,10 @@ Changelog = "https://github.com/Yiuky/PrivioSentry/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 py-modules = ["main", "app_service", "gatekeeper"]
-packages = ["utils", "utils.decisions"]
+packages = ["utils", "utils.decisions", "utils.detect"]
+
+[tool.setuptools.package-data]
+"utils.detect" = ["data/*.json"]  # regras e limiares como dados (utils/detect/config.py)
 
 # ---------------------------------------------------------------------------
 # Ruff (lint only; this project does not enforce an auto-formatter yet)

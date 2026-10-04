@@ -7,6 +7,9 @@ por documento e a documentação (docs/catalogo-pii.md, gerada por `python -m ut
 Atenção à redação: o enquadramento indica a QUE categoria das referências o tipo corresponde. Detectar e
 tarjar esses tipos APOIA práticas alinhadas a essas referências; não torna um documento "conforme".
 
+Estados: "ativo" (detector sempre disponível), "opcional" (detector que precisa ser ligado, ex.: nomes com
+GLiNER; vale quando ligado e instalado) e "planejado" (ainda sem detector).
+
 Para acrescentar um tipo: inclua-o aqui (estado "planejado" se ainda não houver detector), acrescente-o aos
 perfis que fizer sentido, escreva o detector em rules.py com testes e regenere a documentação.
 """
@@ -19,6 +22,7 @@ SENSIVEL = "dado pessoal sensível"   # LGPD art. 5º, II / GDPR art. 9 e 10
 INDIRETO = "identificador indireto"  # identifica combinado com outros dados (placa, data de nascimento, IP...)
 
 ATIVO = "ativo"
+OPCIONAL = "opcional"
 PLANEJADO = "planejado"
 
 # Referências citadas (mantidas curtas; o texto legal completo está nas fontes oficiais)
@@ -96,10 +100,12 @@ CATALOG = [
     _t("placa_veiculo", "Placa de veículo", INDIRETO, ATIVO, "formato antigo ou Mercosul",
        REF_LGPD_I + " (quando vinculada a pessoa)", REF_GDPR_4, "bem de propriedade pessoal (registro de veículo)",
        "identificador de veículo (inclui placa)"),
-    _t("nome_pessoa", "Nome de pessoa", DIRETO, PLANEJADO, "GLiNER (reconhecimento de nomes) — backlog B-73",
+    _t("nome_pessoa", "Nome de pessoa", DIRETO, OPCIONAL,
+       "GLiNER local (NER_ENGINE=gliner): confiança alta = tarja sugerida, média = revisão",
        REF_LGPD_I, REF_GDPR_4, "nome", "nomes",
        "Na LAI, nome de servidor no exercício da função costuma ser público: exceção decidida por perfil/Laya (B-74)."),
-    _t("filiacao", "Filiação (nome da mãe/pai)", DIRETO, PLANEJADO, "GLiNER + contexto — backlog B-73",
+    _t("filiacao", "Filiação (nome da mãe/pai)", DIRETO, OPCIONAL,
+       "GLiNER local + contexto (filho de, mãe, genitora...)",
        REF_LGPD_I, REF_GDPR_4, "nome / informação vinculável", "nomes (inclui parentes)"),
     _t("assinatura", "Assinatura", DIRETO, PLANEJADO, "detector YOLO (hoje só localiza para auditar CPFs próximos)",
        REF_LGPD_I, REF_GDPR_4, "característica pessoal", "—"),
@@ -138,6 +144,17 @@ def get(type_id):
 
 def active_ids():
     return [t.id for t in CATALOG if t.estado == ATIVO]
+
+
+def is_runnable(type_id):
+    """Tem detector rodando agora? "ativo" sempre; "opcional" só se o detector estiver ligado e instalado."""
+    estado = get(type_id).estado
+    if estado == ATIVO:
+        return True
+    if estado == OPCIONAL:
+        from . import ner
+        return type_id in ner.TYPES and ner.available()
+    return False
 
 
 def to_markdown():

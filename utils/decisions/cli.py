@@ -5,6 +5,7 @@
     python -m utils.decisions train      treina um candidato; vira ativo só se passar no portão
     python -m utils.decisions rollback   volta ao perfil aprovado anterior
     python -m utils.decisions purge      apaga exemplos, cache e perfis desta máquina
+    python -m utils.decisions detectores precisão observada de cada detector pelo revisor, com sugestões
 
 O treino precisa do Laya instalado (pip install -e ".[laya]"). Código de saída: 0 ok, 2 reprovado.
 """
@@ -21,7 +22,7 @@ def _print(obj):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="python -m utils.decisions", description=__doc__.splitlines()[0])
-    ap.add_argument("command", choices=["status", "train", "rollback", "purge"])
+    ap.add_argument("command", choices=["status", "train", "rollback", "purge", "detectores"])
     ap.add_argument("--dir", help="pasta do aprendizado (padrão: PRIVIO_LEARNING_DIR ou ./learning)")
     ap.add_argument("--synthetic", type=int, default=240, help="exemplos sintéticos no treino (padrão 240)")
     ap.add_argument("--yes", action="store_true", help="confirma o purge sem perguntar")
@@ -32,6 +33,10 @@ def main(argv=None):
         examples = store.examples()
         _print({"dir": store.root, "manifest": store.manifest(), "gate": GATE,
                 "examples": {"total": len(examples), "review": sum(e.get("source") == "review" for e in examples)}})
+        return 0
+    if args.command == "detectores":
+        from .detector_stats import summary
+        _print(summary(store.root))
         return 0
     if args.command == "rollback":
         _print({"active": store.rollback()})

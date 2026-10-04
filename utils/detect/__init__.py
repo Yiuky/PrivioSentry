@@ -9,8 +9,9 @@ futuro (visão SENTRY Gateway) sem mudar quem o usa. A API só de leitura está 
     catalog     tipos de PII e enquadramento (LGPD, GDPR, ISO/IEC 29100, NIST SP 800-122, HIPAA Safe Harbor)
     profiles    o que tarjar/alertar em cada perfil (POLICY_PROFILE)
     rules       detectores por regra para os tipos de formato conhecido
+    ner         nomes de pessoa e filiação com GLiNER local (opcional, NER_ENGINE=gliner)
     validators  dígitos verificadores oficiais (PIS, CNS, título de eleitor, Luhn...)
 """
-from . import catalog, profiles, rules  # noqa: F401
+from . import catalog, ner, profiles, rules  # noqa: F401
 from .profiles import ALERTAR, TARJAR, active_profile_id, get_profile, runnable_actions  # noqa: F401
 from .rules import find_in_grounding  # noqa: F401

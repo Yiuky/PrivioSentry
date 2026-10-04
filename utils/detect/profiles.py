@@ -84,7 +84,7 @@ def get_profile(profile_id=None):
 def runnable_actions(profile_id=None):
     """Ações do perfil só para tipos com detector ativo, separando os que já têm fase própria no pipeline."""
     _, profile = get_profile(profile_id)
-    return {t: a for t, a in profile["acoes"].items() if catalog.get(t).estado == catalog.ATIVO}
+    return {t: a for t, a in profile["acoes"].items() if catalog.is_runnable(t)}
 
 
 def describe_all():
@@ -92,5 +92,6 @@ def describe_all():
     out = {}
     for pid, p in PROFILES.items():
         out[pid] = {"nome": p["nome"], "descricao": p["descricao"],
-                    "acoes": {t: {"acao": a, "estado": catalog.get(t).estado} for t, a in p["acoes"].items()}}
+                    "acoes": {t: {"acao": a, "estado": catalog.get(t).estado, "rodando": catalog.is_runnable(t)}
+                              for t, a in p["acoes"].items()}}
     return out

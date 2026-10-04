@@ -5,6 +5,21 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Adicionado (menos regra fixa no código, mais medição)
+- **Regras, listas e limiares como dados versionados** (`utils/detect/data/*.json`, lidos e validados por `utils/detect/config.py`): palavras de contexto de cada detector, palavras nunca tarjadas como endereço, limiares do casamento de endereços, do filtro de ruído de OCR, da confiança dos nomes e das sugestões do revisor. Formato errado dá erro claro ao carregar.
+- **Corpus fictício de PII com métricas por tipo** (`benchmarks/pii_corpus.py`, `python -m benchmarks.pii_eval [--ocr]`): cinco modelos de documento com resposta conhecida e iscas; revocação e precisão por tipo, em texto direto ou desenhado em imagem com ruído e lido pelo OCR real. Portão nos testes (`tests/test_pii_corpus_gate.py`). Resultados em `docs/benchmarks.md`.
+- **Retorno do revisor por detector** (com `LEARNING_ENABLED=1`): ao aplicar a proteção, conta por tipo as tarjas sugeridas que o revisor manteve, removeu ou acrescentou (só contagens, ligadas à tarefa e apagadas com ela). `python -m utils.decisions detectores` mostra a precisão observada e **sugestões**; nada é mudado sozinho.
+- **Nomes de pessoa e filiação com GLiNER local, opcional** (`pip install -e ".[nomes]"`, `NER_ENGINE=gliner`; modelo multilíngue com commit fixado): confiança alta vira tarja sugerida, média vira região a revisar; detector ligado que falha manda o documento para revisão. Vale nos perfis que pedem nomes (`lgpd_publicacao`, `gdpr`, `saude_hipaa`). Novo estado "opcional" no catálogo e campo `rodando` em `/policy/profiles`.
+
+### Corrigido (achados do corpus)
+- **E-mail em documento digitalizado:** o Tesseract em português lê "@" como "(D"/"(W" (até em imagem limpa), e e-mails passavam sem tarja (revocação 0% no modo OCR). A regra aceita essas variantes, o nome partido pelo OCR e, logo depois de "e-mail", o "@" trocado por uma letra. 0% → 100%.
+- **Placa com "O" no lugar de "0"** (leitura do OCR) é aceita quando há "placa"/"veículo" perto. 88% → 100% no modo OCR.
+- **CPF:** dígitos vizinhos ("unidade 14A, CPF ...", "CPF ... PIS ...") deslocavam a janela e o CPF verdadeiro era pulado; agora há uma passada alinhada às palavras antes da varredura antiga. O pré-filtro de CNPJ só exclui número alinhado às palavras (antes podia apagar um CPF verdadeiro), e um pedaço do Cartão SUS (15 dígitos) não vira mais CPF.
+- O novo padrão de e-mail chegou a ter retrocesso quadrático numa palavra gigante ("12.12.12..."); pego pela contra-análise e corrigido antes de publicar.
+
+### Testes
+- 710 testes (inclui interface): portão do corpus, regressões de OCR ("@" como "(D", placa com "O", pedaço de CNS), retorno por detector e detector de nomes com motor falso (sem baixar modelo). O GLiNER real foi conferido à parte em texto fictício: 5 de 5 nomes e a filiação, sem marcar órgão nem rua.
+
 ### Corrigido (a partir de um documento real processado)
 - **Endereços localizados como trecho, não como "saco de palavras".** Antes, qualquer palavra do endereço devolvido pelo LLM era tarjada em **qualquer ponto da página**: "à", números soltos, o nome da cidade e até **datas** que continham um número do endereço. Agora o endereço é localizado como trecho contínuo do OCR (tolerante a erros de OCR, palavras partidas e abreviações como "Jd."/"Pres."); datas e conectores nunca são tarjados; endereço pessoal que não é localizado com segurança manda a página para **revisão** em vez de espalhar tarjas. No documento de teste: tarjas de endereço 72 → 47, nenhuma data nem "à" solto.
 - "À", "ÀS", "AS", "OS" passam a ser conectores protegidos (o acento fazia "à" escapar da proteção).

@@ -21,8 +21,8 @@
 | **Cartão de pagamento** (`cartao_pagamento`) | ativo | Luhn + formatação em grupos ou contexto | LGPD art. 5º, I (dado pessoal) | GDPR art. 4(1) | PII | conta financeira / cartão de crédito | número de conta |
 | **Agência e conta bancária** (`conta_bancaria`) | ativo | palavra de contexto (agência, conta, c/c) | LGPD art. 5º, I (dado pessoal) | GDPR art. 4(1) | PII | conta financeira | número de conta |
 | **Chave Pix aleatória** (`chave_pix`)<br>*Chaves Pix de CPF, e-mail ou telefone já são cobertas pelos respectivos tipos.* | ativo | formato (UUID) | LGPD art. 5º, I (dado pessoal) | GDPR art. 4(1) | PII | conta financeira | número de conta |
-| **Nome de pessoa** (`nome_pessoa`)<br>*Na LAI, nome de servidor no exercício da função costuma ser público: exceção decidida por perfil/Laya (B-74).* | planejado | GLiNER (reconhecimento de nomes) — backlog B-73 | LGPD art. 5º, I (dado pessoal) | GDPR art. 4(1) | PII | nome | nomes |
-| **Filiação (nome da mãe/pai)** (`filiacao`) | planejado | GLiNER + contexto — backlog B-73 | LGPD art. 5º, I (dado pessoal) | GDPR art. 4(1) | PII | nome / informação vinculável | nomes (inclui parentes) |
+| **Nome de pessoa** (`nome_pessoa`)<br>*Na LAI, nome de servidor no exercício da função costuma ser público: exceção decidida por perfil/Laya (B-74).* | opcional | GLiNER local (NER_ENGINE=gliner): confiança alta = tarja sugerida, média = revisão | LGPD art. 5º, I (dado pessoal) | GDPR art. 4(1) | PII | nome | nomes |
+| **Filiação (nome da mãe/pai)** (`filiacao`) | opcional | GLiNER local + contexto (filho de, mãe, genitora...) | LGPD art. 5º, I (dado pessoal) | GDPR art. 4(1) | PII | nome / informação vinculável | nomes (inclui parentes) |
 | **Assinatura** (`assinatura`) | planejado | detector YOLO (hoje só localiza para auditar CPFs próximos) | LGPD art. 5º, I (dado pessoal) | GDPR art. 4(1) | PII | característica pessoal | — |
 | **Foto de rosto** (`foto_rosto`) | planejado | detecção de rosto (planejado) | LGPD art. 5º, I (dado pessoal) | GDPR art. 4(1); art. 9 se usado para identificação biométrica | PII | característica pessoal (foto) | foto de rosto inteiro e imagens comparáveis |
 
