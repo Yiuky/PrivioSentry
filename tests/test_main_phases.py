@@ -295,7 +295,9 @@ def test_load_metadata_orders_images_and_maps_redaction_types(app):
     for n in (10, 2, 1):
         make_blank_image(os.path.join(orig, f"doc_page_{n}.png"), size=(10, 10))
     reds = [
-        {"page": 1, "type": "pii", "coords": [10, 20, 110, 70], "source": "AI_Engine", "image_width": 800},
+        {"page": 1, "type": "pii", "coords": [10, 20, 110, 70], "source": "AI_Engine", "image_width": 800,
+         "label": "Endereço residencial"},
+        {"page": 1, "type": "pii", "coords": [200, 20, 260, 40], "source": "AI_Engine", "label": "Telefone"},
         {"page": "2", "type": "signature", "coords": [0, 0, 5, 5]},
         {"page": 1, "type": "outro", "coords": [1, 1, 2, 2]},
         {"page": 1, "type": "pii", "coords": [1, 2, 3]},          # coords invalidas: ignorada
@@ -303,9 +305,11 @@ def test_load_metadata_orders_images_and_maps_redaction_types(app):
     ]
     app._load_metadata_safely(reds)
     assert [os.path.basename(p) for p in app.image_paths] == ["doc_page_1.png", "doc_page_2.png", "doc_page_10.png"]
+    # só o que veio rotulado como endereço é endereço (antes, telefone/e-mail viravam "Endereço residencial")
     assert app.address_redactions[1] == [{"x": 10, "y": 20, "w": 100, "h": 50, "source_width": 800.0}]
+    assert app.box_labels[1]["200_20_60_20"] == "Telefone"
     assert app.cpf_redactions[2] == [{"x": 0, "y": 0, "w": 5, "h": 5}]
-    assert len(app.global_redactions[1]) == 2 and len(app.global_redactions[2]) == 1
+    assert len(app.global_redactions[1]) == 3 and len(app.global_redactions[2]) == 1
 
 
 def test_load_metadata_without_original_images_dir(app):

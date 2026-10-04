@@ -72,7 +72,9 @@ class ArgsMaskingFilter(logging.Filter):
 
     @staticmethod
     def _clean(value):
-        return mask_secrets(mask_text(value)) if isinstance(value, str) else value
+        if isinstance(value, (int, float)) or value is None:
+            return value  # números (ex.: status HTTP) ficam como estão: o formatador espera o tipo original
+        return mask_secrets(mask_text(value if isinstance(value, str) else str(value)))
 
     def filter(self, record):
         if isinstance(record.msg, str):
@@ -81,6 +83,12 @@ class ArgsMaskingFilter(logging.Filter):
             record.args = tuple(self._clean(a) for a in record.args)
         elif isinstance(record.args, dict):
             record.args = {k: self._clean(v) for k, v in record.args.items()}
+        # Traceback (ex.: nome de arquivo com CPF numa exceção) também é mascarado
+        if record.exc_info:
+            record.exc_text = mask_secrets(mask_text("".join(traceback.format_exception(*record.exc_info))))
+            record.exc_info = None
+        elif record.exc_text:
+            record.exc_text = mask_secrets(mask_text(record.exc_text))
         return True
 
 

@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
 from utils.transform_pdf_to_img import transform_pdf_to_img
-from utils.session import Session
+from utils.session import Session, render_dpi
 from utils.ocr_engine import OCREngine, ocr_workers
 from utils.yolo_engine import YOLOEngine
 from utils.address_redactor import AddressRedactor
@@ -26,6 +26,23 @@ load_dotenv()
 # para não saturar todos os cores e travar a API web.
 os.environ["OMP_NUM_THREADS"] = "4"
 os.environ["MKL_NUM_THREADS"] = "4"
+
+def _cluster_boxes(boxes):
+    """Agrupa caixas [x, y, w, h] da mesma linha e próximas em retângulos [x0, y0, x1, y1]."""
+    rects = sorted(([b[0], b[1], b[0] + b[2], b[1] + b[3]] for b in boxes), key=lambda r: (r[1], r[0]))
+    clusters = []
+    for r in rects:
+        for c in clusters:
+            height = max(c[3] - c[1], r[3] - r[1], 1)
+            same_line = min(c[3], r[3]) - max(c[1], r[1]) > -0.3 * height
+            close = r[0] - c[2] < 2.5 * height and c[0] - r[2] < 2.5 * height
+            if same_line and close:
+                c[0], c[1], c[2], c[3] = min(c[0], r[0]), min(c[1], r[1]), max(c[2], r[2]), max(c[3], r[3])
+                break
+        else:
+            clusters.append(r)
+    return clusters
+
 
 class SentryApp:
     def __init__(self, pdf_path, output_dir=None, final_dir=None):
@@ -44,7 +61,7 @@ class SentryApp:
         
         # 3. Armazenamento de Estado
         # 300 DPI: melhor revocação E mais rápido nas medições (docs/benchmarks.md, 2026-10-04)
-        self.base_dpi = int(os.getenv("BASE_DPI", "300"))
+        self.base_dpi = render_dpi()
         self.image_paths = [] 
         self.grounding_maps = []
         self.grounding_maps_sparse = []
@@ -73,7 +90,8 @@ class SentryApp:
         if reason not in self.review_pages[page_num]:
             self.review_pages[page_num].append(reason)
         for box in boxes or []:
-            mark = {"page": page_num, "reason": mask_text(reason), "box": [round(float(v), 4) for v in box]}
+            mark = {"page": page_num, "reason": mask_text(reason),
+                    "box": [round(min(1.0, max(0.0, float(v))), 4) for v in box]}
             if mark not in self.review_marks:
                 self.review_marks.append(mark)
         msg = mask_text(f"Pág {page_num}: {reason}")
@@ -100,6 +118,14 @@ class SentryApp:
 
     def final_state(self):
         """Estado final reportado ao serviço: só é 'Concluído' se nada exige revisão."""
+        state = self._final_state()
+        if getattr(self, "manual_mode", False):
+            # Finalização (tarjas do revisor): o resumo de tipos, o perfil e os tempos continuam os do processamento
+            for key in ("pii_summary", "pii_found", "policy_profile", "timings"):
+                state.pop(key, None)
+        return state
+
+    def _final_state(self):
         if self.needs_review:
             return {
                 "status": "Requer revisão",
@@ -121,6 +147,7 @@ class SentryApp:
         """Executa o pipeline completo com suporte a notificações de progresso."""
         self.progress_callback = progress_callback
         
+        self.manual_mode = manual_redactions is not None  # finalização: não sobrescreve resumo/tempos do processamento
         if native_mode and manual_redactions is not None:
             self.logger.info("[!] RETARJAMENTO TOTAL ATIVADO: Aplicando Tarjas diretamente no PDF Nativo.")
             self._load_metadata_safely(manual_redactions)
@@ -241,14 +268,14 @@ class SentryApp:
         Passada EXTRA: palavras do texto digital do PDF (quando existe), já na escala de pixels das imagens.
         Não substitui o OCR; soma a ele (texto digital não tem erro de leitura).
         """
-        from utils.verifier import _words_to_grounding
+        from utils.verifier import _words_to_grounding, page_words
         maps = [[] for _ in range(total)]
         try:
             import fitz
             scale = self.base_dpi / 72.0
             with fitz.open(self.session.pdf_path) as doc:
                 for i in range(min(total, len(doc))):
-                    grounding = _words_to_grounding(doc[i].get_text("words"))
+                    grounding = _words_to_grounding(page_words(doc[i]))  # coordenadas da página girada
                     for w in grounding:
                         b = w["box"]
                         w["box"] = {"x": b["x"] * scale, "y": b["y"] * scale, "w": b["w"] * scale, "h": b["h"] * scale}
@@ -435,7 +462,8 @@ class SentryApp:
         self.logger.info(f"[decisions] {len(log)} endereço(s) avaliados pelo decisor local (modo {service.mode}).")
 
     def _relative_boxes(self, page_num, boxes):
-        """[x, y, w, h] em pixels da imagem da página -> uma região [x0, y0, x1, y1] relativa que envolve todas."""
+        """[x, y, w, h] em pixels da imagem da página -> regiões [x0, y0, x1, y1] relativas, uma por ocorrência
+        (palavras vizinhas na mesma linha formam uma região; ocorrências distantes ficam separadas)."""
         if not boxes or page_num > len(self.image_paths):
             return []
         try:
@@ -444,11 +472,9 @@ class SentryApp:
                 width, height = im.size
         except Exception:
             return []
-        x0 = min(b[0] for b in boxes)
-        y0 = min(b[1] for b in boxes)
-        x1 = max(b[0] + b[2] for b in boxes)
-        y1 = max(b[1] + b[3] for b in boxes)
-        return [[x0 / width, y0 / height, x1 / width, y1 / height]]
+        clamp = lambda v: min(1.0, max(0.0, v))  # noqa: E731  (nunca desenhar fora da página)
+        return [[clamp(x0 / width), clamp(y0 / height), clamp(x1 / width), clamp(y1 / height)]
+                for x0, y0, x1, y1 in _cluster_boxes(boxes)]
 
     def _address_word_boxes(self, page_num, text):
         """Caixas [x, y, w, h] das palavras do endereço na página (para aprender com a revisão)."""
@@ -685,7 +711,10 @@ class SentryApp:
                     box = { "x": coords[0], "y": coords[1], "w": coords[2]-coords[0], "h": coords[3]-coords[1] }
                     if source_w: box["source_width"] = float(source_w)
                     self.global_redactions[page_num].append(box)
-                    if rtype == "pii": self.address_redactions[page_num].append(box)
+                    label = red.get("label")
+                    if label:
+                        self.box_labels[page_num][f"{box['x']}_{box['y']}_{box['w']}_{box['h']}"] = str(label)
+                    if rtype == "pii" and label == "Endereço residencial": self.address_redactions[page_num].append(box)
                     elif rtype == "signature": self.cpf_redactions[page_num].append(box)
             except Exception as e:
                 self.logger.error(f"Erro ao analisar tarja ({source}): {e}")
@@ -736,12 +765,13 @@ class SentryApp:
                 bh = box['h']
                 box_sig = f"{bx}_{by}_{bw}_{bh}"
                 
-                if box_sig in addr_boxes:
-                    rtype, label = 'pii', "Endereço residencial"
-                elif box_sig in cpf_boxes:
-                    rtype, label = 'signature', "CPF"
+                known = self.box_labels.get(page_num, {}).get(box_sig)  # rótulo explícito vence a inferência
+                if box_sig in cpf_boxes:
+                    rtype, label = 'signature', known or "CPF"
+                elif box_sig in addr_boxes:
+                    rtype, label = 'pii', known or "Endereço residencial"
                 else:
-                    rtype, label = 'pii', self.box_labels.get(page_num, {}).get(box_sig)
+                    rtype, label = 'pii', known
 
                 frontend_redactions.append({
                     "page": page_num,

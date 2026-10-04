@@ -36,11 +36,14 @@ def make_titulo(uf="11"):
 
 
 def make_card():
+    # Dígito de Luhn calculado AQUI, de forma independente do validador (dobra da direita para a esquerda)
     d = [4] + [RNG.randint(0, 9) for _ in range(14)]
-    for check in range(10):
-        n = "".join(map(str, d)) + str(check)
-        if v.is_valid_luhn(n):
-            return n
+    total = 0
+    for i, n in enumerate(reversed(d)):
+        if i % 2 == 0:  # posições que serão dobradas quando o dígito verificador entrar à direita
+            n = n * 2 - 9 if n * 2 > 9 else n * 2
+        total += n
+    return "".join(map(str, d)) + str((10 - total % 10) % 10)
 
 
 def mutate(number):
@@ -102,6 +105,21 @@ def test_validators_accept_generated_and_reject_mutated(make, check):
         n = make()
         assert check(n), n
         assert not check(mutate(n)), mutate(n)
+
+
+# Vetores fixos, conferidos à mão (não dependem dos geradores acima)
+def test_fixed_vectors_checked_by_hand():
+    # PIS 1203456789-?: 1*3+2*2+0*9+3*8+4*7+5*6+6*5+7*4+8*3+9*2 = 189; 189 % 11 = 2; 11 - 2 = 9
+    assert v.is_valid_pis("12034567899") and not v.is_valid_pis("12034567898")
+    # CNS 100000000000007: 1*15 + 7*1 = 22, múltiplo de 11
+    assert v.is_valid_cns("100000000000007") and not v.is_valid_cns("100000000000008")
+    # Título SP (UF 01): sequência 10000001 -> 1*2 + 1*9 = 11, resto 0 -> regra SP/MG: dv1 = 1;
+    # dv2 = (0*7 + 1*8 + 1*9) % 11 = 6  ->  100000010116. Pela regra geral seria dv1 = 0 (inválido aqui).
+    assert v.is_valid_titulo_eleitor("100000010116")
+    assert not v.is_valid_titulo_eleitor("100000010105")
+    # Números de teste públicos das bandeiras (Luhn válido)
+    assert v.is_valid_luhn("4111111111111111") and v.is_valid_luhn("5555555555554444")
+    assert not v.is_valid_luhn("4111111111111112")
 
 
 def test_validators_reject_degenerate_numbers():

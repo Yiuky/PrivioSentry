@@ -86,3 +86,33 @@ def test_task_card_shows_processing_time(page, live_app, open_app):
     t = page.locator("[data-testid=task-time]")
     expect(t).to_have_text("⏱ 1 min 6 s")
     expect(t).to_have_attribute("title", "OCR Scanning: 61.4 s\nRenderizando PDF: 4.2 s")
+
+
+# --- regressões da revisão independente -----------------------------------------------------------------
+def test_r3_boxes_under_a_review_mark_stay_editable(page, live_app, open_task):
+    # região a revisar exatamente sobre uma tarja: clicar na tarja precisa selecioná-la
+    mark = {"page": 1, "reason": "CPF ainda detectável", "box": [0.1, 0.08, 0.5, 0.2]}
+    tid = live_app.seed_task("sob.pdf", status="Requer revisão", needs_review=True, alerts=["Pág 1: CPF"],
+                             redactions=[box(1)], extra={"review_marks": [mark]})
+    open_task(tid)
+    target = page.locator("#layer-1 [data-testid=redaction-box]")
+    target.click()
+    expect(target).to_have_class(__import__("re").compile(r"\bselected\b"))
+
+
+def test_r4_switching_documents_does_not_fake_a_finished_refresh(page, live_app, open_task):
+    running = live_app.seed_task("rodando.pdf", status="OCR: Pagina 1/2", percentage=30, completed=False, redactions=[])
+    done = live_app.seed_task("pronto.pdf", redactions=[box(1)])
+    open_task(running)
+    page.locator(f"#t-{done}").click()
+    page.wait_for_timeout(4000)                                   # mais que um ciclo de atualização (3 s)
+    assert "Processamento concluído" not in (page.locator("#toast").text_content() or "")
+    assert "Salve suas edições" not in (page.locator("#toast").text_content() or "")
+
+
+def test_r10_failed_processing_is_not_reported_as_success(page, live_app, open_task):
+    tid = live_app.seed_task("falha.pdf", status="Processando", percentage=40, completed=False, redactions=[])
+    open_task(tid)
+    live_app.update_task(tid, status="Erro: Tesseract", error=True)
+    expect(page.locator("#toast")).to_contain_text("terminou com erro", timeout=10000)
+    assert "Processamento concluído" not in (page.locator("#toast").text_content() or "")

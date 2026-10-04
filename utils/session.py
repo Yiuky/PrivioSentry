@@ -16,6 +16,11 @@ DEFAULT_FINAL_IMAGE_WIDTH = 1240
 DEFAULT_FINAL_JPEG_QUALITY = 75
 
 
+def render_dpi():
+    """BASE_DPI efetivo (padrão 300; fora de 30..2400 volta ao padrão). Usado por TODO o pipeline."""
+    return _env_int("BASE_DPI", 300, 30, 2400)
+
+
 def _env_int(name, default, minimum, maximum=None):
     """Lê um inteiro do ambiente; valor ausente/inválido/fora da faixa volta ao padrão."""
     raw = os.getenv(name)
@@ -442,7 +447,7 @@ class Session:
                     src_w = b.get("source_width") or b.get("image_width")
                     if not src_w or src_w <= 0:
                         # Sem a largura da imagem de origem: assume a resolução de renderização (BASE_DPI)
-                        src_w = pdf_w * (_env_int("BASE_DPI", 300, 72, 2400) / 72.0)
+                        src_w = pdf_w * (render_dpi() / 72.0)
 
                     scale = pdf_w / float(src_w)
 

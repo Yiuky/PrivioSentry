@@ -5,6 +5,28 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+## [5.4.0] - 2026-10-04
+
+Critérios nacionais e internacionais de dados pessoais (catálogo de PII e perfis de política), ~4,7× mais rápido
+num documento real, regiões a revisar desenhadas na página e uma rodada de revisão independente com contra-análise.
+**Mudanças de comportamento:** `BASE_DPI` padrão passou de 1000 para 300 (medido: melhor revocação); quem define
+`BASE_DPI`/`YOLO_CROP_PADDING` no `.env` deve revisar os valores. O perfil padrão (`cpf_endereco`) mantém o
+comportamento anterior; os novos tipos valem ao escolher outro perfil em `POLICY_PROFILE`.
+
+### Corrigido (revisão independente e contra-análise)
+- **Páginas rotacionadas:** a passada de texto digital usava as coordenadas da página sem rotação e colocaria tarjas no lugar errado (o dado ficaria visível); agora aplica a rotação (`page_words`). Testado sobre os pixels desenhados.
+- Registros de erro do uvicorn voltaram a mascarar CPF e `token=` também no *traceback* e em argumentos que não são texto.
+- A região "Revisar aqui" não bloqueia mais o clique nas tarjas embaixo dela; trocar de documento não dispara mais um "processamento concluído" falso; erro no processamento não mostra mensagem de sucesso.
+- Telefone: não pega mais o final de um número maior; aceita fixo sem DDD com palavra de contexto e DDD com zero de operadora "(065)" coberto inteiro. Data de nascimento aceita "1º de março"; outra data ou rótulo entre "nascimento" e o valor (ex.: "Emissão") anula o contexto. CPF logo depois de "RG" não é mais contado como RG. Placa no formato antigo ("ISO-9001") passa a exigir contexto.
+- Uma região a revisar por ocorrência (antes, uma caixa podia cobrir a página inteira); regiões sempre limitadas à página.
+- Finalizar ("Aplicar proteção") não apaga mais o resumo de tipos e os tempos do processamento; os rótulos das tarjas atravessam a finalização (antes telefone/e-mail viravam "Endereço residencial" no modo legado).
+- Verificação pós-tarja em lotes: limita imagens temporárias em disco e o progresso avança durante o OCR.
+- `BASE_DPI` lido num só lugar (`render_dpi`), com a mesma faixa válida em todo o pipeline.
+
+### Testes
+- 66 casos de contra-análise (`tests/test_counter_analysis.py`): falsos positivos em texto administrativo comum, formatos reais, lixo aleatório, páginas gigantes com tempo limitado (sem regex explosivo), acentos e caracteres especiais, concorrência, matriz de perfis e uma regressão por achado da revisão. Vetores fixos conferidos à mão para PIS, CNS, título de eleitor (incluindo a regra de SP/MG) e números de teste públicos de cartão.
+- Testes que comprovadamente falham sem a correção (verificado para rotação e para o clique sob a região).
+
 ### Adicionado (critérios de dados pessoais)
 - **Catálogo de PII** (`utils/detect/catalog.py`, documentação gerada em `docs/catalogo-pii.md`): 30 tipos com enquadramento em **LGPD** (art. 5º, I e II), **GDPR** (art. 4, 9 e 10), **ISO/IEC 29100**, **NIST SP 800-122** e **HIPAA Safe Harbor**, nível (identificador direto, dado pessoal, sensível, indireto) e forma de detecção. Tipos sem detector ficam como *planejados* (nomes, rostos, dados sensíveis).
 - **Perfis de política** (`POLICY_PROFILE`): `cpf_endereco` (padrão, comportamento original), `lgpd_publicacao` (LAI), `lgpd_interno`, `gdpr` e `saude_hipaa`; cada tipo é tarjado (sugestão para revisão) ou só alertado (região a revisar). O endereço residencial também obedece ao perfil.

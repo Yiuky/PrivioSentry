@@ -27,6 +27,9 @@ class Rule:
     context_required: bool = False
     window: int = 40                    # quantos caracteres antes do valor olhar para achar o contexto
     accept: Optional[Callable[[str, bool], bool]] = None  # (valor, tem_contexto) -> aceita?
+    # Se isto aparecer ENTRE a palavra de contexto e o valor, o contexto não vale (ex.: outra data ou outro
+    # rótulo no meio: "Nascimento: 01/02/1980 Emissão: 05/06/2010" não faz da emissão uma data de nascimento)
+    stop: Optional[Pattern] = None
 
 
 def _norm(text):
@@ -42,7 +45,13 @@ def _phone_ok(value, has_ctx):
     d = v.only_digits(value)
     if d.startswith("55") and len(d) in (12, 13):
         d = d[2:]
-    if len(d) not in (10, 11) or len(set(d)) == 1 or not 11 <= int(d[:2]) <= 99:
+    if d.startswith("0") and len(d) in (11, 12):  # DDD com zero de operadora: (065)
+        d = d[1:]
+    if len(set(d)) == 1:
+        return False
+    if len(d) in (8, 9):  # sem DDD: só com palavra de contexto ("Telefone: 3321-1234")
+        return has_ctx and (len(d) == 8 or d[0] == "9")
+    if len(d) not in (10, 11) or not 11 <= int(d[:2]) <= 99:
         return False
     if len(d) == 11 and d[2] != "9":  # celular com 9 dígitos começa com 9
         return False
@@ -61,17 +70,27 @@ def _cns_ok(value, has_ctx):
 
 
 def _plate_ok(value, has_ctx):
+    # Só o padrão Mercosul (ABC1D23) é distintivo o bastante sozinho; o antigo (ABC-1234) confunde com
+    # normas e códigos ("ISO-9001", "NBR-1406") e exige palavra de contexto
     compact = re.sub(r"[\s\-]", "", value)
-    mercosul = bool(re.fullmatch(r"[A-Z]{3}\d[A-Z]\d{2}", compact))
-    old_hyphen = bool(re.fullmatch(r"[A-Z]{3}-\d{4}", value.strip()))
-    return mercosul or old_hyphen or has_ctx
+    return bool(re.fullmatch(r"[A-Z]{3}\d[A-Z]\d{2}", compact)) or has_ctx
+
+
+_CPF_FORMATTED = re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}")
+
+
+def _rg_ok(value, has_ctx):
+    # Um CPF logo depois de "RG ... ," não é RG: a busca de CPF já o trata (evita contar duas vezes)
+    if _CPF_FORMATTED.fullmatch(value.strip()) or v.is_valid_cpf(v.only_digits(value)):
+        return False
+    return 5 <= len(v.only_digits(value)) <= 14
 
 
 _I = re.IGNORECASE
 RULES: List[Rule] = [
     Rule("rg", re.compile(r"(?P<v>\b\d[\d.\-]{3,13}[\dxX]\b)"),
          re.compile(r"\b(rg|r\.\s?g\.|identidade|registro geral)\b"), context_required=True, window=30,
-         accept=_digits_ok(5, 14)),
+         accept=_rg_ok, stop=re.compile(r"\bcpf\b|\d{3}\.\d{3}\.\d{3}")),
     Rule("cnh", re.compile(r"(?P<v>\b\d{9,11}\b)"),
          re.compile(r"\b(cnh|habilitacao)\b"), context_required=True, window=40),
     Rule("titulo_eleitor", re.compile(r"(?P<v>\b\d{4}\s?\d{4}\s?\d{4}\b)"),
@@ -86,7 +105,7 @@ RULES: List[Rule] = [
          re.compile(r"passaporte"), context_required=True, window=30),
     Rule("ctps", re.compile(r"(?P<v>\b\d{5,8}(?:\s*(?:/|serie|série)\s*\d{3,5}(?:-[A-Z]{2})?)?\b)", _I),
          re.compile(r"\bctps\b|carteira\s+de\s+trabalho"), context_required=True, window=30),
-    Rule("telefone", re.compile(r"(?P<v>(?:\+\s?55\s?)?\(?\s?\d{2}\s?\)?\s?9?\s?\d{4}\s?[\-.]?\s?\d{4})(?!\d)"),
+    Rule("telefone", re.compile(r"(?<![\d(])(?P<v>(?:\+\s?55\s?)?(?:\(?\s?0?\d{2}\s?\)?\s?)?9?\s?\d{4}\s?[\-.]?\s?\d{4})(?!\d)"),
          re.compile(r"\b(tel|telefone|fone|celular|cel|whatsapp|contato)\b"), window=25, accept=_phone_ok),
     Rule("email", re.compile(r"(?P<v>[A-Za-z0-9._%+\-]+\s?@\s?[A-Za-z0-9.\-]+\.[A-Za-z]{2,})")),
     Rule("ip", re.compile(r"(?P<v>(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.]))"),
@@ -98,8 +117,10 @@ RULES: List[Rule] = [
          context_required=True, window=22, accept=_digits_ok(3, 13)),
     Rule("chave_pix", re.compile(r"(?P<v>\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b)")),
     Rule("data_nascimento",
-         re.compile(r"(?P<v>\b\d{1,2}\s?[/.\-]\s?\d{1,2}\s?[/.\-]\s?\d{2,4}\b|\b\d{1,2}\s+de\s+[a-zç]+\s+de\s+\d{4}\b)", _I),
-         re.compile(r"nascid|nascimento|\bnasc\b|\bd\.?\s?n\.?\b"), context_required=True, window=40),
+         re.compile(r"(?P<v>\b\d{1,2}\s?[/.\-]\s?\d{1,2}\s?[/.\-]\s?\d{2,4}\b|\b\d{1,2}[ºo°]?\s+de\s+[a-zç]+\s+de\s+\d{4}\b)", _I),
+         re.compile(r"nascid|nascimento|\bnasc\b|\bd\.?\s?n\.?\b"), context_required=True, window=40,
+         stop=re.compile(r"\d{1,2}\s?[/.\-]\s?\d{1,2}\s?[/.\-]\s?\d{2,4}|emiss|expedi|validade|vencimento|"
+                         r"admiss|\bdata\b(?!\s+de\s+nasc)")),
     Rule("placa_veiculo", re.compile(r"(?P<v>\b[A-Z]{3}[\s\-]?\d[A-Z0-9]\d{2}\b)"),
          re.compile(r"\bplaca\b|veiculo|renavam|automovel"), window=30, accept=_plate_ok),
 ]
@@ -144,7 +165,10 @@ def find_in_grounding(grounding, type_ids) -> Dict[str, Tuple[Commands, Set[str]
             if rule.context is not None:
                 window = norm_text[max(0, start - rule.window):start] if len(norm_text) == len(text) else \
                     _norm(text[max(0, start - rule.window):start])
-                has_ctx = bool(rule.context.search(window))
+                matches = list(rule.context.finditer(window))
+                has_ctx = bool(matches)
+                if has_ctx and rule.stop is not None and rule.stop.search(window[matches[-1].end():]):
+                    has_ctx = False  # outro valor/rótulo entre o contexto e este valor
             if rule.context_required and not has_ctx:
                 continue
             if rule.accept is not None and not rule.accept(value, has_ctx):

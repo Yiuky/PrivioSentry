@@ -139,8 +139,8 @@
         .task-time { font-size:12px; color:var(--slate); margin-top:4px; cursor:help; }
         .redaction-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
         /* Região que a verificação pediu para revisar (onde está o problema, não uma tarja) */
-        .review-mark { position:absolute; border:3px dashed var(--warning-strong); background:rgba(247,144,9,0.12); border-radius:4px; pointer-events:auto; z-index:3; cursor:help; }
-        .review-mark .review-mark-label { position:absolute; top:-22px; left:-3px; white-space:nowrap; font-size:12px; font-weight:700; line-height:18px; padding:0 6px; border-radius:4px; background:var(--warning-strong); color:var(--white); }
+        .review-mark { position:absolute; border:3px dashed var(--warning-strong); background:rgba(247,144,9,0.12); border-radius:4px; pointer-events:none; z-index:3; }
+        .review-mark .review-mark-label { pointer-events:auto; cursor:help; position:absolute; top:-22px; left:-3px; white-space:nowrap; font-size:12px; font-weight:700; line-height:18px; padding:0 6px; border-radius:4px; background:var(--warning-strong); color:var(--white); }
         .review-mark.flash { animation: review-flash 0.9s ease-in-out 3; }
         @keyframes review-flash { 0%, 100% { box-shadow: 0 0 0 0 rgba(247,144,9,0); } 50% { box-shadow: 0 0 0 10px rgba(247,144,9,0.45); } }
         @media (prefers-reduced-motion: reduce) { .review-mark.flash { animation: none; outline: 4px solid var(--warning-strong); } }
@@ -396,6 +396,7 @@
                 'pending.region': 'Páginas pendentes de revisão', 'pending.title': 'Requer revisão', 'pending.only': 'Só páginas pendentes', 'pending.page': 'Pág',
                 'review.mark': 'Revisar aqui', 'ok.finished': 'Processamento concluído: resultado carregado.',
                 'warn.finished': 'O processamento terminou. Salve suas edições e reabra o documento para ver o resultado.',
+                'warn.failed': 'O processamento terminou com erro. Veja o log da tarefa (menu ⋮ › Ver logs).',
                 'empty.title': 'Nenhum documento ainda', 'empty.sub': 'Adicione um PDF para iniciar a detecção.',
                 'step.detect.title': 'Detectar', 'step.detect.body': 'OCR, regras de validação e modelos locais sugerem possíveis CPFs, endereços e assinaturas.',
                 'step.review.title': 'Revisar', 'step.review.body': 'Cada sugestão aparece como uma região editável. Ajuste, mova ou remova antes de continuar.',
@@ -443,6 +444,7 @@
                 'pending.region': 'Pages pending review', 'pending.title': 'Needs review', 'pending.only': 'Pending pages only', 'pending.page': 'Page',
                 'review.mark': 'Review here', 'ok.finished': 'Processing finished: result loaded.',
                 'warn.finished': 'Processing finished. Save your edits and reopen the document to see the result.',
+                'warn.failed': 'Processing finished with an error. See the task log (⋮ menu › View logs).',
                 'empty.title': 'No documents yet', 'empty.sub': 'Add a PDF to begin detection.',
                 'step.detect.title': 'Detect', 'step.detect.body': 'OCR, validation rules and local models suggest potential CPF numbers, addresses and signatures.',
                 'step.review.title': 'Review', 'step.review.body': 'Each suggestion appears as an editable region. Adjust, move or remove it before continuing.',
@@ -625,6 +627,7 @@
                 const label = document.createElement('span');
                 label.className = 'review-mark-label';
                 label.textContent = `⚠ ${t('review.mark')}`;
+                label.title = String(m.reason || '');  // a região deixa os cliques passarem; o motivo fica na etiqueta
                 el.appendChild(label);
                 layer.appendChild(el);
             });
@@ -781,6 +784,7 @@
             const finishedNow = openTaskWasDone === false && done;
             openTaskWasDone = done;
             if (!finishedNow) return;
+            if (tk.error) { toast(t('warn.failed')); return; }
             if (JSON.stringify(redactions) !== loadedRedactionsSig) { toast(t('warn.finished')); return; }
             await loadMetadata();
             initDocumentView(tk.total || 1);
@@ -789,6 +793,7 @@
         }
 
         async function selectTask(id, name) {
+            openTaskWasDone = null;  // antes de qualquer await: o estado da tarefa anterior não pode disparar recarga
             currentTaskId = id; currentPage = 1; zoom = 0.8;
             redactions = []; // Limpa tarjas do documento anterior
             if(window.innerWidth < 1024) document.querySelector('.sidebar').classList.remove('open');

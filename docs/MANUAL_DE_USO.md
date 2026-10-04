@@ -239,6 +239,8 @@ Todas as configurações são **variáveis de ambiente**, normalmente no arquivo
 | `OLLAMA_API_URL` | `http://localhost:11434` | Endereço do servidor Ollama |
 | `OLLAMA_MODEL` / `OLLAMA_VISION_MODEL` | `llama3` / `gemma4:e4b` | Modelos de texto e de visão |
 | `BASE_DPI` | `300` | DPI de renderização das páginas. 300 teve a melhor revocação e o menor tempo nas medições |
+| `OCR_WORKERS` | metade dos núcleos (até 8) | Quantas páginas passam pelo OCR ao mesmo tempo |
+| `POLICY_PROFILE` | `cpf_endereco` | Perfil de política: o que tarjar e o que só alertar ([catálogo](catalogo-pii.md)) |
 | `VERIFY_OCR` | `1` | Liga a verificação pós-tarja por OCR (recomendado manter `1`) |
 | `VERIFY_DPI` | `300` | DPI do OCR de verificação |
 | `APP_HOST` / `APP_PORT` | `127.0.0.1` / `8001` | Endereço e porta da aplicação web |
@@ -414,12 +416,22 @@ Clique no cartão de uma tarefa para abri-la no editor.
 
 Quando o documento **Requer revisão**, aparece acima das páginas a barra **⚠ Requer revisão** com:
 
-- um botão por página com alerta, no formato **Pág N · motivo**; clique para ir até a página;
+- um botão por página com alerta, no formato **Pág N · motivo**; clique para ir até a página. Quando a
+  posição do problema é conhecida, a página mostra um **contorno tracejado laranja "⚠ Revisar aqui"** no
+  lugar exato, e o clique centraliza e destaca essa região;
 - alertas gerais (sem página) exibidos como notas;
 - a caixa **Só páginas pendentes**, que esconde as demais páginas para você focar no que precisa de atenção.
 
 As páginas com alerta também ficam destacadas na área de trabalho. O significado de cada alerta está na
 [seção 7.4](#74-alertas-e-o-que-fazer).
+
+> [!TIP]
+> Pode abrir o documento enquanto ele processa: quando o processamento terminar, o editor carrega o resultado
+> sozinho. Se você tiver edições não salvas, ele não recarrega e só avisa para salvar.
+
+Cada tarja sugerida mostra o **tipo** detectado (ex.: "Possível Telefone", "Possível RG"), conforme o perfil de
+política (`POLICY_PROFILE`, [catálogo](catalogo-pii.md)). O cartão da tarefa resume os tipos encontrados
+(🔎, só quantidades) e o tempo de processamento (⏱; o detalhe por etapa aparece ao passar o mouse).
 
 ### 4.8 Zoom, navegação e atalhos
 

@@ -13,7 +13,7 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
   **P2** (robustez, operação e experiência) · **P3** (melhoria e refatoração).
 - Itens marcados como **visão** vêm do roteiro do produto: não têm data nem promessa de entrega.
 - As referências `arquivo:linha` valem para o estado de referência e podem se deslocar.
-- Estado de referência: `5.3.0`, 2026-10-04. Itens B-40 a B-65 vieram de uma revisão completa do código e da redação do manual nessa data.
+- Estado de referência: `5.4.0`, 2026-10-04. Itens B-40 a B-65 vieram de uma revisão completa do código e da redação do manual nessa data.
 
 ## Resumo
 
@@ -52,8 +52,8 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 
 | ID | Prioridade | Item | Depende de |
 |---|---|---|---|
-| B-71 | P1 | **Política configurável — parte 1 concluída (não publicado):** catálogo com enquadramento legal, 5 perfis via `POLICY_PROFILE`, rótulo do tipo em cada tarja, resumo por documento, API `/policy/*`. **Falta:** escolher o perfil na interface e por tarefa, e registrar a política aplicada num relatório exportável | — |
-| B-72 | P1 | **Concluído (não publicado):** RG, CNH, título de eleitor, PIS/NIS, CNS, passaporte, CTPS, telefone, e-mail, IP, cartão (Luhn), conta bancária, chave Pix, data de nascimento e placa, com dígito verificador, formato ou contexto (`tests/test_detect.py`). **Falta:** medir revocação por tipo em documentos fictícios realistas e estender a verificação pós-tarja a esses tipos | B-71 |
+| B-71 | P1 | **Política configurável — parte 1 concluída (5.4.0):** catálogo com enquadramento legal, 5 perfis via `POLICY_PROFILE`, rótulo do tipo em cada tarja, resumo por documento, API `/policy/*`. **Falta:** escolher o perfil na interface e por tarefa, e registrar a política aplicada num relatório exportável | — |
+| B-72 | P1 | **Concluído (5.4.0):** RG, CNH, título de eleitor, PIS/NIS, CNS, passaporte, CTPS, telefone, e-mail, IP, cartão (Luhn), conta bancária, chave Pix, data de nascimento e placa, com dígito verificador, formato ou contexto (`tests/test_detect.py`). **Falta:** medir revocação por tipo em documentos fictícios realistas e estender a verificação pós-tarja a esses tipos | B-71 |
 | B-73 | P1 | **Nomes e rótulos livres com GLiNER** (modo leve na CPU): o usuário escreve o rótulo ("nome de pessoa", "número de processo"); trechos mapeados para as caixas do OCR; confiança baixa → revisão | B-71 |
 | B-74 | P2 | **Exceções decididas pelo Laya**: "nome a proteger" × "servidor/signatário público" (LAI), com perguntas próprias, treino e portão | B-73, B-70 |
 | B-75 | P2 | **Perfis de política e roteamento**: perfis prontos (Transparência/LAI, Saúde, Jurídico, Só CPF) e o Laya sugerindo o perfil pelo tipo de documento | B-71, B-70 |
@@ -125,8 +125,8 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 
 | ID | Item | Versão | Teste |
 |---|---|---|---|
-| B-12 | Desempenho: `BASE_DPI` 300 (medido: melhor revocação e mais rápido), OCR das páginas em paralelo nas duas passadas e na verificação, pré-carga do Laya, PNG leve. Documento real de 10 páginas: ~14 min → ~3 min | não publicado | `tests/test_performance.py`, `docs/benchmarks.md` |
-| B-67 | Regiões a revisar desenhadas na página (alerta com posição) e documento aberto que se atualiza ao terminar o processamento | não publicado | `tests/test_review_marks.py`, `tests/ui/test_ui_review_marks.py` |
+| B-12 | Desempenho: `BASE_DPI` 300 (medido: melhor revocação e mais rápido), OCR das páginas em paralelo nas duas passadas e na verificação, pré-carga do Laya, PNG leve. Documento real de 10 páginas: ~14 min → ~3 min | 5.4.0 | `tests/test_performance.py`, `docs/benchmarks.md` |
+| B-67 | Regiões a revisar desenhadas na página (alerta com posição) e documento aberto que se atualiza ao terminar o processamento | 5.4.0 | `tests/test_review_marks.py`, `tests/ui/test_ui_review_marks.py` |
 | B-41 | Token na URL só abre a sessão (redireciona sem o token); cookie de sessão aleatório (`HttpOnly`, `SameSite=Strict`, `Secure` com HTTPS) no lugar do token cru; `token=` mascarado nos registros (`utils/auth.py`) | 5.3.0 | `tests/test_auth.py`, `tests/test_service_endpoints.py` |
 | B-42 | Painel do gatekeeper exige `API_TOKEN` quando definido; `kill_port_owner` só encerra um `app_service.py` órfão e não usa shell | 5.3.0 | `tests/test_auth.py`, `tests/test_gatekeeper.py` |
 | B-52 | Saída do app herdada pelo gatekeeper (o PIPE nunca lido travava o app) | 5.3.0 | `gatekeeper.py` |
