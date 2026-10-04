@@ -70,6 +70,9 @@ def capture_review(output_dir, final_redactions, store=None):
             entries = json.load(f)
         from .learning import LearningStore
         rows = labels_from_review(entries, final_redactions)
+        task = os.path.basename(os.path.normpath(output_dir))
+        for r in rows:
+            r["task"] = task  # apagar a tarefa apaga também estes exemplos
         n = (store or LearningStore()).add_examples(rows)
         logger.info(f"[decisions] {n} correção(ões) do revisor guardada(s) para o próximo treino.")
         return n

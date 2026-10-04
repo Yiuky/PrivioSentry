@@ -13,15 +13,15 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
   **P2** (robustez, operação e experiência) · **P3** (melhoria e refatoração).
 - Itens marcados como **visão** vêm do roteiro do produto: não têm data nem promessa de entrega.
 - As referências `arquivo:linha` valem para o estado de referência e podem se deslocar.
-- Estado de referência: `5.2.0`, 2026-10-04. Itens B-40 a B-65 vieram de uma revisão completa do código e da redação do manual nessa data.
+- Estado de referência: `5.3.0`, 2026-10-04. Itens B-40 a B-65 vieram de uma revisão completa do código e da redação do manual nessa data.
 
 ## Resumo
 
 | Prioridade | Abertos | Foco |
 |---|---|---|
-| 🔴 P0 | 2 | Proteger o serviço local contra outros sites no mesmo navegador e o token de acesso |
+| 🔴 P0 | 0 | Proteger o serviço local contra outros sites no mesmo navegador e o token de acesso |
 | 🟠 P1 | 13 | Falhar fechado em mais situações (OCR, respostas da IA, tarjas manuais, rotação) |
-| 🟡 P2 | 12 | Robustez dos processos, limites de recursos, Docker e editor |
+| 🟡 P2 | 11 | Robustez dos processos, limites de recursos, Docker e editor |
 | 🔵 P3 | 5 | Limpeza de código, lint e marca |
 | 🧠 Roteiro | 9 | Detecção configurável (nomes, telefones, RG...), GLiNER e decisor Laya que aprende (B-71 a B-79) |
 | 🔭 Visão | 5 | Auditoria, políticas e novos módulos SENTRY |
@@ -66,8 +66,6 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 
 | ID | Item | Referência |
 |---|---|---|
-| B-41 | **Não aceitar `API_TOKEN` na *query string* nem guardar o token bruto em cookie.** `?token=` vai para o log do uvicorn, o histórico do navegador e o log do proxy do gatekeeper. Direção: trocar por cookie de sessão aleatório (`HttpOnly`, `SameSite`, `secure` com HTTPS), redirecionar sem o `?token=` e mascarar a *query* nos logs | `app_service.py:239-244`, `gatekeeper.py:205-234` |
-| B-42 | **Autenticar o painel do gatekeeper e restringir `kill_port_owner`.** Desde B-40 o `/api/toggle` recusa outros sites (`Origin`/`Host`), mas o painel continua sem autenticação própria; `kill_port_owner` faz `taskkill /F /T` em qualquer processo na porta. Direção: aceitar `API_TOKEN` no painel e encerrar só o processo filho conhecido | `gatekeeper.py:88-102`, `gatekeeper.py:189-198` |
 
 ## 🟠 P1 · Resultado errado ou tarja a menos
 
@@ -90,7 +88,6 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 
 | ID | Item | Referência |
 |---|---|---|
-| B-52 | **Drenar ou redirecionar stdout/stderr do app no gatekeeper.** O app é aberto com `PIPE` que nunca é lido; quando o buffer enche, o app trava, o *watchdog* o mata e as tarefas ficam "Interrompidas". Direção: `DEVNULL`, arquivo de log ou thread leitora | `gatekeeper.py:114-120` |
 | B-53 | **Detectar a morte do worker e permitir cancelar tarefas.** Worker morto (OOM, *kill*) deixa a tarefa parada para sempre; não há rota de cancelamento nem encerramento dos workers no desligamento. Direção: monitorar `exitcode`, `POST /cancel/{id}` e *lifespan* | `app_service.py:96-105`, `app_service.py:205-264` |
 | B-54 | **Limitar recursos por documento e fechar *handles*.** `Image.MAX_IMAGE_PIXELS = None` desliga a proteção contra bombas de descompressão; não há limite de páginas nem de pixels; documentos `fitz` e *FileHandlers* da CLI não são fechados em exceção | `utils/session.py:12`, `utils/transform_pdf_to_img.py:21-61`, `main.py:647-662` |
 | B-55 | **Tirar o I/O bloqueante do upload do *event loop* e fazer o proxy repassar o corpo em *streaming*.** Uploads grandes bloqueiam o loop (inclusive o `/internal/update` dos workers) e falham pelo gatekeeper (corpo inteiro em memória, *timeout* de 30 s) | `app_service.py:302-329`, `gatekeeper.py:210-222` |
@@ -129,7 +126,11 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 
 | ID | Item | Versão | Teste |
 |---|---|---|---|
-| B-70 | **Decisor local Laya com automelhoramento** para o tipo de endereço: modos sombra/assistido, regra que nunca reduz proteção, texto minimizado, cabeça treinável sobre o Laya congelado, limiares aprendidos, portão de qualidade, perfis versionados com rollback, captura das correções do revisor (opt-in) e CLI `python -m utils.decisions`. Treino real na CPU, conjunto realista: AUC 0,83 → 0,91 | não publicado | `tests/test_decisions.py` |
+| B-41 | Token na URL só abre a sessão (redireciona sem o token); cookie de sessão aleatório (`HttpOnly`, `SameSite=Strict`, `Secure` com HTTPS) no lugar do token cru; `token=` mascarado nos registros (`utils/auth.py`) | 5.3.0 | `tests/test_auth.py`, `tests/test_service_endpoints.py` |
+| B-42 | Painel do gatekeeper exige `API_TOKEN` quando definido; `kill_port_owner` só encerra um `app_service.py` órfão e não usa shell | 5.3.0 | `tests/test_auth.py`, `tests/test_gatekeeper.py` |
+| B-52 | Saída do app herdada pelo gatekeeper (o PIPE nunca lido travava o app) | 5.3.0 | `gatekeeper.py` |
+| B-66 | Revisão de segurança independente (2026-10-04): workflow de Release com privilégio mínimo; `/purge` apaga `decisions.json`; exemplos de treino apagados com a tarefa e pasta padrão fixa; `.dockerignore` sem `.env.*` nem `learning/`; versão exata do `laya` e commit do modelo fixado no projeto; SHA-256 do modelo YOLO conferido antes de carregar; CPF com separadores incomuns mascarado; resposta crua do LLM fora do log; Origem anti-CSRF conferida também pela porta | 5.3.0 | `tests/test_decisions.py`, `tests/test_yolo_engine.py`, `tests/test_pii.py`, `tests/test_net_guard.py`, `tests/test_service_endpoints.py` |
+| B-70 | **Decisor local Laya com automelhoramento** para o tipo de endereço: modos sombra/assistido, regra que nunca reduz proteção, texto minimizado, cabeça treinável sobre o Laya congelado, limiares aprendidos, portão de qualidade, perfis versionados com rollback, captura das correções do revisor (opt-in) e CLI `python -m utils.decisions`. Treino real na CPU, conjunto realista: AUC 0,83 → 0,91 | 5.3.0 | `tests/test_decisions.py` |
 | B-40 | Validar `Host` (anti *DNS rebinding*) e `Origin`/`Sec-Fetch-Site` (anti CSRF) no app e no gatekeeper quando não há `API_TOKEN`; nova variável `ALLOWED_HOSTS` | 5.2.0 | `tests/test_net_guard.py` |
 | B-43 | Falha do Tesseract (nas duas escalas) conta em `OCREngine.failure_count` e vira alerta da página no OCR, nos recortes e na verificação; junção das metades não perde a metade de baixo | 5.2.0 | `tests/test_fail_closed_ocr_address.py` |
 | B-49 | Tipo de endereço do LLM normalizado (caixa, acento, sinônimos); rótulo desconhecido é tarjado como pessoal e manda a página para revisão; resposta sem a lista `addresses` falha fechado | 5.2.0 | `tests/test_fail_closed_ocr_address.py` |

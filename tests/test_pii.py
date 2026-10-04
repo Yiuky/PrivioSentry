@@ -1,3 +1,4 @@
+import pytest
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import io
 import logging
@@ -86,3 +87,9 @@ def test_install_log_masking_is_idempotent_and_covers_propagated_records():
         assert CPF_A_FMT not in stream.getvalue()
     finally:
         root.removeHandler(handler)
+
+
+@pytest.mark.parametrize("raw", ["529-982-247-25", "529. 982. 247-25", "529,982,247-25", "529.982.247/25",
+                                 "529 982 247 25", "52998224725", "529.982.247-25"])
+def test_unusual_cpf_separators_are_masked(raw):
+    assert "529" not in mask_text(f"resposta: {raw} fim")

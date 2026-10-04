@@ -89,13 +89,16 @@ def test_save_tasks_failure_is_logged_not_raised(svc, monkeypatch):
 
 
 # --- token / internal --------------------------------------------------------------------------
-def test_token_via_query_sets_cookie_and_internal_is_exempt(svc, monkeypatch):
+def test_token_via_query_opens_session_and_internal_is_exempt(svc, monkeypatch):
     c, mod = svc
     monkeypatch.setattr(mod, "API_TOKEN", "segredo")
     assert c.get("/tasks").status_code == 401
-    r = c.get("/tasks?token=segredo")
-    assert r.status_code == 200 and "api_token" in r.headers.get("set-cookie", "")
-    assert c.get("/tasks").status_code == 200   # cookie reaproveitado pelo cliente
+    r = c.get("/tasks?token=segredo&x=1", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/tasks?x=1"   # token sai da URL
+    cookie = r.headers.get("set-cookie", "")
+    assert "privio_session=" in cookie and "segredo" not in cookie         # B-41: nunca o token cru
+    assert "httponly" in cookie.lower() and "samesite=strict" in cookie.lower()
+    assert c.get("/tasks").status_code == 200   # sessão reaproveitada pelo cliente
     assert c.post("/internal/update/x", json={}).status_code == 403   # exige segredo interno, nao token
 
 
@@ -348,3 +351,15 @@ def test_app_logger_masks_cpf_in_service_logs(svc, caplog):
         assert not FULL_CPF_RE.search(stream.getvalue())
     finally:
         root.removeHandler(handler)
+
+
+def test_purge_also_removes_decision_log(svc):
+    c, mod = svc
+    tid = upload(c)
+    base = out_dir(mod, tid)
+    os.makedirs(base, exist_ok=True)
+    with open(os.path.join(base, "decisions.json"), "w", encoding="utf-8") as f:
+        f.write("[]")
+    removed, _ = mod.purge_task_originals(mod.tasks[tid])
+    assert "decisions.json" in [os.path.basename(r) for r in removed]
+    assert not os.path.exists(os.path.join(base, "decisions.json"))

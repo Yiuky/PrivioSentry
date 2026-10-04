@@ -508,8 +508,8 @@ Comportamento:
 | `APP_HOST` | `127.0.0.1` | Também define o endereço de escuta do gatekeeper |
 
 > [!WARNING]
-> O `API_TOKEN` protege a aplicação, mas **não** o painel do gatekeeper (`/gatekeeper` e o liga/desliga). Mantenha
-> o gatekeeper em `127.0.0.1`. Ele recusa outros nomes de host e pedidos de liga/desliga vindos de outros sites;
+> Com `API_TOKEN` definido, o painel do gatekeeper (`/gatekeeper` e o liga/desliga) também exige o token. Mesmo
+> assim, mantenha o gatekeeper em `127.0.0.1`. Ele recusa outros nomes de host e pedidos de liga/desliga vindos de outros sites;
 > para acessá-lo por outro nome ou IP, liste-o em `ALLOWED_HOSTS`.
 
 ---
@@ -723,8 +723,8 @@ Como o token é enviado:
 | Forma | Observação |
 |---|---|
 | Cabeçalho `X-API-Token` | Recomendada para scripts e integrações |
-| Cookie `api_token` | Usado pelo navegador |
-| `?token=` na URL | Abra `https://<servidor>/?token=<token>` uma vez: a aplicação grava o cookie e o navegador segue autenticado. A URL com token pode ficar em históricos e logs; prefira cabeçalho ou cookie |
+| Sessão do navegador | Cookie aleatório criado no primeiro acesso com `?token=` (o token em si nunca vai para o cookie) |
+| `?token=` na URL | Abra `https://<servidor>/?token=<token>` uma vez: a aplicação responde com um redirecionamento para a mesma página **sem** o token e abre a sessão. O token não fica no histórico e é mascarado nos registros. Vale também para o painel do gatekeeper (`/gatekeeper?token=<token>`) |
 
 Sem o token correto, as rotas respondem `401` com "Não autorizado".
 
@@ -732,7 +732,7 @@ Sem o token correto, as rotas respondem `401` com "Não autorizado".
 > - Exposta sem HTTPS e sem token, qualquer pessoa na rede pode ler os documentos.
 > - O token é único e compartilhado: não há perfis nem permissões por usuário.
 > - No Docker, a porta é publicada só em `127.0.0.1`; não troque para `0.0.0.0` sem definir `API_TOKEN`.
-> - O painel do gatekeeper não é protegido pelo token ([seção 5](#5-painel-gatekeeper)).
+> - O painel do gatekeeper também exige o token ([seção 5](#5-painel-gatekeeper)).
 > - Sem `API_TOKEN`, a aplicação só responde a `127.0.0.1`, `localhost`, ao `APP_HOST` e aos nomes de
 >   `ALLOWED_HOSTS` (os demais recebem `421`), e recusa envios e exclusões vindos de outros sites (`403`). Isso
 >   impede que uma página maliciosa aberta no seu navegador leia ou altere suas tarefas.

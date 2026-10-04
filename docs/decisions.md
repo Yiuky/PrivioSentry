@@ -101,13 +101,17 @@ Depois de algumas semanas de revisões, rode `train` de novo: o novo perfil só 
 
 ## Privacidade
 
-- O Laya roda localmente; nenhum texto sai da máquina. O modelo é baixado uma vez do Hugging Face. Para
-  fixar a versão, use `LAYA_REVISION=reviewed` (commits revisados pelo próprio Laya). Em redes com proxy e
-  inspeção TLS, o pacote `truststore` faz o Python usar os certificados do sistema.
-- Os exemplos de treino ficam em `PRIVIO_LEARNING_DIR` (padrão `./learning`, fora do git), com o texto
-  minimizado. Ainda assim contêm **palavras de endereços**: trate a pasta como dado pessoal, proteja-a e
-  apague com `purge` quando não precisar mais.
-- `decisions.json` fica na pasta de cada tarefa (`output/<tarefa>/`) e é apagado junto com ela.
+- O Laya roda localmente; nenhum texto sai da máquina. O modelo é baixado uma vez do Hugging Face, sempre
+  num **commit fixado no próprio PrivioSentry** (`PINNED_MODEL_REVISIONS` em `engine.py`), e os pesos são
+  lidos em safetensors (formato que não executa código). Outro modelo remoto só é aceito com
+  `LAYA_REVISION=<commit>`. O pacote `laya` também tem versão exata. Em redes com proxy e inspeção TLS, o
+  pacote `truststore` faz o Python usar os certificados do sistema.
+- Os exemplos de treino ficam em `PRIVIO_LEARNING_DIR` (padrão: pasta `learning/` do projeto, fora do git e
+  da imagem Docker), com o texto minimizado. Ainda assim contêm **palavras de endereços**: trate a pasta
+  como dado pessoal. Cada exemplo é ligado à tarefa de origem e **apagado junto com ela** (inclusive pela
+  retenção `RETENTION_DAYS`); `purge` apaga tudo, e só os arquivos que o aprendizado criou.
+- `decisions.json` fica na pasta de cada tarefa (`output/<tarefa>/`) e é apagado junto com ela e pelo
+  `/purge`.
 
 ## Limitações
 

@@ -12,7 +12,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
+from utils.auth import TokenAuth
 from utils.net_guard import check_request
+from utils.pii import install_access_log_masking, install_log_masking
 
 # Filtro para suprimir erros de conexão resetada no Windows (Harmless WinError 10054)
 class WinErrorFilter(logging.Filter):
@@ -35,8 +37,16 @@ for logger_name in ["uvicorn.error", "uvicorn.access", "Gatekeeper"]:
     l = logging.getLogger(logger_name)
     l.addFilter(WinErrorFilter())
 
+install_log_masking()          # CPF e ?token= mascarados nos registros
+install_access_log_masking()
+
 IS_WINDOWS = os.name == 'nt'  # constante para facilitar testes
 app = FastAPI(title="Gatekeeper Service")
+
+# Rotas do próprio painel. Com API_TOKEN definido, exigem o token (cabeçalho X-API-Token ou sessão
+# aberta com ?token=, ver utils/auth.py). As demais rotas são repassadas ao app, que cobra o token dele.
+PANEL_PATHS = ("/gatekeeper", "/manage", "/api/")
+GK_AUTH = TokenAuth("privio_gk_session")
 
 
 @app.middleware("http")
@@ -46,6 +56,11 @@ async def origin_guard(request: Request, call_next):
     blocked = check_request(request.method, request.headers, token_enabled=False)
     if blocked:
         return JSONResponse({"detail": blocked[1]}, status_code=blocked[0])
+    token = os.getenv("API_TOKEN", "")
+    if token and request.url.path.startswith(PANEL_PATHS):
+        denied = GK_AUTH.check(request, token)
+        if denied is not None:
+            return denied
     return await call_next(request)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
@@ -96,20 +111,45 @@ async def check_app_alive():
     except Exception:
         return False
 
-def kill_port_owner(port):
-    """Tenta matar qualquer processo que esteja usando a porta especificada."""
+def _listening_pids(port):
+    """PIDs escutando na porta (Windows, via `netstat -ano`, sem shell)."""
+    output = subprocess.check_output(["netstat", "-ano"], text=True, errors="replace")
+    pids = set()
+    for line in output.splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and "LISTEN" in parts[3].upper() and parts[1].rsplit(":", 1)[-1] == str(port):
+            if parts[-1].isdigit():
+                pids.add(parts[-1])
+    return pids
+
+
+def _process_command_line(pid):
+    """Linha de comando do processo (Windows), ou "" se não der para ler."""
     try:
-        if IS_WINDOWS:
-            # Comando para achar o PID na porta no Windows
-            cmd = f'netstat -ano | findstr LISTENING | findstr :{port}'
-            output = subprocess.check_output(cmd, shell=True, text=True)
-            for line in output.strip().split('\n'):
-                if f':{port}' in line:
-                    pid = line.strip().split()[-1]
-                    logger.info(f"Matando processo {pid} que estava usando a porta {port}...")
-                    subprocess.call(['taskkill', '/F', '/T', '/PID', pid])
+        return subprocess.check_output(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             f"(Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}').CommandLine"],
+            text=True, errors="replace", timeout=10).strip()
     except Exception:
-        # Frequentemente falha se não houver processo, o que é aceitável
+        return ""
+
+
+def kill_port_owner(port):
+    """
+    Libera a porta do app SÓ se quem a ocupa for um app_service.py órfão (de uma execução anterior).
+    Qualquer outro programa na porta é preservado; o app simplesmente não sobe e o motivo vai para o log.
+    """
+    if not IS_WINDOWS:
+        return
+    try:
+        for pid in _listening_pids(port):
+            if "app_service.py" in _process_command_line(pid):
+                logger.info(f"Encerrando app_service.py órfão (PID {pid}) na porta {port}...")
+                subprocess.call(['taskkill', '/F', '/T', '/PID', pid])
+            else:
+                logger.error(f"A porta {port} está em uso por outro programa (PID {pid}); ele NÃO será encerrado.")
+    except Exception:
+        # Sem netstat ou sem processo na porta: nada a fazer
         pass
 
 def manage_process(action):
@@ -124,8 +164,9 @@ def manage_process(action):
                 logger.info(f"Iniciando app_service.py na porta {state.app_port}...")
                 state.process = subprocess.Popen(
                     [sys.executable, os.path.join(BASE_DIR, "app_service.py")],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    # Saída herdada (console do gatekeeper): um PIPE que ninguém lê enche e trava o app (B-52)
+                    stdout=None,
+                    stderr=None,
                     text=True,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if IS_WINDOWS else 0
                 )

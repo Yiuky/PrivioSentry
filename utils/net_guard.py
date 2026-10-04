@@ -21,6 +21,31 @@ WILDCARD_HOSTS = {"", "0.0.0.0", "::"}
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
+def _host_port(value, default_port=None):
+    """('127.0.0.1', 8001) a partir de 'http://127.0.0.1:8001' ou '127.0.0.1:8001'."""
+    value = (value or "").strip()
+    if "://" not in value:
+        value = "//" + value
+    try:
+        parts = urlsplit(value)
+        port = parts.port
+    except ValueError:
+        return "", None
+    if port is None:
+        port = {"http": 80, "https": 443}.get(parts.scheme, default_port)
+    return (parts.hostname or "").lower(), port
+
+
+def _allowed_origin_ports(host_header):
+    """Portas aceitas na Origem: a do próprio serviço (Host) e a do gatekeeper, que repassa para o app."""
+    ports = {_host_port(host_header, 80)[1]}
+    try:
+        ports.add(int(os.getenv("GATEKEEPER_PORT", "8000")))
+    except ValueError:
+        pass
+    return ports
+
+
 def _hostname(value):
     """'Exemplo.com:8001' / '[::1]:8001' / 'http://x:1' -> nome do host em minúsculas, sem porta."""
     value = (value or "").strip()
@@ -59,8 +84,11 @@ def check_request(method, headers, token_enabled):
         if (headers.get("sec-fetch-site") or "").lower() == "cross-site":
             return 403, "Requisição de outro site recusada"
         origin = headers.get("origin")
-        if origin and origin != "null" and "*" not in hosts and _hostname(origin) not in hosts:
-            return 403, "Origem não permitida"
+        if origin and origin != "null" and "*" not in hosts:
+            o_host, o_port = _host_port(origin)
+            # Hostname permitido NÃO basta: outra aplicação local (outra porta) não pode disparar escritas.
+            if o_host not in hosts or o_port not in _allowed_origin_ports(headers.get("host")):
+                return 403, "Origem não permitida"
         if origin == "null":
             return 403, "Origem não permitida"
     return None

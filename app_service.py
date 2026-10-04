@@ -14,7 +14,8 @@ from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException, B
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from main import SentryApp
-from utils.pii import install_log_masking
+from utils.pii import install_access_log_masking, install_log_masking
+from utils.auth import TokenAuth
 from utils.net_guard import check_request
 from dotenv import load_dotenv
 load_dotenv()
@@ -22,6 +23,7 @@ load_dotenv()
 # Configuração de Log própria do App
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 install_log_masking()  # LGPD: nenhum CPF completo em log (root + handlers do app)
+install_access_log_masking()  # uvicorn: CPF e ?token= mascarados nos registros de acesso
 app_logger = logging.getLogger("AppTarjadorService")
 
 app = FastAPI(title="PRIVIO SENTRY Service")
@@ -139,6 +141,12 @@ def remove_task_artifacts(task):
     _remove_path(os.path.join(OUTPUT_DIR, task_base(task)), OUTPUT_DIR, removed, errors)
     _remove_path(task.get("input_path", ""), INPUT_DIR, removed, errors)
     _remove_path(final_pdf_path(task), FINAL_DIR, removed, errors)
+    try:  # exemplos de treino do decisor local vindos desta tarefa (só existem com LEARNING_ENABLED=1)
+        from utils.decisions.learning import LearningStore
+        if LearningStore().remove_task(task_base(task)):
+            removed.append("learning/examples (desta tarefa)")
+    except Exception as e:
+        errors.append(f"learning: {e}")
     return removed, errors
 
 # Pastas de trabalho com imagens/recortes/respostas SEM tarja (ou parcialmente tarjadas).
@@ -148,6 +156,7 @@ PURGE_DIRS = (
     "04_signatures_crops_tarjados", "04_micro_audit_results", "06_final_enhanced",
     "07_addresses_crops_ia", "08_addresses_crops_tarjados", "99_ia_interactions",
     os.path.join("05_final_export", "cpf_only"), os.path.join("05_final_export", "address_only"),
+    "decisions.json",  # texto (minimizado) dos endereços avaliados pelo decisor local
 )
 
 def purge_task_originals(task, include_input=False):
@@ -234,6 +243,9 @@ def sanitize_filename(name: str) -> str:
 
 startup_maintenance()  # após todas as definições acima (usa is_running/task_base)
 
+AUTH = TokenAuth("privio_session")
+
+
 @app.middleware("http")
 async def token_guard(request: Request, call_next):
     # Sem token: só aceita Host esperado (anti DNS rebinding) e recusa POST/DELETE de outros sites (anti CSRF).
@@ -243,13 +255,10 @@ async def token_guard(request: Request, call_next):
         if blocked:
             return JSONResponse({"detail": blocked[1]}, status_code=blocked[0])
     if API_TOKEN and not request.url.path.startswith("/internal/"):
-        supplied = request.headers.get("x-api-token") or request.cookies.get("api_token") or request.query_params.get("token")
-        if not supplied or not secrets.compare_digest(supplied, API_TOKEN):
-            return JSONResponse({"detail": "Não autorizado"}, status_code=401)
-        response = await call_next(request)
-        if request.query_params.get("token"):
-            response.set_cookie("api_token", API_TOKEN, httponly=True, samesite="strict")
-        return response
+        # Cabeçalho X-API-Token ou sessão aleatória (o token nunca vai para o cookie). Ver utils/auth.py.
+        denied = AUTH.check(request, API_TOKEN)
+        if denied is not None:
+            return denied
     return await call_next(request)
 
 def redaction_worker(task_id: str, file_path: str, manual_redactions=None, native_mode=False,

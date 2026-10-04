@@ -142,3 +142,24 @@ def test_inference_failure_is_reported_not_silent(fake_ultralytics, model_file, 
     FakeModel.boxes = []
     eng.get_candidates(img)
     assert eng.last_error is None  # reseta a cada chamada
+
+
+def test_default_model_must_match_its_sha256(fake_ultralytics, tmp_path, monkeypatch):
+    bad = tmp_path / "signature_stamp_detector.pt"
+    bad.write_bytes(b"pickle malicioso")
+    monkeypatch.setattr(yolo_engine, "DEFAULT_MODEL_PATH", str(bad))
+    eng = YOLOEngine(str(bad), logging.getLogger("t_yolo_sha"))
+    assert eng.model is None and "recusado" in eng.integrity_error
+
+
+def test_custom_model_checked_when_sha256_given(fake_ultralytics, model_file, monkeypatch):
+    monkeypatch.setenv("YOLO_MODEL_SHA256", "0" * 64)
+    assert YOLOEngine(model_file, logging.getLogger("t_yolo_sha2")).model is None
+    monkeypatch.setenv("YOLO_MODEL_SHA256", yolo_engine.file_sha256(model_file))
+    assert YOLOEngine(model_file, logging.getLogger("t_yolo_sha3")).model is not None
+
+
+def test_repository_model_matches_pinned_hash():
+    if not os.path.exists(DEFAULT_MODEL_PATH):
+        pytest.skip("modelo padrao ausente")
+    assert yolo_engine.file_sha256(DEFAULT_MODEL_PATH) == yolo_engine.DEFAULT_MODEL_SHA256

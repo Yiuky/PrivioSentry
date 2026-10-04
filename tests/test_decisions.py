@@ -120,6 +120,60 @@ def test_rollback_and_purge(tmp_path):
     assert not os.path.exists(store.root)
 
 
+def test_purge_never_deletes_foreign_files(tmp_path):
+    root = tmp_path / "pasta_do_usuario"
+    root.mkdir()
+    (root / "documento_importante.txt").write_text("não apagar", encoding="utf-8")
+    store = learning.LearningStore(root)
+    learning.train(store, KeywordEngine().features, model="fake", n_synthetic=80)
+    store.purge()
+    assert (root / "documento_importante.txt").exists()
+    assert sorted(os.listdir(root)) == ["documento_importante.txt"]
+
+
+def test_models_never_float_on_the_hub(monkeypatch, tmp_path):
+    from utils.decisions.engine import PINNED_MODEL_REVISIONS, LayaEngine
+
+    class CompromisedLaya:  # o pin não vem do pacote laya
+        PINNED_REVISIONS = {"convaiinnovations/laya-multilingual": "commit-malicioso"}
+
+    official = PINNED_MODEL_REVISIONS["convaiinnovations/laya-multilingual"]
+    assert LayaEngine()._revision(CompromisedLaya) == official
+    with pytest.raises(ValueError, match="sem commit fixo"):
+        LayaEngine(model_id="outro/modelo")._revision()
+    assert LayaEngine(model_id=str(tmp_path))._revision() is None   # pasta local
+    monkeypatch.setenv("LAYA_REVISION", "def456")
+    assert LayaEngine(model_id="outro/modelo")._revision() == "def456"
+
+
+def test_unpinned_model_failure_falls_back_safely(monkeypatch):
+    import sys
+    import types
+    from utils.decisions.engine import LayaEngine
+    monkeypatch.setitem(sys.modules, "laya", types.SimpleNamespace(load=lambda *a, **k: None))
+    service = DecisionService(LayaEngine(model_id="outro/modelo"))
+    assert service.decide_many(["Rua A"])[0].p_personal is None   # sem decisor: a política pede revisão
+
+
+def test_examples_are_removed_with_their_task(tmp_path, monkeypatch):
+    task_dir = tmp_path / "tarefa_a"
+    task_dir.mkdir()
+    feedback.write_decision_log(str(task_dir), ENTRIES)
+    monkeypatch.setenv("LEARNING_ENABLED", "1")
+    store = learning.LearningStore(tmp_path / "learn")
+    feedback.capture_review(str(task_dir), [], store)
+    store.add_examples([{"text": "outro exemplo", "label": 1, "source": "import"}])
+    assert len(store.examples()) == 3
+    assert store.remove_task("tarefa_a") == 2
+    assert [e["text"] for e in store.examples()] == ["outro exemplo"]
+
+
+def test_default_learning_dir_is_inside_the_project(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)  # abrir o programa de outra pasta não muda onde o aprendizado fica
+    monkeypatch.delenv("PRIVIO_LEARNING_DIR", raising=False)
+    assert learning.LearningStore().root == os.path.join(learning.PROJECT_DIR, "learning")
+
+
 def test_profile_from_other_question_version_is_ignored(tmp_path):
     store = learning.LearningStore(tmp_path / "learn")
     learning.train(store, KeywordEngine().features, model="fake", n_synthetic=80)

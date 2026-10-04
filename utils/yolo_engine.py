@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+import hashlib
 import logging
 import os
 
@@ -7,6 +8,18 @@ from PIL import Image
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_MODEL_RELATIVE = os.path.join("models", "signature_stamp_detector.pt")
 DEFAULT_MODEL_PATH = os.path.join(REPO_ROOT, DEFAULT_MODEL_RELATIVE)
+# SHA-256 do modelo distribuído no repositório. O formato .pt é um pickle (pode executar código ao ser
+# carregado): um arquivo diferente deste NÃO é carregado. Trocou o modelo de propósito? Atualize aqui e no
+# models/MODEL_CARD.md, ou use YOLO_MODEL_PATH + YOLO_MODEL_SHA256.
+DEFAULT_MODEL_SHA256 = "bbdf0d6833ef6db7afa24c0fe98423fc011f8692e6bdf0279cfe827db0d93d63"
+
+
+def file_sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def resolve_model_path(model_path=None):
@@ -28,17 +41,37 @@ class YOLOEngine:
         self.model = None
         self.names = {}
         self.last_error = None  # erro da última inferência (None = ok); o chamador deve falhar fechado
+        self.integrity_error = None  # modelo recusado por não bater com o SHA-256 esperado
         model_path = resolve_model_path(model_path)
         if not os.path.exists(model_path):
             self.logger.warning(
                 f"[!] YOLO model not found at {model_path}. A fase de detecção visual de assinaturas "
                 f"será PULADA (coloque o modelo em {DEFAULT_MODEL_RELATIVE} ou defina YOLO_MODEL_PATH)."
             )
+        elif not self._integrity_ok(model_path):
+            pass  # recusado: self.model fica None e o pipeline exige revisão
         else:
             self.logger.info(f"[*] Loading YOLO model from {model_path}...")
             from ultralytics import YOLO  # import tardio: pesado e opcional sem modelo
             self.model = YOLO(model_path)
             self.names = self.model.names  # {id: name}
+
+    def _integrity_ok(self, model_path):
+        """Confere o SHA-256 antes de carregar. Modelo padrão: hash fixo. Outro caminho: YOLO_MODEL_SHA256."""
+        expected = (os.getenv("YOLO_MODEL_SHA256") or "").strip().lower()
+        if not expected and os.path.realpath(model_path) == os.path.realpath(DEFAULT_MODEL_PATH):
+            expected = DEFAULT_MODEL_SHA256
+        if not expected:
+            self.logger.warning("[!] Modelo YOLO personalizado sem YOLO_MODEL_SHA256: integridade não verificada "
+                                "(arquivos .pt podem executar código ao carregar; use só modelos de confiança).")
+            return True
+        actual = file_sha256(model_path)
+        if actual != expected:
+            self.integrity_error = (f"Modelo YOLO recusado: SHA-256 {actual[:12]}... difere do esperado "
+                                    f"{expected[:12]}... (arquivo alterado ou corrompido)")
+            self.logger.error(f"[!!] {self.integrity_error}")
+            return False
+        return True
 
     def get_candidates(self, img_path, conf_threshold=0.25, crop_dir=None, page_num=0):
         """

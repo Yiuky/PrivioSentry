@@ -41,6 +41,13 @@ def test_same_origin_and_originless_writes_are_accepted(loopback_only):
     assert check_request("GET", {**base, "origin": "https://evil.example"}, False) is None  # leitura: CORS barra
 
 
+def test_other_local_port_cannot_write(loopback_only):
+    base = {"host": "127.0.0.1:8001"}
+    assert check_request("POST", {**base, "origin": "http://127.0.0.1:3000"}, False)[0] == 403   # outro app local
+    assert check_request("POST", {**base, "origin": "http://127.0.0.1:8000"}, False) is None     # gatekeeper
+    assert check_request("POST", {**base, "origin": "http://localhost:8001"}, False) is None
+
+
 def test_app_host_and_allowed_hosts_extend_the_list(monkeypatch):
     monkeypatch.setenv("APP_HOST", "Sentry.Local")
     monkeypatch.setenv("ALLOWED_HOSTS", "intranet.example, 10.0.0.5")

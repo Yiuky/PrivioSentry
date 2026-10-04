@@ -40,6 +40,9 @@ REVIEW_WEIGHT = 3.0  # uma correção real do revisor vale mais que um exemplo s
 
 FeatureFn = Callable[[Sequence[str]], List[List[float]]]
 
+# Pasta padrão: dentro do projeto (não da pasta de onde o programa foi aberto), coberta pelo .gitignore.
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 def _now():
     return datetime.now().isoformat(timespec="seconds")
@@ -62,7 +65,7 @@ class LearningStore:
     """Pasta local com examples.jsonl, cache de características, perfis versionados e manifest.json."""
 
     def __init__(self, root=None):
-        self.root = os.path.abspath(root or os.getenv("PRIVIO_LEARNING_DIR") or "learning")
+        self.root = os.path.abspath(root or os.getenv("PRIVIO_LEARNING_DIR") or os.path.join(PROJECT_DIR, "learning"))
         self.examples_path = os.path.join(self.root, "examples.jsonl")
         self.cache_path = os.path.join(self.root, "features_cache.json")
         self.profiles_dir = os.path.join(self.root, "profiles")
@@ -70,7 +73,10 @@ class LearningStore:
 
     # exemplos ---------------------------------------------------------------------------------
     def add_examples(self, rows: Sequence[Dict]) -> int:
-        """rows: {"text", "label" (0/1), "source"}. O texto é minimizado antes de gravar."""
+        """rows: {"text", "label" (0/1), "source", "task"?}. O texto é minimizado antes de gravar.
+
+        "task" liga o exemplo à tarefa de origem: quando a tarefa é apagada (ou expira pela retenção),
+        os exemplos dela também são apagados (remove_task)."""
         os.makedirs(self.root, exist_ok=True)
         n = 0
         with open(self.examples_path, "a", encoding="utf-8") as f:
@@ -78,8 +84,10 @@ class LearningStore:
                 text = normalize_state(r.get("text"))
                 if not text or r.get("label") not in (0, 1):
                     continue
-                f.write(json.dumps({"text": text, "label": int(r["label"]), "source": r.get("source", "import"),
-                                    "at": _now()}, ensure_ascii=False) + "\n")
+                row = {"text": text, "label": int(r["label"]), "source": r.get("source", "import"), "at": _now()}
+                if r.get("task"):
+                    row["task"] = str(r["task"])
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
                 n += 1
         return n
 
@@ -96,6 +104,27 @@ class LearningStore:
                     continue
                 latest[row["text"]] = row
         return list(latest.values())
+
+    def remove_task(self, task) -> int:
+        """Apaga os exemplos vindos de uma tarefa (direito de eliminação). Devolve quantos removeu."""
+        if not task or not os.path.exists(self.examples_path):
+            return 0
+        kept, removed = [], 0
+        with open(self.examples_path, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    if json.loads(line).get("task") == str(task):
+                        removed += 1
+                        continue
+                except ValueError:
+                    pass
+                kept.append(line)
+        if removed:
+            fd, tmp = tempfile.mkstemp(dir=self.root, suffix=".tmp")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.writelines(kept)
+            os.replace(tmp, self.examples_path)
+        return removed
 
     # perfis -------------------------------------------------------------------------------------
     def manifest(self) -> Dict:
@@ -150,10 +179,26 @@ class LearningStore:
         return previous
 
     def purge(self):
-        """Apaga exemplos, cache e perfis (direito de eliminação / fim do uso)."""
-        import shutil
-        if os.path.isdir(self.root):
-            shutil.rmtree(self.root)
+        """
+        Apaga exemplos, cache e perfis (direito de eliminação / fim do uso). Só remove o que o próprio
+        aprendizado cria: se PRIVIO_LEARNING_DIR apontar por engano para uma pasta com outros arquivos,
+        eles ficam intactos (e a pasta também).
+        """
+        for path in (self.examples_path, self.cache_path, self.manifest_path):
+            if os.path.isfile(path):
+                os.remove(path)
+        if os.path.isdir(self.root):  # temporários de gravações interrompidas
+            for name in os.listdir(self.root):
+                if name.endswith(".tmp"):
+                    os.remove(os.path.join(self.root, name))
+        if os.path.isdir(self.profiles_dir):
+            for name in os.listdir(self.profiles_dir):
+                if name.startswith("v") and name.endswith(".json"):
+                    os.remove(os.path.join(self.profiles_dir, name))
+            if not os.listdir(self.profiles_dir):
+                os.rmdir(self.profiles_dir)
+        if os.path.isdir(self.root) and not os.listdir(self.root):
+            os.rmdir(self.root)
 
     # cache de características (o modelo é lento perto do treino) ----------------------------------
     def cached_features(self, texts: Sequence[str], feature_fn: FeatureFn, model: str) -> List[List[float]]:

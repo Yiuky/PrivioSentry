@@ -63,6 +63,7 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
 | `utils/verifier.py` | Verificação pós-tarja: relê o PDF final e confronta o original (`find_uncovered_cpfs`) |
 | `utils/pii.py` | Mascaramento de CPF em logs |
 | `utils/decisions/` | Decisor local (Laya) e automelhoramento: perguntas, motor, regra de combinação, treino com portão de qualidade e versões. Guia: [docs/decisions.md](docs/decisions.md) |
+| `utils/auth.py` | Autenticação por `API_TOKEN` com sessão aleatória (app e gatekeeper): `?token=` só abre a sessão e sai da URL |
 | `utils/net_guard.py` | Checagem de `Host`/`Origin` (anti *DNS rebinding* e CSRF) usada pelo app e pelo gatekeeper; `ALLOWED_HOSTS` |
 | `templates/index.html` | Editor web autocontido; textos no objeto `I18N` (pt-BR padrão, en-US), chaves conforme `docs/brand/UX_SPEC.md`; renderizador Markdown próprio que **nunca** injeta HTML |
 | `templates/gatekeeper.html` | Página do painel quando o app está desligado |

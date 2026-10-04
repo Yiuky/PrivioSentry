@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "privio-sentry"
-version = "5.2.0"
+version = "5.3.0"
 description = "PRIVIO SENTRY - Local AI Privacy Infrastructure. SENTRY Redact: local OCR + YOLO + vision LLM pipeline that suggests redactions of CPF numbers and personal addresses in PDFs, with human review. Supports LGPD-aligned practices; does not guarantee anonymization."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,7 +41,7 @@ dev = ["pytest>=9.0", "pytest-cov>=7.0", "ruff==0.16.10"]
 ui = ["pytest-playwright>=0.7"]
 # Decisor local opcional (modelo de decisão calibrado Laya, Apache-2.0) + certificados do sistema
 # (redes com proxy/inspeção TLS). Ver docs/decisions.md.
-laya = ["laya>=0.3.26", "truststore>=0.9"]
+laya = ["laya==0.3.26", "truststore==0.10.4"]  # versões exatas (cadeia de suprimentos)
 
 [project.urls]
 Homepage = "https://github.com/Yiuky/PrivioSentry"

@@ -152,21 +152,26 @@ def test_manage_process_swallows_spawn_errors(gk, monkeypatch, caplog):
     assert "Erro ao gerenciar processo" in caplog.text
 
 
-def test_kill_port_owner_parses_netstat_on_windows(monkeypatch):
+def test_kill_port_owner_kills_only_orphan_app_service(monkeypatch):
     import gatekeeper
     importlib.reload(gatekeeper)
     killed = []
     monkeypatch.setattr(gatekeeper, "IS_WINDOWS", True)
-    monkeypatch.setattr(gatekeeper.subprocess, "check_output",
-                        lambda cmd, shell, text: "  TCP    127.0.0.1:8001    0.0.0.0:0    LISTENING    777\n"
-                                                 "  TCP    127.0.0.1:18001   0.0.0.0:0    LISTENING    888\n")
+    netstat = ("  TCP    127.0.0.1:8001    0.0.0.0:0    LISTENING    777\n"
+               "  TCP    127.0.0.1:8001    0.0.0.0:0    LISTENING    555\n"
+               "  TCP    127.0.0.1:18001   0.0.0.0:0    LISTENING    888\n")
+    cmdlines = {"777": "python C:/app/app_service.py", "555": "C:/Programas/OutroServidor.exe --port 8001"}
+
+    def fake_check_output(cmd, **kw):
+        assert not kw.get("shell"), "sem shell"
+        if cmd[0] == "netstat":
+            return netstat
+        return cmdlines[cmd[-1].split("ProcessId=")[1].split("'")[0]]
+
+    monkeypatch.setattr(gatekeeper.subprocess, "check_output", fake_check_output)
     monkeypatch.setattr(gatekeeper.subprocess, "call", lambda cmd: killed.append(cmd[-1]))
     gatekeeper.kill_port_owner(8001)
-    assert "777" in killed
-    monkeypatch.setattr(gatekeeper.subprocess, "check_output", lambda *a, **k: (_ for _ in ()).throw(OSError("x")))
-    gatekeeper.kill_port_owner(8001)   # sem processo na porta: silencioso
-    monkeypatch.setattr(gatekeeper, "IS_WINDOWS", False)
-    gatekeeper.kill_port_owner(8001)   # nao faz nada fora do Windows
+    assert killed == ["777"]          # o órfão do app; o outro programa (555) e a porta 18001 ficam
 
 
 # --- check_app_alive ---------------------------------------------------------------------------

@@ -10,7 +10,8 @@ Configuração (variáveis de ambiente, documentadas em docs/configuration.md):
     DECISION_MODE     shadow (padrão) | assist   -- ver utils/decisions/policy.py
     LAYA_MODEL        id no Hugging Face ou pasta local (padrão: convaiinnovations/laya-multilingual)
     LAYA_DEVICE       cpu (padrão) | cuda
-    LAYA_REVISION     commit fixo do modelo; "reviewed" usa os commits revisados pelo próprio Laya
+    LAYA_REVISION     commit do modelo a baixar. Vazio = commit revisado (PINNED_MODEL_REVISIONS) para os
+                      modelos oficiais; outro modelo do Hugging Face sem commit fixo é RECUSADO
 """
 import logging
 import math
@@ -24,6 +25,14 @@ from .questions import ADDRESS_QUESTIONS, FEATURE_IDS, PRIMARY_QUESTION, QUESTIO
 logger = logging.getLogger("decisions")
 
 DEFAULT_LAYA_MODEL = "convaiinnovations/laya-multilingual"
+
+# Commits revisados dos modelos oficiais, fixados AQUI (e não lidos do pacote laya, que poderia ser
+# alterado numa versão comprometida). Atualize junto com a versão do laya em pyproject.toml.
+PINNED_MODEL_REVISIONS = {
+    "convaiinnovations/laya": "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851",
+    "convaiinnovations/laya-multilingual": "e4e9ddf21a7b1903b7acffd8814ad4307bf63a67",
+    "convaiinnovations/laya-typed-decisions": "1a793eb568e6718f15941d08f85432581df534e3",
+}
 _EPS = 1e-4
 
 
@@ -58,9 +67,27 @@ class LayaEngine:
             except ImportError:
                 pass
             import laya  # dependência opcional: pip install -e ".[laya]"
-            logger.info(f"[decisions] carregando {self.model_id} em {self.device}...")
-            self._agent = laya.load(self.model_id, device=self.device)
+            revision = self._revision(laya)
+            logger.info(f"[decisions] carregando {self.model_id} ({revision or 'sem versão fixa'}) em {self.device}...")
+            self._agent = laya.load(self.model_id, device=self.device, revision=revision)
         return self._agent
+
+    def _revision(self, laya=None):
+        """
+        Cadeia de suprimentos: o modelo baixado nunca "flutua" no Hugging Face.
+        LAYA_REVISION explícito > commit fixado aqui (modelos oficiais) > pasta local (sem revisão).
+        Modelo remoto sem commit fixo levanta erro (o serviço segue sem decisor e pede revisão).
+        """
+        explicit = (os.getenv("LAYA_REVISION") or "").strip()
+        if explicit:
+            return explicit
+        if os.path.isdir(self.model_id):
+            return None
+        pinned = {k.lower(): v for k, v in PINNED_MODEL_REVISIONS.items()}.get(self.model_id.lower())
+        if pinned is None:
+            raise ValueError(f"modelo {self.model_id!r} sem commit fixo: defina LAYA_REVISION=<commit> "
+                             f"ou use uma pasta local")
+        return pinned
 
     def features(self, texts: Sequence[str]) -> List[List[float]]:
         if not texts:

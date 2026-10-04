@@ -41,6 +41,8 @@ def isolated_environment(request, tmp_path, monkeypatch):
         monkeypatch.delenv(name, raising=False)
     # O TestClient usa o Host "testserver"; a proteção de Host (utils/net_guard.py) o aceita só nos testes.
     monkeypatch.setenv("ALLOWED_HOSTS", "testserver")
+    # Aprendizado do decisor sempre em pasta temporária: nunca toca em learning/ do projeto
+    monkeypatch.setenv("PRIVIO_LEARNING_DIR", str(tmp_path / "learning"))
     # O decisor local guarda uma instância por processo: cada teste parte do zero (desligado por padrão)
     from utils.decisions import reset_engine
     reset_engine()

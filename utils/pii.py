@@ -8,9 +8,11 @@ import logging
 import re
 import traceback
 
-# CPF formatado (000.000.000-00), com separadores parciais/espaços ou 11 dígitos corridos.
+# CPF formatado (000.000.000-00), com separadores variados (ponto, espaço, vírgula, hífen, barra, até 2 seguidos)
+# ou 11 dígitos corridos. Nos logs, mascarar a mais é aceitável; deixar passar um CPF, não.
 # O lookbehind/lookahead evita mascarar pedaço de um número maior (ex.: CNPJ de 14 dígitos).
-CPF_PATTERN = re.compile(r"(?<!\d)(\d{3})[.\s]?(\d{3})[.\s]?(\d{3})[-.\s]?(\d{2})(?!\d)")
+_SEP = r"[\s.,\-/]{0,2}"
+CPF_PATTERN = re.compile(rf"(?<!\d)(\d{{3}}){_SEP}(\d{{3}}){_SEP}(\d{{3}}){_SEP}(\d{{2}})(?!\d)")
 
 
 def _mask_match(match):
@@ -23,6 +25,17 @@ def mask_cpf(value):
     if len(digits) != 11:
         return "***.***.***-**"
     return f"***.***.{digits[6:9]}-{digits[9:]}"
+
+
+# Segredos em URLs (ex.: "?token=..."): nunca vão para o log por inteiro.
+SECRET_QUERY_PATTERN = re.compile(r"((?:api_)?token=)[^&\s\"']+", re.IGNORECASE)
+
+
+def mask_secrets(text):
+    """'/tasks?token=abc' -> '/tasks?token=***'."""
+    if not text:
+        return text
+    return SECRET_QUERY_PATTERN.sub(r"\1***", str(text))
 
 
 def mask_text(text):
@@ -40,7 +53,7 @@ class CpfMaskingFilter(logging.Filter):
             message = record.getMessage()
         except Exception:
             message = str(record.msg)
-        record.msg = mask_text(message)
+        record.msg = mask_secrets(mask_text(message))
         record.args = None
         if record.exc_info:
             record.exc_text = mask_text("".join(traceback.format_exception(*record.exc_info)))
@@ -48,6 +61,19 @@ class CpfMaskingFilter(logging.Filter):
         elif record.exc_text:
             record.exc_text = mask_text(record.exc_text)
         return True
+
+
+def install_access_log_masking():
+    """Mascara CPF e segredos nos registros do uvicorn (acesso e erro), que têm handlers próprios.
+
+    Filtro de LOGGER: vale para tudo o que esses loggers registram, mesmo com handlers criados depois.
+    """
+    flt = CpfMaskingFilter()
+    for name in ("uvicorn.access", "uvicorn.error"):
+        lg = logging.getLogger(name)
+        if not any(isinstance(f, CpfMaskingFilter) for f in lg.filters):
+            lg.addFilter(flt)
+    return flt
 
 
 def install_log_masking(logger=None):

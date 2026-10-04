@@ -29,3 +29,10 @@ test-results
 playwright-report
 *.pdf
 !examples/sample_input.pdf
+# Nunca na imagem: variações de .env (podem ter API_TOKEN), aprendizado do decisor local e estado
+.env.*
+!.env.example
+learning
+*.jsonl
+features_cache.json
+state

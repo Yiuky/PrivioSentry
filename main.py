@@ -245,7 +245,8 @@ class SentryApp:
         if not self.yolo.model:
             # Degrada com aviso (não bloqueia), mas registra: assinaturas não foram detectadas visualmente.
             # Sem detector, nenhuma assinatura foi auditada: falha fechado (o documento exige revisão).
-            self.add_document_review("Modelo YOLO ausente: assinaturas não foram detectadas visualmente (revisar assinaturas manualmente).")
+            reason = getattr(self.yolo, "integrity_error", None) or "Modelo YOLO ausente"
+            self.add_document_review(f"{reason}: assinaturas não foram detectadas visualmente (revisar assinaturas manualmente).")
             return
         self.all_crops_metadata = []
         for i, img_path in enumerate(self.image_paths):
@@ -465,7 +466,8 @@ class SentryApp:
             
             self.logger.info(f"[*] Auditando crop tarjado da pág {page_num}: {filename}...")
             response, img_bytes, metrics = self.address_redactor.ai.analyze_image(redacted_crop_path, prompt)
-            self.logger.info(f"    -> RESPONSE DA VISÃO: {response}")
+            keys = sorted(response) if isinstance(response, dict) else type(response).__name__
+            self.logger.info(f"    -> resposta da visão recebida (campos: {keys}); conteúdo só em 99_ia_interactions")
             
             self.session.save_ai_interaction(
                 phase_key="Signature_Audit",
