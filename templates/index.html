@@ -146,6 +146,7 @@
         @media (prefers-reduced-motion: reduce) { .review-mark.flash { animation: none; outline: 4px solid var(--warning-strong); } }
         .redaction-box { position:absolute; background:rgba(11,18,32,0.45); border:2px solid var(--primary); pointer-events:auto; z-index:2; }
         .redaction-box.type-signature { border-color: var(--teal); background: rgba(20, 184, 166, 0.40); }
+        .redaction-box.no-tag::before { display:none; }
         .redaction-box.type-labelled::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--primary); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
         .task-pii { font-size:12px; color:var(--slate); margin-top:2px; cursor:help; }
         /* Opções do próximo envio: painel recolhível com resumo; escolhas em botões (pílulas) */
@@ -169,8 +170,8 @@
         .opt-pill:focus-visible { outline:2px solid #6366F1; outline-offset:2px; }
         .upload-options .opt-hint { font-size:11px; color:var(--slate); }
         .upload-options .opt-hint:empty { display:none; }
-        .sidebar-actions { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; }
-        .sidebar-actions .tool-btn { padding:6px 2px; font-size:11.5px; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+        .sidebar-actions { display:flex; flex-wrap:wrap; gap:6px; }
+        .sidebar-actions .tool-btn { flex:1 1 auto; padding:6px 8px; font-size:12px; white-space:nowrap; }
         .task-opts { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
         .opt-chip { font-size:11px; padding:1px 7px; border-radius:10px; background:#EEF2FF; color:#3730A3; }
         .redaction-box.type-signature::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--teal-strong); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
@@ -1023,9 +1024,53 @@
             renderRedactions();
         }
 
+        function isSignatureBox(r) {
+            // Assinatura de verdade: detector YOLO, ou caixa "signature" SEM rótulo (desenhada como assinatura).
+            // As tarjas de CPF usam o tipo interno "signature" com rótulo "CPF": mostram "CPF", não "possível assinatura".
+            return r.source === 'YOLO_Vision' || (r.type === 'signature' && !r.label);
+        }
+
+        function boxTagLabel(r) {
+            if (isSignatureBox(r)) return r.source === 'Manual' ? 'sig-manual' : 'sig';
+            return (r.source !== 'Manual' && r.label) ? 'type:' + String(r.label) : null;
+        }
+
+        function untaggedBoxes() {
+            // Uma etiqueta por TRECHO: caixas do mesmo rótulo na mesma linha e coladas (as palavras de um endereço)
+            // ou quase sobrepostas (as leituras de OCR acham o mesmo dado) não repetem a etiqueta visível.
+            const hidden = new Set();
+            const byPage = {};
+            redactions.forEach(r => { if (r && r.coords) (byPage[r.page] = byPage[r.page] || []).push(r); });
+            Object.values(byPage).forEach(list => {
+                const sorted = list.slice().sort((a, b) => ((a.coords[1] + a.coords[3]) / 2 - (b.coords[1] + b.coords[3]) / 2)
+                    || (a.coords[0] - b.coords[0]));
+                const shown = [];
+                for (const r of sorted) {
+                    const tag = boxTagLabel(r);
+                    if (!tag) continue;
+                    const [x0, y0, x1, y1] = r.coords, h = y1 - y0;
+                    const near = shown.some(p => {
+                        if (p.tag !== tag) return false;
+                        const [a0, b0, a1, b1] = p.r.coords, ph = b1 - b0;
+                        const ix = Math.max(0, Math.min(x1, a1) - Math.max(x0, a0));
+                        const iy = Math.max(0, Math.min(y1, b1) - Math.max(y0, b0));
+                        const smaller = Math.min((x1 - x0) * h, (a1 - a0) * ph);
+                        if (smaller > 0 && ix * iy / smaller > 0.5) return true;                 // quase a mesma caixa
+                        const sameLine = Math.abs((y0 + y1) / 2 - (b0 + b1) / 2) < 0.6 * Math.max(h, ph);
+                        const gap = x0 - a1;
+                        return sameLine && gap > -0.5 * Math.max(h, ph) && gap < 1.5 * Math.max(h, ph); // palavra seguinte
+                    });
+                    if (near) hidden.add(r);
+                    shown.push({ r, tag });  // a cadeia continua a partir desta caixa
+                }
+            });
+            return hidden;
+        }
+
         function renderRedactions() {
             // Limpa todos os layers antes de renderizar
             document.querySelectorAll('.redaction-layer').forEach(l => l.innerHTML = '');
+            const noTag = untaggedBoxes();
 
             redactions.forEach((r) => {
                 const layer = document.getElementById(`layer-${r.page}`);
@@ -1041,7 +1086,7 @@
                 const sY = img.height / srcH;
 
                 const box = document.createElement('div');
-                const isSignature = r.type === 'signature' || r.source === 'YOLO_Vision';
+                const isSignature = isSignatureBox(r);
                 const isManual = r.source === 'Manual';
                 box.className = `redaction-box ${selectedBox === r ? 'selected' : ''} ${isSignature ? 'type-signature' : ''}`;
                 box.dataset.testid = 'redaction-box';
@@ -1054,6 +1099,7 @@
                 box.setAttribute('aria-label', label);
                 if (isSignature) box.dataset.label = isManual ? t('region.manualSignatureLabel') : t('region.signatureLabel');
                 if (typed) { box.classList.add('type-labelled'); box.dataset.label = String(r.label); }
+                if (noTag.has(r)) box.classList.add('no-tag');  // a etiqueta já aparece no início do trecho
                 box.style.left = (r.coords[0] * sX) + 'px'; box.style.top = (r.coords[1] * sY) + 'px';
                 box.style.width = ((r.coords[2] - r.coords[0]) * sX) + 'px'; box.style.height = ((r.coords[3] - r.coords[1]) * sY) + 'px';
 
