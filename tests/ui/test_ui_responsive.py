@@ -76,3 +76,43 @@ def test_tags_on_a_phone_only_on_the_selected_box(page, opened, live_app):
     page = opened(390, 800)
     vis = page.evaluate("() => getComputedStyle(document.querySelector('#layer-1 .redaction-box'), '::before').display")
     assert vis == "none"
+
+
+@pytest.mark.parametrize("width, height", WIDTHS)
+def test_editor_toolbar_layout_in_english(opened, width, height):
+    # rótulos em inglês têm outro tamanho ("Apply protection (native mode)", "Reload AI suggestions")
+    page = opened(width, height)
+    page.get_by_test_id("lang-select").select_option("en-US")
+    expect(page.locator("#btn-generate")).to_contain_text("Apply protection")
+    header = rects(page, ".header")[0]
+    buttons = rects(page, "#toolbar .tool-btn")
+    for b in buttons:
+        assert header["t"] + 6 <= b["t"] and b["b"] <= header["b"] - 4, (b["txt"], width)
+        assert b["l"] >= 0 and b["r"] <= width and b["sw"] <= b["cw"] + 1 and b["b"] - b["t"] <= 44, (b["txt"], width)
+    for i, a in enumerate(buttons):
+        for c in buttons[i + 1:]:
+            assert overlap(a, c) == 0, (a["txt"], c["txt"], width)
+    assert page.evaluate("() => document.documentElement.scrollWidth") <= width + 1
+
+
+@pytest.mark.parametrize("width, height", [(390, 800), (640, 800), (900, 700)])
+def test_sidebar_drawer_with_options_open_fits(page, live_app, open_app, width, height, monkeypatch):
+    for name in ("POLICY_PROFILE", "NER_ENGINE", "SECOND_LOOK", "OCR_EXTRA_ENGINE"):
+        monkeypatch.delenv(name, raising=False)
+    live_app.seed_task(LONG_NAME)
+    page.set_viewport_size({"width": width, "height": height})
+    open_app()
+    page.locator("#menu-toggle").click()
+    page.wait_for_function("() => document.querySelectorAll('#opt-profile .opt-pill').length > 0")
+    page.get_by_test_id("opt-toggle").click()
+    expect(page.get_by_test_id("opt-profile")).to_be_visible()
+    page.wait_for_timeout(400)                                          # animação de abrir a barra
+    sidebar = rects(page, ".sidebar")[0]
+    for sel in ("#opt-profile .opt-pill", "#opt-names", "#opt-lowq", ".sidebar-actions .tool-btn", ".sidebar-footer .btn-primary"):
+        for b in rects(page, sel):
+            assert sidebar["l"] - 1 <= b["l"] and b["r"] <= sidebar["r"] + 1, (sel, b["txt"], width)
+            assert b["sw"] <= b["cw"] + 1, (sel, b["txt"], width)
+    assert page.evaluate("() => document.documentElement.scrollWidth") <= width + 1
+    # a lista de tarefas continua visível acima do rodapé
+    lst = rects(page, "#task-list")[0]
+    assert lst["b"] - lst["t"] >= 0.15 * height

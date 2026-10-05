@@ -5,6 +5,14 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+## [5.6.1] - 2026-10-05
+
+Interface mais orgânica e responsiva, a partir de prints relatados: opções do envio em botões num painel recolhível
+(a lista de tarefas não fica mais espremida), uma etiqueta por trecho no editor (desenhada dentro da caixa), CPF com
+a etiqueta "CPF", cabeçalho do editor com respiro e grupos de botões que se adaptam da tela grande ao celular, e
+dependências atualizadas. Testes de interface em sete larguras, em português e em inglês, conferidos com defeitos
+introduzidos de propósito.
+
 ### Corrigido
 - **Layout da barra lateral (relatado com print):** o painel de opções e os quatro botões espremiam a lista de tarefas (dois cartões e meio, o terceiro cortado) e a caixa de seleção cortava o nome do perfil. Agora as opções são **botões** (perfis em pílulas com nome curto; "Procurar nomes" e "Baixa qualidade" liga/desliga) num painel **recolhível** que, fechado, mostra só o resumo das escolhas; "Processar todos", "Excluir todos" e "Documentação" ficam numa linha; o rodapé tem teto de 60% da altura da tela. Acessível pelo teclado (grupo de rádio com setas). Testes de regressão do espaço da lista e da largura dos botões.
 - **Etiquetas das tarjas no editor (relatado com print):** cada palavra de um endereço ganhava a sua etiqueta, e as várias leituras do OCR empilhavam etiquetas iguais sobre o mesmo dado; agora há **uma etiqueta por trecho**, agrupada sem depender da ordem das caixas (alturas que diferiam por um pixel quebravam o agrupamento), tolerando uma palavra curta não tarjada no meio; a descrição continua em cada caixa para leitores de tela. A etiqueta passou a ficar **dentro** da caixa: desenhada acima, a etiqueta da caixa de baixo parecia uma tarja sobre a palavra da linha de cima. Tarjas de CPF apareciam como "POSSÍVEL ASSINATURA" (tipo interno herdado); agora mostram "CPF" e só a assinatura de verdade (detector YOLO ou caixa desenhada como assinatura) é etiquetada assim.
