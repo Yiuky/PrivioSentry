@@ -147,7 +147,10 @@
         .redaction-box { position:absolute; background:rgba(11,18,32,0.45); border:2px solid var(--primary); pointer-events:auto; z-index:2; }
         .redaction-box.type-signature { border-color: var(--teal); background: rgba(20, 184, 166, 0.40); }
         .redaction-box.no-tag::before { display:none; }
-        .redaction-box.type-labelled::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--primary); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
+        /* a caixa com etiqueta fica acima das vizinhas: etiqueta maior que uma palavra curta não é cortada */
+        .redaction-box.type-labelled:not(.no-tag), .redaction-box.type-signature:not(.no-tag) { z-index:3; }
+        /* etiqueta dentro da caixa: nunca cobre a linha de cima */
+        .redaction-box.type-labelled::before { content: attr(data-label); position: absolute; top: 1px; left: 1px; font-size: 9px; line-height: 1.15; font-weight:700; background: var(--primary); color: var(--white); padding: 0 4px; border-radius: 2px; white-space:nowrap; opacity:.95; pointer-events:none; z-index:1; }
         .task-pii { font-size:12px; color:var(--slate); margin-top:2px; cursor:help; }
         /* Opções do próximo envio: painel recolhível com resumo; escolhas em botões (pílulas) */
         .upload-options { border:1px solid var(--border); border-radius:10px; font-size:13px; background:var(--white); }
@@ -174,7 +177,7 @@
         .sidebar-actions .tool-btn { flex:1 1 auto; padding:6px 8px; font-size:12px; white-space:nowrap; }
         .task-opts { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
         .opt-chip { font-size:11px; padding:1px 7px; border-radius:10px; background:#EEF2FF; color:#3730A3; }
-        .redaction-box.type-signature::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--teal-strong); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
+        .redaction-box.type-signature::before { content: attr(data-label); position: absolute; top: 1px; left: 1px; font-size: 9px; line-height: 1.15; font-weight:700; background: var(--teal-strong); color: var(--white); padding: 0 4px; border-radius: 2px; white-space:nowrap; opacity:.95; pointer-events:none; z-index:1; }
 
         .redaction-box.selected { border:3px solid var(--white); box-shadow:0 0 0 2px var(--primary), 0 0 14px rgba(37,99,235,0.6); z-index:10; }
         .box-delete { position:absolute; top:-12px; right:-12px; width:24px; height:24px; background:var(--danger); border-radius:50%; display:none; align-items:center; justify-content:center; font-size:14px; color:var(--white); cursor:pointer; z-index:20; }
@@ -1036,33 +1039,38 @@
         }
 
         function untaggedBoxes() {
-            // Uma etiqueta por TRECHO: caixas do mesmo rótulo na mesma linha e coladas (as palavras de um endereço)
-            // ou quase sobrepostas (as leituras de OCR acham o mesmo dado) não repetem a etiqueta visível.
+            // Uma etiqueta por TRECHO. Caixas do mesmo rótulo que se sobrepõem (as leituras de OCR acham o mesmo dado)
+            // ou estão na mesma linha separadas por pouco (as palavras de um endereço, mesmo com "em"/"de" no meio)
+            // formam um GRUPO, sem depender da ordem (alturas que diferem por um pixel embaralhavam a ordem e
+            // quebravam a corrente); só a caixa mais à esquerda do grupo mostra a etiqueta.
             const hidden = new Set();
             const byPage = {};
-            redactions.forEach(r => { if (r && r.coords) (byPage[r.page] = byPage[r.page] || []).push(r); });
+            redactions.forEach(r => { if (r && r.coords && boxTagLabel(r)) (byPage[r.page] = byPage[r.page] || []).push(r); });
             Object.values(byPage).forEach(list => {
-                const sorted = list.slice().sort((a, b) => ((a.coords[1] + a.coords[3]) / 2 - (b.coords[1] + b.coords[3]) / 2)
-                    || (a.coords[0] - b.coords[0]));
-                const shown = [];
-                for (const r of sorted) {
-                    const tag = boxTagLabel(r);
-                    if (!tag) continue;
-                    const [x0, y0, x1, y1] = r.coords, h = y1 - y0;
-                    const near = shown.some(p => {
-                        if (p.tag !== tag) return false;
-                        const [a0, b0, a1, b1] = p.r.coords, ph = b1 - b0;
-                        const ix = Math.max(0, Math.min(x1, a1) - Math.max(x0, a0));
-                        const iy = Math.max(0, Math.min(y1, b1) - Math.max(y0, b0));
-                        const smaller = Math.min((x1 - x0) * h, (a1 - a0) * ph);
-                        if (smaller > 0 && ix * iy / smaller > 0.5) return true;                 // quase a mesma caixa
-                        const sameLine = Math.abs((y0 + y1) / 2 - (b0 + b1) / 2) < 0.6 * Math.max(h, ph);
-                        const gap = x0 - a1;
-                        return sameLine && gap > -0.5 * Math.max(h, ph) && gap < 1.5 * Math.max(h, ph); // palavra seguinte
-                    });
-                    if (near) hidden.add(r);
-                    shown.push({ r, tag });  // a cadeia continua a partir desta caixa
-                }
+                const parent = list.map((_, k) => k);
+                const find = k => { while (parent[k] !== k) { parent[k] = parent[parent[k]]; k = parent[k]; } return k; };
+                const near = (a, b) => {
+                    if (boxTagLabel(a) !== boxTagLabel(b)) return false;
+                    const [x0, y0, x1, y1] = a.coords, [a0, b0, a1, b1] = b.coords;
+                    const h = Math.max(y1 - y0, b1 - b0);
+                    const ix = Math.max(0, Math.min(x1, a1) - Math.max(x0, a0));
+                    const iy = Math.max(0, Math.min(y1, b1) - Math.max(y0, b0));
+                    const smaller = Math.min((x1 - x0) * (y1 - y0), (a1 - a0) * (b1 - b0));
+                    if (smaller > 0 && ix * iy / smaller > 0.5) return true;                       // quase a mesma caixa
+                    const sameLine = Math.abs((y0 + y1) / 2 - (b0 + b1) / 2) < 0.6 * h;
+                    const gap = Math.max(a0 - x1, x0 - a1);                                        // vão horizontal
+                    return sameLine && gap < 2.5 * h;                                              // palavra vizinha
+                };
+                for (let a = 0; a < list.length; a++)
+                    for (let b = a + 1; b < list.length; b++)
+                        if (near(list[a], list[b])) parent[find(a)] = find(b);
+                const first = {};
+                list.forEach((r, k) => {
+                    const g = find(k);
+                    const cur = first[g];
+                    if (!cur || r.coords[0] < cur.coords[0] || (r.coords[0] === cur.coords[0] && r.coords[1] < cur.coords[1])) first[g] = r;
+                });
+                list.forEach((r, k) => { if (first[find(k)] !== r) hidden.add(r); });
             });
             return hidden;
         }

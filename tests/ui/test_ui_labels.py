@@ -84,3 +84,39 @@ def test_action_buttons_never_clip_text_with_a_wider_font(page, open_app):
     assert all(sw <= cw + 1 for _t, sw, cw in widths), widths
     for label in ("Processar todos", "Excluir todos", "Documentação"):
         expect(page.get_by_role("button", name=label)).to_be_visible()
+
+
+def test_one_tag_per_line_even_when_word_heights_differ(page, live_app, open_task):
+    # Print relatado: palavras da mesma linha com alturas diferentes por 1-3 px embaralhavam a ordem e cada uma ou
+    # duas palavras ganhavam etiqueta; e "em" não tarjado no meio partia o trecho
+    ys = [302, 299, 304, 300, 303, 298]
+    words = [labelled(1, (80 + i * 75, ys[i], 140 + i * 75, ys[i] + 25), "Endereço residencial") for i in range(6)]
+    words.append(labelled(1, (80 + 6 * 75 + 40, 301, 80 + 6 * 75 + 120, 326), "Endereço residencial"))  # depois de "em"
+    tid = live_app.seed_task("alturas.pdf", redactions=list(reversed(words)))   # ordem embaralhada de propósito
+    open_task(tid)
+    assert visible_tags(page, "Endereço residencial") == 1
+    # a etiqueta fica na primeira palavra (a mais à esquerda)
+    first = page.evaluate("""() => { const b = [...document.querySelectorAll('#layer-1 .redaction-box')]
+        .find(e => getComputedStyle(e, '::before').display !== 'none'); return parseFloat(b.style.left); }""")
+    lefts = page.evaluate("() => [...document.querySelectorAll('#layer-1 .redaction-box')].map(e => parseFloat(e.style.left))")
+    assert first == min(lefts)
+
+
+def test_tag_stays_inside_its_box_and_never_covers_the_line_above(page, live_app, open_task):
+    # Print relatado: a etiqueta desenhada ACIMA da caixa da linha de baixo parecia uma tarja "CPF" sobre outra palavra
+    tid = live_app.seed_task("dentro.pdf", redactions=[labelled(1, (300, 300, 520, 330), "CPF", type_="signature")])
+    open_task(tid)
+    inside = page.evaluate("""() => { const b = document.querySelector('#layer-1 .redaction-box');
+        const st = getComputedStyle(b, '::before'); return parseFloat(st.top) >= 0; }""")
+    assert inside
+
+
+def test_tag_of_a_short_first_word_is_not_hidden_by_the_next_box(page, live_app, open_task):
+    words = [labelled(1, (100, 300, 140, 325), "Endereço residencial"), labelled(1, (150, 300, 260, 325), "Endereço residencial")]
+    tid = live_app.seed_task("curta.pdf", redactions=words)
+    open_task(tid)
+    z = page.evaluate("""() => [...document.querySelectorAll('#layer-1 .redaction-box')]
+        .map(b => [b.classList.contains('no-tag'), parseInt(getComputedStyle(b).zIndex) || 0])""")
+    tagged = [zi for no_tag, zi in z if not no_tag]
+    others = [zi for no_tag, zi in z if no_tag]
+    assert tagged and all(t > o for t in tagged for o in others)
