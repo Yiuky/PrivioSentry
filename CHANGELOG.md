@@ -5,6 +5,9 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Dependências
+- FastAPI 0.142.2, Uvicorn 0.54.0, Pillow 12.3.0, python-dotenv 1.2.4 e Ultralytics 8.4.171 (atualizações do Dependabot), conferidas com a suíte completa (808 testes, incluindo a interface) num ambiente isolado com essas versões e com o detector de assinaturas real carregando e rodando. Ações do GitHub (checkout, setup-python, upload-artifact) na v7.
+
 ## [5.6.0] - 2026-10-05
 
 Escolhas por documento na interface e o segundo olhar. O painel **Opções do próximo envio** define, para cada PDF,
