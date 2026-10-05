@@ -5,6 +5,15 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+## [5.5.0] - 2026-10-05
+
+Menos regra fixa no código e mais medição: regras e limiares como dados, corpus de avaliação por tipo, nomes com
+GLiNER (opcional), qualquer servidor de IA pela API (Ollama, LM Studio, vLLM, servidor da organização) com IA reserva
+e disjuntor, pedido de endereços que acha 3x mais endereços pessoais, leitura extra de OCR, fila de tarefas e uma
+rodada de testes com 7 documentos reais, vários OCRs, IAs de OCR, LLMs e o procedimento sob pressão.
+**Mudanças de comportamento:** o pedido de endereços mudou (`ADDRESS_PROMPT=legado` volta ao antigo); no máximo 2
+documentos processam ao mesmo tempo (`MAX_PARALLEL_TASKS`); páginas gigantes são lidas em DPI menor e vão para revisão.
+
 ### Adicionado (testes com vários OCRs, IAs de OCR, LLMs e o procedimento sob pressão)
 - **Qualquer servidor de IA, pela API:** Ollama ou qualquer servidor no padrão da OpenAI (LM Studio, vLLM, llama.cpp, LocalAI, servidor da organização com chave). `AI_PROVIDER`, `AI_BASE_URL`, `AI_API_KEY`, modelos e tempo limite próprios; as variáveis `OLLAMA_*` continuam valendo.
 - **IA reserva, disjuntor e verificação cruzada:** a reserva (`AI_SECONDARY_*`) assume quando a principal cai; o disjuntor desliga o servidor que falha seguidamente (estado compartilhado entre tarefas), testa a volta pela API (lista de modelos) e descarrega o modelo pela API (Ollama `keep_alive: 0`, LM Studio `/api/v1/models/unload`); `AI_CROSS_CHECK=1` faz a reserva conferir cada página (respostas somadas; discordância vira "pessoal" e revisão). Medido ao vivo com a principal travada: a primeira página paga as tentativas, as seguintes vão direto para a reserva (~12 s por página em vez de até 30 min). Rota `GET /health/ai`.

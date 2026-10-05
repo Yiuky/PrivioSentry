@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "privio-sentry"
-version = "5.4.0"
+version = "5.5.0"
 description = "PRIVIO SENTRY - Local AI Privacy Infrastructure. SENTRY Redact: local OCR + YOLO + vision LLM pipeline that suggests redactions of CPF numbers and personal addresses in PDFs, with human review. Supports LGPD-aligned practices; does not guarantee anonymization."
 readme = "README.md"
 requires-python = ">=3.10"

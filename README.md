@@ -78,7 +78,8 @@ visíveis; também pode tarjar mais do que o necessário.
   esteja garantidamente limpo.
 - O que é tarjado depende do **perfil de política** (`POLICY_PROFILE`). O padrão cobre só **CPF** e
   **endereço residencial**; os perfis LGPD, GDPR e saúde acrescentam RG, CNH, título de eleitor, PIS/NIS, Cartão SUS, passaporte, CTPS, telefone, e-mail, dados bancários, chave Pix, data de nascimento, placa e IP
-  ([catálogo](docs/catalogo-pii.md)). **Ainda não** são detectados: nomes, filiação, rostos, dados sensíveis
+  ([catálogo](docs/catalogo-pii.md)). **Nomes e filiação** são detectados com o GLiNER local opcional
+  (`NER_ENGINE=gliner`). **Ainda não** são detectados: rostos, dados sensíveis
   (saúde, religião...), QR codes e metadados ([limitações](docs/limitations.md),
   [modelo de ameaças](docs/threat-model-lgpd.md)).
 - Nunca use documentos reais para relatar bugs ou em testes ([SECURITY.md](SECURITY.md)).
@@ -172,7 +173,7 @@ Detectar e tarjar esses tipos **apoia** práticas alinhadas a essas referências
 |---|---|
 | Python | **3.10 – 3.12** |
 | Tesseract OCR | 5.x com o idioma português (`por`) |
-| Ollama | Qualquer modelo local com visão (ex.: `ollama pull qwen2.5vl:7b`) |
+| Servidor de IA | Ollama, **LM Studio**, vLLM, llama.cpp ou um servidor da organização (API no padrão da OpenAI), com um modelo de visão (ex.: Qwen3.5 9B, Gemma 4) |
 | Hardware | RAM/VRAM compatível com o modelo escolhido. O DPI de renderização padrão é alto: reduza `BASE_DPI` em máquinas modestas |
 | Detector de assinaturas | `models/signature_stamp_detector.pt` (incluído; veja o [model card](models/MODEL_CARD.md)) |
 
@@ -213,6 +214,14 @@ ollama pull <seu-modelo-de-visao>    # ex.: qwen2.5vl:7b
 Defina `OLLAMA_MODEL` e `OLLAMA_VISION_MODEL` no `.env`. Para um GGUF próprio, veja
 [scripts/ollama/Modelfile.example](scripts/ollama/Modelfile.example).
 
+**Outro servidor de IA** (LM Studio, vLLM, llama.cpp, servidor da organização): `AI_PROVIDER=openai`,
+`AI_BASE_URL=http://localhost:1234/v1` e `AI_VISION_MODEL=<modelo>`. Uma **IA reserva** (`AI_SECONDARY_*`) assume
+quando a principal cai, e um disjuntor desliga a IA que falha seguidamente ([configuração](docs/configuration.md)).
+
+**Opcionais medidos** ([benchmarks](docs/benchmarks.md)): nomes com GLiNER (`pip install -e ".[nomes]"`,
+`NER_ENGINE=gliner`) e uma terceira leitura de OCR somada às duas do Tesseract (`pip install -e ".[ocr-extra]"`,
+`OCR_EXTRA_ENGINE=rapidocr`).
+
 ### Docker (opcional)
 
 ```bash
@@ -229,7 +238,8 @@ As principais:
 | Variável | Para quê |
 |---|---|
 | `TESSERACT_PATH` | Caminho do executável do Tesseract (Windows) |
-| `OLLAMA_API_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL` | Servidor e modelos do Ollama |
+| `AI_PROVIDER`, `AI_BASE_URL`, `AI_VISION_MODEL` (ou `OLLAMA_*`) | Servidor de IA (Ollama ou API da OpenAI) e modelos; `AI_SECONDARY_*` para a reserva |
+| `POLICY_PROFILE`, `NER_ENGINE` | O que tarjar (perfil de política) e o detector de nomes |
 | `YOLO_MODEL_PATH` | Pesos do detector de assinaturas |
 | `BASE_DPI` | DPI de renderização das páginas (qualidade × memória × tempo) |
 | `APP_HOST`, `API_TOKEN` | Endereço de escuta e token de acesso (obrigatório fora do `127.0.0.1`) |
@@ -320,8 +330,8 @@ O trabalho pendente e as prioridades estão no [BACKLOG.md](BACKLOG.md). Diretri
 
 ## 🚧 Limitações
 
-- Nomes, filiação, rostos e dados sensíveis (saúde, religião...) ainda não são detectados; os demais tipos
-  dependem do perfil de política ([catálogo](docs/catalogo-pii.md)).
+- Rostos e dados sensíveis (saúde, religião...) ainda não são detectados; nomes só com o GLiNER ligado; os demais
+  tipos dependem do perfil de política ([catálogo](docs/catalogo-pii.md)).
 - Revocação da detecção e da verificação medida **só em dados sintéticos**; digitalizações reais podem ser
   piores.
 - Manuscritos e digitalizações de baixa qualidade são o ponto mais fraco; o detector de assinaturas tem
@@ -359,9 +369,9 @@ detecção é probabilística e só cobre CPF e endereços pessoais: **sempre re
 <details>
 <summary><strong>Por que nomes não são tarjados?</strong></summary>
 
-É uma regra de negócio deliberada do caso de uso original. Isso pode tornar a
-pessoa identificável mesmo sem CPF/endereço; veja as [limitações](docs/limitations.md). Outros tipos de dado
-estão no [backlog](BACKLOG.md).
+No perfil padrão (`cpf_endereco`), é uma regra de negócio deliberada do caso de uso original. Nos perfis LGPD, GDPR e
+saúde, com o GLiNER ligado (`NER_ENGINE=gliner`), nomes e filiação são procurados: confiança alta vira tarja sugerida,
+média vira revisão. Veja as [limitações](docs/limitations.md).
 </details>
 
 <details>

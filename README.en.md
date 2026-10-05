@@ -38,7 +38,7 @@ PRIVIO SENTRY is a local-first project for detecting and protecting personal, se
 
 * Every output **must be reviewed by a person** before publication or sharing.
 * "Concluído" means *no pending alert was detected by the automatic checks*, not that the document is guaranteed clean.
-* What gets redacted depends on the **policy profile** (`POLICY_PROFILE`). The default covers only **CPF** and **residential addresses**; the LGPD, GDPR and health profiles add RG, CNH, voter ID, PIS/NIS, SUS health card, passport, CTPS, phone, e-mail, bank data, Pix key, date of birth, plate and IP ([PII catalog](docs/catalogo-pii.md), in Portuguese). Names, parents' names, faces, sensitive data (health, religion...), QR codes and metadata are **not yet** detected. See [docs/limitations.md](docs/limitations.md) and [docs/threat-model-lgpd.md](docs/threat-model-lgpd.md).
+* What gets redacted depends on the **policy profile** (`POLICY_PROFILE`). The default covers only **CPF** and **residential addresses**; the LGPD, GDPR and health profiles add RG, CNH, voter ID, PIS/NIS, SUS health card, passport, CTPS, phone, e-mail, bank data, Pix key, date of birth, plate and IP ([PII catalog](docs/catalogo-pii.md), in Portuguese). Names and parents' names are detected with the optional local GLiNER detector (`NER_ENGINE=gliner`). Faces, sensitive data (health, religion...), QR codes and metadata are **not yet** detected. See [docs/limitations.md](docs/limitations.md) and [docs/threat-model-lgpd.md](docs/threat-model-lgpd.md).
 * Never use real documents to report bugs or in tests; see [SECURITY.md](SECURITY.md).
 
 ## LGPD positioning
@@ -62,7 +62,7 @@ The LGPD separates *personal data* from *sensitive personal data* (health, biome
 
 * Python **3.10 – 3.12**
 * **Tesseract OCR** 5.x with the Portuguese data (`por`)
-* **Ollama** with a text/vision-capable model (any local VLM; e.g. `ollama pull qwen2.5vl:7b`)
+* An AI server with a vision model: **Ollama**, **LM Studio**, vLLM, llama.cpp or an organization server (OpenAI-compatible API)
 * RAM/VRAM suitable for the model you choose (the default render DPI is high; reduce `BASE_DPI` on small machines)
 * The YOLO signature detector `models/signature_stamp_detector.pt` (included, see [models/MODEL_CARD.md](models/MODEL_CARD.md))
 
@@ -100,6 +100,8 @@ ollama pull <your-vision-model>    # e.g. qwen2.5vl:7b
 ```
 
 Set `OLLAMA_MODEL` and `OLLAMA_VISION_MODEL` in `.env` to the model name(s). For a custom GGUF see [scripts/ollama/Modelfile.example](scripts/ollama/Modelfile.example).
+
+**Other AI servers** (LM Studio, vLLM, llama.cpp, organization servers): `AI_PROVIDER=openai`, `AI_BASE_URL=http://localhost:1234/v1`, `AI_VISION_MODEL=<model>`. A **backup AI** (`AI_SECONDARY_*`) takes over when the primary fails, and a circuit breaker switches off a failing server ([configuration](docs/configuration.md), in Portuguese). Optional, measured add-ons: names with GLiNER and an extra OCR reading (RapidOCR) added to Tesseract's two ([benchmarks](docs/benchmarks.md)).
 
 ### Docker (optional)
 
@@ -163,7 +165,7 @@ Brand, design and UX guidelines live in [docs/brand/](docs/brand/) (including th
 
 ## Limitations
 
-* Names, parents' names, faces and sensitive data are not yet detected; other types depend on the policy profile.
+* Faces and sensitive data are not yet detected; names only with GLiNER enabled; other types depend on the policy profile.
 * Recall of the detection and of the verification was only measured on synthetic data (see [docs/benchmarks.md](docs/benchmarks.md) when available); real-world scans can be worse.
 * Handwriting and low-quality scans are the weakest point. The signature detector has modest accuracy (see model card).
 * Address redaction depends on an LLM classification and on fuzzy matching: it can over- or under-redact.

@@ -11,8 +11,8 @@ authors:
   - family-names: Gambati
     given-names: Joberth Firmino
     alias: Yiuky
-version: 5.4.0
-date-released: 2026-10-04
+version: 5.5.0
+date-released: 2026-10-05
 license: AGPL-3.0-or-later
 repository-code: "https://github.com/Yiuky/PrivioSentry"
 url: "https://github.com/Yiuky/PrivioSentry"
