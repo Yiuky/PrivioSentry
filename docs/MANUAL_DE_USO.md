@@ -299,7 +299,7 @@ início e quedas em `service_heartbeat.log`. Feche outras janelas do serviço an
 
 | Área | O que contém |
 |---|---|
-| Barra lateral | Marca, lista de tarefas e os botões **Adicionar PDFs**, **Processar todos**, **Excluir todos** e **Documentação** |
+| Barra lateral | Marca, lista de tarefas, o painel **Opções do próximo envio** e os botões **Adicionar PDFs**, **Processar todos**, **Excluir todos** e **Documentação** |
 | Cabeçalho | Nome do documento aberto (ou "Aguardando documento..."), barra de ferramentas do editor, selo `LOCAL PROCESSING` e seletor de idioma |
 | Aviso permanente | "**A IA sugere; você confirma.** A detecção por IA é probabilística e pode errar. Revise todas as sugestões antes de proteger e exportar." |
 | Barra de pendências | Aparece quando o documento **Requer revisão** |
@@ -310,9 +310,22 @@ telas estreitas, a barra lateral é aberta pelo botão **☰** ("Abrir menu late
 
 ### 4.3 Enviar PDFs
 
-1. Clique em **Adicionar PDFs**.
-2. Selecione um ou mais arquivos `.pdf` (a seleção múltipla é permitida).
-3. Cada arquivo vira uma tarefa na barra lateral e o processamento começa automaticamente.
+1. Em **Opções do próximo envio**, escolha (vale para os arquivos que você enviar em seguida):
+   * **Perfil de proteção**: o que é tarjado e o que só vira alerta ("Só CPF e endereço residencial", "LGPD:
+     publicação", "LGPD: compartilhamento interno", "GDPR", "Saúde"). Veja o [catálogo](catalogo-pii.md).
+   * **Procurar nomes**: liga o detector de nomes de pessoa e filiação. Fica desativado, com o motivo escrito
+     embaixo, quando o perfil não procura nomes ou quando o detector não está instalado no servidor.
+   * **Documento de baixa qualidade**: para digitalizações ruins; soma uma leitura extra de OCR e o "segundo olhar"
+     da IA nas páginas em dúvida. Mais lento. Se a leitura extra não estiver instalada, o aviso diz que só o
+     segundo olhar será usado.
+2. Clique em **Adicionar PDFs**.
+3. Selecione um ou mais arquivos `.pdf` (a seleção múltipla é permitida).
+4. Cada arquivo vira uma tarefa na barra lateral e o processamento começa automaticamente. O cartão da tarefa
+   mostra as opções usadas (perfil, "Nomes", "Baixa qualidade"); reprocessar mantém as mesmas opções.
+
+As opções valem só para aquele documento: outros documentos na fila não são afetados. O servidor confere a escolha
+e recusa combinação impossível (por exemplo, nomes num perfil que não procura nomes) com uma mensagem clara. Os
+valores iniciais do painel vêm da configuração do servidor (`POLICY_PROFILE`, `NER_ENGINE`, `SECOND_LOOK`).
 
 Regras de upload:
 

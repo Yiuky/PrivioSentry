@@ -11,7 +11,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 import httpx
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException, Body, Request
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, Body, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from main import SentryApp
@@ -251,7 +251,8 @@ def _spawn(task_id, manual_redactions, native_mode):
     task.pop("queued", None)
     p = multiprocessing.Process(
         target=redaction_worker,
-        args=(task_id, task["input_path"], manual_redactions, native_mode, APP_PORT, INTERNAL_SECRET, AI_LOCK)
+        args=(task_id, task["input_path"], manual_redactions, native_mode, APP_PORT, INTERNAL_SECRET, AI_LOCK,
+              task.get("options"))
     )
     p.start()
     procs[task_id] = p
@@ -338,10 +339,13 @@ async def token_guard(request: Request, call_next):
     return await call_next(request)
 
 def redaction_worker(task_id: str, file_path: str, manual_redactions=None, native_mode=False,
-                     api_port=8001, internal_secret="", ai_lock=None):
+                     api_port=8001, internal_secret="", ai_lock=None, options=None):
     """
     Motor do SENTRY Redact executado em um PROCESSO SEPARADO (Multi-Core).
+    options: escolhas da interface para ESTE documento (utils/task_options.py), aplicadas só neste processo.
     """
+    from utils.task_options import apply_to_environment
+    apply_to_environment(options)
     if ai_lock is not None:
         import utils.ai_client as ai_client
         ai_client.ollama_lock = ai_lock
@@ -382,6 +386,13 @@ async def internal_update(task_id: str, request: Request, data: dict = Body(...)
 async def index(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
 
+@app.get("/options")
+def get_options():
+    """Opções por documento para a interface: perfis, padrões e o que está instalado (com o motivo do que não está)."""
+    from utils.task_options import catalog
+    return catalog()
+
+
 @app.get("/health/ai")
 def ai_health():
     """Servidores de IA configurados (sem chaves), disjuntor e teste de saúde pela API de cada um."""
@@ -411,7 +422,13 @@ async def readme():
         raise HTTPException(status_code=404, detail="README não encontrado")
 
 @app.post("/upload")
-async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File(...), force: bool = False):
+async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File(...), force: bool = False,
+                      perfil: str = Form(None), nomes: str = Form(None), baixa_qualidade: str = Form(None)):
+    from utils.task_options import OptionsError, resolve
+    try:  # o servidor valida as opções (a interface só ajuda)
+        options = resolve(perfil, nomes, baixa_qualidade)
+    except OptionsError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     clean_name = sanitize_filename(file.filename)
     if not clean_name.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF são permitidos.")
@@ -449,7 +466,8 @@ async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File
             "percentage": 0,
             "completed": False,
             "error": False,
-            "alerts": []
+            "alerts": [],
+            "options": options,
         }
         save_tasks()
 

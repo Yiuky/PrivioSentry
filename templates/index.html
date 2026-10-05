@@ -148,6 +148,15 @@
         .redaction-box.type-signature { border-color: var(--teal); background: rgba(20, 184, 166, 0.40); }
         .redaction-box.type-labelled::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--primary); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
         .task-pii { font-size:12px; color:var(--slate); margin-top:2px; cursor:help; }
+        .upload-options { display:flex; flex-direction:column; gap:6px; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:13px; }
+        .upload-options .opt-title { font-weight:600; font-size:12px; color:var(--slate); text-transform:uppercase; letter-spacing:.03em; }
+        .upload-options select { width:100%; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:13px; background:var(--white); }
+        .upload-options .opt-check { display:flex; align-items:center; gap:6px; cursor:pointer; }
+        .upload-options input:disabled + span { opacity:.55; }
+        .upload-options .opt-hint { font-size:11px; color:var(--slate); }
+        .upload-options .opt-hint:empty { display:none; }
+        .task-opts { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+        .opt-chip { font-size:11px; padding:1px 6px; border-radius:10px; background:#EEF2FF; color:#3730A3; }
         .redaction-box.type-signature::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--teal-strong); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
 
         .redaction-box.selected { border:3px solid var(--white); box-shadow:0 0 0 2px var(--primary), 0 0 14px rgba(37,99,235,0.6); z-index:10; }
@@ -256,6 +265,15 @@
         </div>
         <div class="task-list" id="task-list"></div>
         <div class="sidebar-footer">
+            <div class="upload-options" id="upload-options" data-testid="upload-options">
+                <div class="opt-title" data-i18n="opt.title">Opções do próximo envio</div>
+                <label for="opt-profile" data-i18n="opt.profile">Perfil de proteção</label>
+                <select id="opt-profile" data-testid="opt-profile"></select>
+                <label class="opt-check"><input type="checkbox" id="opt-names" data-testid="opt-names"> <span data-i18n="opt.names">Procurar nomes</span></label>
+                <div class="opt-hint" id="opt-names-hint" data-testid="opt-names-hint"></div>
+                <label class="opt-check"><input type="checkbox" id="opt-lowq" data-testid="opt-lowq"> <span data-i18n="opt.lowq">Documento de baixa qualidade</span></label>
+                <div class="opt-hint" id="opt-lowq-hint" data-testid="opt-lowq-hint"></div>
+            </div>
             <input type="file" id="file-input" style="display:none;" accept=".pdf" multiple>
             <button class="tool-btn btn-primary btn-block" style="height:42px;" data-i18n="btn.add" onclick="document.getElementById('file-input').click()">Adicionar PDFs</button>
             <button class="tool-btn btn-block" data-i18n="btn.processAll" onclick="processAll()">Processar todos</button>
@@ -387,6 +405,13 @@
                 'notice.ai.lead': 'A IA sugere; você confirma.',
                 'notice.ai.body': 'A detecção por IA é probabilística e pode errar. Revise todas as sugestões antes de proteger e exportar.',
                 'btn.add': 'Adicionar PDFs', 'btn.processAll': 'Processar todos', 'btn.deleteAll': 'Excluir todos', 'btn.docs': 'Documentação',
+                'opt.title': 'Opções do próximo envio', 'opt.profile': 'Perfil de proteção', 'opt.names': 'Procurar nomes',
+                'opt.lowq': 'Documento de baixa qualidade', 'opt.chipNames': 'Nomes', 'opt.chipLowq': 'Baixa qualidade',
+                'opt.namesUnavailable': 'Detector de nomes não instalado neste servidor.',
+                'opt.namesProfile': 'Este perfil não procura nomes.',
+                'opt.lowqHelp': 'Leitura extra de OCR e segundo olhar da IA nas páginas em dúvida (mais lento).',
+                'opt.lowqPartial': 'Leitura extra de OCR não instalada: só o segundo olhar da IA será usado.',
+                'err.options': 'Não foi possível carregar as opções de envio',
                 'btn.select': 'Selecionar', 'btn.draw': 'Nova tarja', 'btn.save': 'Salvar', 'btn.saved': 'Salvo!',
                 'btn.generate': 'Aplicar proteção (modo nativo)', 'btn.resetAi': 'Recarregar sugestões da IA',
                 'btn.hide': 'Ocultar tarjas', 'btn.show': 'Mostrar tarjas',
@@ -435,6 +460,13 @@
                 'notice.ai.lead': 'AI suggests; you confirm.',
                 'notice.ai.body': 'AI detection is probabilistic and can be wrong. Review every suggestion before protecting and exporting.',
                 'btn.add': 'Add PDFs', 'btn.processAll': 'Process all', 'btn.deleteAll': 'Delete all', 'btn.docs': 'Documentation',
+                'opt.title': 'Options for the next upload', 'opt.profile': 'Protection profile', 'opt.names': 'Look for names',
+                'opt.lowq': 'Low-quality document', 'opt.chipNames': 'Names', 'opt.chipLowq': 'Low quality',
+                'opt.namesUnavailable': 'Name detector not installed on this server.',
+                'opt.namesProfile': 'This profile does not look for names.',
+                'opt.lowqHelp': 'Extra OCR reading and an AI second look on doubtful pages (slower).',
+                'opt.lowqPartial': 'Extra OCR reading not installed: only the AI second look will be used.',
+                'err.options': 'Could not load the upload options',
                 'btn.select': 'Select', 'btn.draw': 'New redaction', 'btn.save': 'Save', 'btn.saved': 'Saved!',
                 'btn.generate': 'Apply protection (native mode)', 'btn.resetAi': 'Reload AI suggestions',
                 'btn.hide': 'Hide redactions', 'btn.show': 'Show redactions',
@@ -494,6 +526,7 @@
             if (!currentTaskId) document.getElementById('doc-name').textContent = t('doc.waiting');
             if (!document.getElementById('readme-content').dataset.loaded) document.getElementById('readme-content').textContent = t('docs.loading');
             document.getElementById('lang-select').value = lang;
+            refreshOptionStates();
         }
 
         function setLang(l) {
@@ -733,6 +766,10 @@
                         }
                     }
 
+                    const optLabels = optionLabels(tk.options);
+                    const optsHtml = optLabels.length
+                        ? `<div class="task-opts" data-testid="task-opts">${optLabels.map(l => `<span class="opt-chip">${esc(l)}</span>`).join('')}</div>`
+                        : '';
                     let alertsHtml = '';
                     if (tk.alerts && tk.alerts.length > 0) {
                         const alertText = tk.alerts.join('\n');
@@ -753,6 +790,7 @@
                         </div>
                         <div class="task-title" title="${esc(tk.file)}">${esc(tk.file)}${alertsHtml}</div>
                         <div class="task-meta"><span class="task-status">${esc(tk.status)} ${!isDone ? '('+esc(tk.percentage)+'%)' : ''}</span><span>${dateStr}</span></div>
+                        ${optsHtml}
                         ${badgeHtml}
                         ${completeHtml}
                         ${piiHtml}
@@ -1198,8 +1236,63 @@
             }
         }
 
+        // ---------------------------------------------------------------- opções por documento
+        // O servidor valida tudo (perfil, nomes instalados, nomes no perfil); aqui só se evita escolha impossível.
+        let uploadOptions = null;
+
+        async function loadOptions() {
+            const res = await api('/options', {}, t('err.options'));
+            if (!res.ok || !res.data || !Array.isArray(res.data.perfis)) return;
+            uploadOptions = res.data;
+            const sel = document.getElementById('opt-profile');
+            sel.innerHTML = '';
+            for (const p of res.data.perfis) {
+                const o = document.createElement('option');
+                o.value = String(p.id); o.textContent = String(p.nome); o.title = String(p.descricao || '');
+                sel.appendChild(o);
+            }
+            sel.value = res.data.padrao.perfil;
+            document.getElementById('opt-names').checked = !!res.data.padrao.nomes;
+            document.getElementById('opt-lowq').checked = !!res.data.padrao.baixa_qualidade;
+            sel.onchange = refreshOptionStates;
+            refreshOptionStates();
+        }
+
+        function refreshOptionStates() {
+            if (!uploadOptions) return;
+            const sel = document.getElementById('opt-profile');
+            const prof = uploadOptions.perfis.find(p => p.id === sel.value);
+            const names = document.getElementById('opt-names');
+            let reason = '';
+            if (!uploadOptions.disponivel.nomes) reason = t('opt.namesUnavailable');
+            else if (prof && !prof.pede_nomes) reason = t('opt.namesProfile');
+            names.disabled = !!reason;
+            if (reason) names.checked = false;
+            names.title = reason;
+            document.getElementById('opt-names-hint').textContent = reason;
+            const lowq = document.getElementById('opt-lowq');
+            lowq.title = t('opt.lowqHelp');
+            document.getElementById('opt-lowq-hint').textContent =
+                (lowq.checked && !uploadOptions.disponivel.leitura_extra) ? t('opt.lowqPartial') : '';
+        }
+        document.getElementById('opt-lowq').addEventListener('change', refreshOptionStates);
+
+        function optionLabels(options) {
+            if (!options || typeof options !== 'object') return [];
+            const prof = uploadOptions && uploadOptions.perfis.find(p => p.id === options.perfil);
+            const labels = [prof ? String(prof.nome) : String(options.perfil || '')];
+            if (options.nomes) labels.push(t('opt.chipNames'));
+            if (options.baixa_qualidade) labels.push(t('opt.chipLowq'));
+            return labels.filter(Boolean);
+        }
+
         async function handleUpload(file, force = false) {
             const fd = new FormData(); fd.append('file', file);
+            if (uploadOptions) {
+                fd.append('perfil', document.getElementById('opt-profile').value);
+                fd.append('nomes', document.getElementById('opt-names').checked ? '1' : '0');
+                fd.append('baixa_qualidade', document.getElementById('opt-lowq').checked ? '1' : '0');
+            }
             const res = await api(`/upload${force ? '?force=true' : ''}`, { method:'POST', body: fd }, t('err.upload', {file: file.name}));
             if(res.ok && res.data && res.data.status === 'confirm') {
                 if(confirm(res.data.message)) await handleUpload(file, true);
@@ -1370,6 +1463,7 @@
         }
 
         applyI18n();
+        loadOptions();
         setInterval(fetchTasks, 3000); fetchTasks();
     </script>
 </body>

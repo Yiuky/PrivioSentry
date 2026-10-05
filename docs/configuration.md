@@ -12,6 +12,9 @@ Todas as configurações são variáveis de ambiente, normalmente definidas em u
 | `ALLOWED_HOSTS` | *(vazio)* | `utils/net_guard.py` (`app_service.py`, `gatekeeper.py`) | Nomes extras aceitos nos cabeçalhos `Host`/`Origin`, separados por vírgula. Loopback (`127.0.0.1`, `localhost`, `::1`) e `APP_HOST` sempre valem. Sem `API_TOKEN`, o app recusa outro `Host` (`421`, proteção contra *DNS rebinding*) e POST/DELETE vindos de outro site (`403`, proteção contra CSRF). O gatekeeper, que não tem token, faz essa checagem sempre: para acessá-lo por outro nome ou IP, liste-o aqui. `*` desliga a checagem (não recomendado). |
 | `SESSION_TTL_HOURS` | `12` | `utils/auth.py` | Validade da sessão do navegador aberta com `?token=`. As sessões ficam em memória: reiniciar o serviço pede login de novo. |
 | `MAX_UPLOAD_MB` | `500` | `app_service.py` | Tamanho máximo de upload. |
+
+Na interface, **perfil**, **nomes** e **baixa qualidade** podem ser escolhidos **por documento** (painel "Opções do próximo envio"; API: `GET /options` e os campos `perfil`, `nomes`, `baixa_qualidade` do `POST /upload`). As variáveis `POLICY_PROFILE`, `NER_ENGINE`, `SECOND_LOOK` e `OCR_EXTRA_ENGINE` passam a ser os **padrões** desse painel e de envios sem opções.
+
 | `MAX_PARALLEL_TASKS` | `2` | `app_service.py` | Quantos documentos processam ao mesmo tempo. Os demais ficam **"Na fila"** e começam sozinhos quando um termina. Sem limite, vários uploads de uma vez abriam um processo cada (OCR em paralelo + modelos de nomes e decisor) e podiam esgotar memória e CPU. |
 | `PRIVIO_INPUT_DIR` | `./WEB_INPUT` | `app_service.py` | Onde os PDFs enviados são armazenados. |
 | `PRIVIO_OUTPUT_DIR` | `./output` | `app_service.py`, `utils/session.py` | Artefatos por tarefa: imagens das páginas, resultados de OCR, recortes, logs, metadados de tarja (**contêm dados pessoais**). |
