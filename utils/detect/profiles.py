@@ -30,11 +30,13 @@ def _actions(tarjar=(), alertar=()):
 
 PROFILES = {
     "cpf_endereco": {
+        "curto": "CPF e endereço",
         "nome": "Só CPF e endereço residencial",
         "descricao": "Comportamento original do SENTRY Redact.",
         "acoes": _actions(tarjar=["cpf", "endereco_residencial"]),
     },
     "lgpd_publicacao": {
+        "curto": "LGPD publicação",
         "nome": "LGPD: publicação (transparência / LAI)",
         "descricao": "Para publicar documentos (LAI art. 31): tarja identificadores diretos, contato, financeiro e datas "
                      "de nascimento; alerta para identificadores indiretos e dados sensíveis.",
@@ -43,6 +45,7 @@ PROFILES = {
                           alertar=["placa_veiculo", "ip", "geolocalizacao"] + _SENSIVEIS),
     },
     "lgpd_interno": {
+        "curto": "LGPD interno",
         "nome": "LGPD: compartilhamento interno",
         "descricao": "Para circular dentro da organização: tarja documentos e dados financeiros; alerta para contato e "
                      "dados sensíveis (decisão do revisor conforme a finalidade).",
@@ -50,6 +53,7 @@ PROFILES = {
                           alertar=_CONTATO + ["data_nascimento", "placa_veiculo", "ip"] + _SENSIVEIS),
     },
     "gdpr": {
+        "curto": "GDPR",
         "nome": "GDPR (União Europeia)",
         "descricao": "Identificadores diretos e online (inclui IP) tarjados; categorias especiais (art. 9) e dados "
                      "criminais (art. 10) alertados para revisão.",
@@ -59,6 +63,7 @@ PROFILES = {
                           alertar=_SENSIVEIS),
     },
     "saude_hipaa": {
+        "curto": "Saúde",
         "nome": "Saúde (referência HIPAA Safe Harbor)",
         "descricao": "Tarja os identificadores da lista Safe Harbor que o projeto detecta (documentos, contato, datas, "
                      "contas, placas, IP, nomes, fotos) e alerta para dados de saúde.",

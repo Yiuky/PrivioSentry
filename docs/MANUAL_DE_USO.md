@@ -299,7 +299,7 @@ início e quedas em `service_heartbeat.log`. Feche outras janelas do serviço an
 
 | Área | O que contém |
 |---|---|
-| Barra lateral | Marca, lista de tarefas, o painel **Opções do próximo envio** e os botões **Adicionar PDFs**, **Processar todos**, **Excluir todos** e **Documentação** |
+| Barra lateral | Marca, lista de tarefas, o painel recolhível **Opções do próximo envio**, o botão **Adicionar PDFs** e, numa linha, **Processar todos**, **Excluir todos** e **Documentação** |
 | Cabeçalho | Nome do documento aberto (ou "Aguardando documento..."), barra de ferramentas do editor, selo `LOCAL PROCESSING` e seletor de idioma |
 | Aviso permanente | "**A IA sugere; você confirma.** A detecção por IA é probabilística e pode errar. Revise todas as sugestões antes de proteger e exportar." |
 | Barra de pendências | Aparece quando o documento **Requer revisão** |
@@ -310,14 +310,17 @@ telas estreitas, a barra lateral é aberta pelo botão **☰** ("Abrir menu late
 
 ### 4.3 Enviar PDFs
 
-1. Em **Opções do próximo envio**, escolha (vale para os arquivos que você enviar em seguida):
-   * **Perfil de proteção**: o que é tarjado e o que só vira alerta ("Só CPF e endereço residencial", "LGPD:
-     publicação", "LGPD: compartilhamento interno", "GDPR", "Saúde"). Veja o [catálogo](catalogo-pii.md).
-   * **Procurar nomes**: liga o detector de nomes de pessoa e filiação. Fica desativado, com o motivo escrito
-     embaixo, quando o perfil não procura nomes ou quando o detector não está instalado no servidor.
-   * **Documento de baixa qualidade**: para digitalizações ruins; soma uma leitura extra de OCR e o "segundo olhar"
-     da IA nas páginas em dúvida. Mais lento. Se a leitura extra não estiver instalada, o aviso diz que só o
-     segundo olhar será usado.
+1. Em **Opções do próximo envio** (painel recolhível acima de "Adicionar PDFs": fechado, mostra só um resumo das
+   escolhas; clique para abrir; o navegador lembra se você o deixou aberto), escolha com os botões (vale para os
+   arquivos que você enviar em seguida):
+   * **Perfil de proteção** (um botão por perfil: "CPF e endereço", "LGPD publicação", "LGPD interno", "GDPR",
+     "Saúde"; passe o mouse para ver o nome completo e a descrição; as setas do teclado também trocam de perfil):
+     o que é tarjado e o que só vira alerta. Veja o [catálogo](catalogo-pii.md).
+   * **Procurar nomes** (liga/desliga): detector de nomes de pessoa e filiação. Fica desativado, com o motivo
+     escrito embaixo, quando o perfil não procura nomes ou quando o detector não está instalado no servidor.
+   * **Baixa qualidade** (liga/desliga): para digitalizações ruins; soma uma leitura extra de OCR e o "segundo
+     olhar" da IA nas páginas em dúvida. Mais lento. Se a leitura extra não estiver instalada, o aviso diz que só
+     o segundo olhar será usado.
 2. Clique em **Adicionar PDFs**.
 3. Selecione um ou mais arquivos `.pdf` (a seleção múltipla é permitida).
 4. Cada arquivo vira uma tarefa na barra lateral e o processamento começa automaticamente. O cartão da tarefa

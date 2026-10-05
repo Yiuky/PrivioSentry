@@ -43,7 +43,8 @@ def catalog():
     names_ok = _installed("gliner")
     extra_ok = _installed("rapidocr")
     return {
-        "perfis": [{"id": pid, "nome": p["nome"], "descricao": p["descricao"], "pede_nomes": profile_asks_names(pid)}
+        "perfis": [{"id": pid, "curto": p.get("curto") or p["nome"], "nome": p["nome"], "descricao": p["descricao"],
+                    "pede_nomes": profile_asks_names(pid)}
                    for pid, p in profiles.PROFILES.items()],
         "padrao": defaults(),
         "disponivel": {"nomes": names_ok, "leitura_extra": extra_ok, "segundo_olhar": True},

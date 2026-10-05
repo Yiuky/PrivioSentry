@@ -94,7 +94,7 @@
         .task-title { font-size:13px; font-weight:600; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width: 85%; }
         .task-meta { font-size:12px; color:var(--slate); display:flex; justify-content:space-between; gap:8px; }
 
-        .sidebar-footer { padding:16px; display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--border); background:var(--white); }
+        .sidebar-footer { padding:12px 16px 14px; display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--border); background:var(--white); max-height:60vh; overflow-y:auto; flex-shrink:0; }
 
         .main-content { flex:1; display:flex; flex-direction:column; position:relative; background:var(--surface); width: 100%; min-width:0; }
         .header { background:var(--white); border-bottom:1px solid var(--border); padding:0 24px; min-height:60px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
@@ -148,15 +148,31 @@
         .redaction-box.type-signature { border-color: var(--teal); background: rgba(20, 184, 166, 0.40); }
         .redaction-box.type-labelled::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--primary); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
         .task-pii { font-size:12px; color:var(--slate); margin-top:2px; cursor:help; }
-        .upload-options { display:flex; flex-direction:column; gap:6px; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:13px; }
-        .upload-options .opt-title { font-weight:600; font-size:12px; color:var(--slate); text-transform:uppercase; letter-spacing:.03em; }
-        .upload-options select { width:100%; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:13px; background:var(--white); }
-        .upload-options .opt-check { display:flex; align-items:center; gap:6px; cursor:pointer; }
-        .upload-options input:disabled + span { opacity:.55; }
+        /* Opções do próximo envio: painel recolhível com resumo; escolhas em botões (pílulas) */
+        .upload-options { border:1px solid var(--border); border-radius:10px; font-size:13px; background:var(--white); }
+        .upload-options > summary { list-style:none; cursor:pointer; padding:8px 10px; display:flex; flex-direction:column; gap:4px; border-radius:10px; }
+        .upload-options > summary::-webkit-details-marker { display:none; }
+        .upload-options > summary:focus-visible { outline:2px solid #6366F1; outline-offset:2px; }
+        .upload-options .opt-head { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+        .upload-options .opt-title { font-weight:600; font-size:11px; color:var(--slate); text-transform:uppercase; letter-spacing:.04em; }
+        .upload-options .opt-caret { font-size:11px; color:var(--slate); transition:transform .15s ease; }
+        .upload-options[open] .opt-caret { transform:rotate(180deg); }
+        .upload-options .opt-summary { display:flex; flex-wrap:wrap; gap:4px; }
+        .upload-options .opt-body { padding:2px 10px 10px; display:flex; flex-direction:column; gap:6px; }
+        .upload-options .opt-label { font-size:11px; color:var(--slate); margin-top:2px; }
+        .opt-group { display:flex; flex-wrap:wrap; gap:6px; }
+        .opt-pill { border:1px solid var(--border); background:var(--white); color:#1F2937; border-radius:999px; padding:4px 10px; font-size:12px; line-height:1.3; cursor:pointer; transition:background .12s, border-color .12s, color .12s; }
+        .opt-pill:hover:not(:disabled) { border-color:#A5B4FC; background:#F5F7FF; }
+        .opt-pill[aria-checked="true"], .opt-pill[aria-pressed="true"] { background:#EEF2FF; border-color:#6366F1; color:#3730A3; font-weight:600; }
+        .opt-pill[aria-pressed="true"]::before { content:"✓ "; }
+        .opt-pill:disabled { opacity:.5; cursor:not-allowed; }
+        .opt-pill:focus-visible { outline:2px solid #6366F1; outline-offset:2px; }
         .upload-options .opt-hint { font-size:11px; color:var(--slate); }
         .upload-options .opt-hint:empty { display:none; }
+        .sidebar-actions { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; }
+        .sidebar-actions .tool-btn { padding:6px 2px; font-size:11.5px; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
         .task-opts { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
-        .opt-chip { font-size:11px; padding:1px 6px; border-radius:10px; background:#EEF2FF; color:#3730A3; }
+        .opt-chip { font-size:11px; padding:1px 7px; border-radius:10px; background:#EEF2FF; color:#3730A3; }
         .redaction-box.type-signature::before { content: attr(data-label); position: absolute; top: -17px; left: 0; font-size: 10px; font-weight:700; background: var(--teal-strong); color: var(--white); padding: 1px 5px; border-radius: 3px; white-space:nowrap; }
 
         .redaction-box.selected { border:3px solid var(--white); box-shadow:0 0 0 2px var(--primary), 0 0 14px rgba(37,99,235,0.6); z-index:10; }
@@ -265,20 +281,30 @@
         </div>
         <div class="task-list" id="task-list"></div>
         <div class="sidebar-footer">
-            <div class="upload-options" id="upload-options" data-testid="upload-options">
-                <div class="opt-title" data-i18n="opt.title">Opções do próximo envio</div>
-                <label for="opt-profile" data-i18n="opt.profile">Perfil de proteção</label>
-                <select id="opt-profile" data-testid="opt-profile"></select>
-                <label class="opt-check"><input type="checkbox" id="opt-names" data-testid="opt-names"> <span data-i18n="opt.names">Procurar nomes</span></label>
-                <div class="opt-hint" id="opt-names-hint" data-testid="opt-names-hint"></div>
-                <label class="opt-check"><input type="checkbox" id="opt-lowq" data-testid="opt-lowq"> <span data-i18n="opt.lowq">Documento de baixa qualidade</span></label>
-                <div class="opt-hint" id="opt-lowq-hint" data-testid="opt-lowq-hint"></div>
-            </div>
+            <details class="upload-options" id="upload-options" data-testid="upload-options">
+                <summary data-testid="opt-toggle">
+                    <span class="opt-head"><span class="opt-title" data-i18n="opt.title">Opções do próximo envio</span><span class="opt-caret" aria-hidden="true">▾</span></span>
+                    <span class="opt-summary" id="opt-summary" data-testid="opt-summary"></span>
+                </summary>
+                <div class="opt-body">
+                    <div class="opt-label" id="opt-profile-label" data-i18n="opt.profile">Perfil de proteção</div>
+                    <div class="opt-group" id="opt-profile" role="radiogroup" aria-labelledby="opt-profile-label" data-testid="opt-profile"></div>
+                    <div class="opt-label" id="opt-extras-label" data-i18n="opt.extras">Detecção</div>
+                    <div class="opt-group" role="group" aria-labelledby="opt-extras-label">
+                        <button type="button" class="opt-pill" id="opt-names" data-testid="opt-names" aria-pressed="false" data-i18n="opt.names">Procurar nomes</button>
+                        <button type="button" class="opt-pill" id="opt-lowq" data-testid="opt-lowq" aria-pressed="false" data-i18n="opt.lowq">Baixa qualidade</button>
+                    </div>
+                    <div class="opt-hint" id="opt-names-hint" data-testid="opt-names-hint"></div>
+                    <div class="opt-hint" id="opt-lowq-hint" data-testid="opt-lowq-hint"></div>
+                </div>
+            </details>
             <input type="file" id="file-input" style="display:none;" accept=".pdf" multiple>
             <button class="tool-btn btn-primary btn-block" style="height:42px;" data-i18n="btn.add" onclick="document.getElementById('file-input').click()">Adicionar PDFs</button>
-            <button class="tool-btn btn-block" data-i18n="btn.processAll" onclick="processAll()">Processar todos</button>
-            <button class="tool-btn btn-block btn-danger-outline" data-i18n="btn.deleteAll" onclick="deleteAll()">Excluir todos</button>
-            <button class="tool-btn btn-block" data-i18n="btn.docs" onclick="openReadme()">Documentação</button>
+            <div class="sidebar-actions">
+                <button class="tool-btn" data-i18n="btn.processAll" onclick="processAll()">Processar todos</button>
+                <button class="tool-btn btn-danger-outline" data-i18n="btn.deleteAll" onclick="deleteAll()">Excluir todos</button>
+                <button class="tool-btn" data-i18n="btn.docs" onclick="openReadme()">Documentação</button>
+            </div>
         </div>
     </div>
 
@@ -406,10 +432,10 @@
                 'notice.ai.body': 'A detecção por IA é probabilística e pode errar. Revise todas as sugestões antes de proteger e exportar.',
                 'btn.add': 'Adicionar PDFs', 'btn.processAll': 'Processar todos', 'btn.deleteAll': 'Excluir todos', 'btn.docs': 'Documentação',
                 'opt.title': 'Opções do próximo envio', 'opt.profile': 'Perfil de proteção', 'opt.names': 'Procurar nomes',
-                'opt.lowq': 'Documento de baixa qualidade', 'opt.chipNames': 'Nomes', 'opt.chipLowq': 'Baixa qualidade',
+                'opt.lowq': 'Baixa qualidade', 'opt.chipNames': 'Nomes', 'opt.chipLowq': 'Baixa qualidade', 'opt.extras': 'Detecção',
                 'opt.namesUnavailable': 'Detector de nomes não instalado neste servidor.',
                 'opt.namesProfile': 'Este perfil não procura nomes.',
-                'opt.lowqHelp': 'Leitura extra de OCR e segundo olhar da IA nas páginas em dúvida (mais lento).',
+                'opt.lowqHelp': 'Documento de baixa qualidade: leitura extra de OCR e segundo olhar da IA nas páginas em dúvida (mais lento).',
                 'opt.lowqPartial': 'Leitura extra de OCR não instalada: só o segundo olhar da IA será usado.',
                 'err.options': 'Não foi possível carregar as opções de envio',
                 'btn.select': 'Selecionar', 'btn.draw': 'Nova tarja', 'btn.save': 'Salvar', 'btn.saved': 'Salvo!',
@@ -461,10 +487,12 @@
                 'notice.ai.body': 'AI detection is probabilistic and can be wrong. Review every suggestion before protecting and exporting.',
                 'btn.add': 'Add PDFs', 'btn.processAll': 'Process all', 'btn.deleteAll': 'Delete all', 'btn.docs': 'Documentation',
                 'opt.title': 'Options for the next upload', 'opt.profile': 'Protection profile', 'opt.names': 'Look for names',
-                'opt.lowq': 'Low-quality document', 'opt.chipNames': 'Names', 'opt.chipLowq': 'Low quality',
+                'opt.lowq': 'Low quality', 'opt.chipNames': 'Names', 'opt.chipLowq': 'Low quality', 'opt.extras': 'Detection',
+                'profile.cpf_endereco': 'CPF + address', 'profile.lgpd_publicacao': 'LGPD publication',
+                'profile.lgpd_interno': 'LGPD internal', 'profile.gdpr': 'GDPR', 'profile.saude_hipaa': 'Health',
                 'opt.namesUnavailable': 'Name detector not installed on this server.',
                 'opt.namesProfile': 'This profile does not look for names.',
-                'opt.lowqHelp': 'Extra OCR reading and an AI second look on doubtful pages (slower).',
+                'opt.lowqHelp': 'Low-quality document: extra OCR reading and an AI second look on doubtful pages (slower).',
                 'opt.lowqPartial': 'Extra OCR reading not installed: only the AI second look will be used.',
                 'err.options': 'Could not load the upload options',
                 'btn.select': 'Select', 'btn.draw': 'New redaction', 'btn.save': 'Save', 'btn.saved': 'Saved!',
@@ -1239,48 +1267,101 @@
         // ---------------------------------------------------------------- opções por documento
         // O servidor valida tudo (perfil, nomes instalados, nomes no perfil); aqui só se evita escolha impossível.
         let uploadOptions = null;
+        const optState = { perfil: null, nomes: false, lowq: false };
+
+        function profileLabel(p) {
+            // Nome curto: traduzido quando a interface conhece o perfil; senão o que o servidor mandar (sempre como texto)
+            const key = 'profile.' + p.id;
+            const translated = t(key);
+            return translated !== key ? translated : String(p.curto || p.nome || p.id);
+        }
 
         async function loadOptions() {
             const res = await api('/options', {}, t('err.options'));
             if (!res.ok || !res.data || !Array.isArray(res.data.perfis)) return;
             uploadOptions = res.data;
-            const sel = document.getElementById('opt-profile');
-            sel.innerHTML = '';
-            for (const p of res.data.perfis) {
-                const o = document.createElement('option');
-                o.value = String(p.id); o.textContent = String(p.nome); o.title = String(p.descricao || '');
-                sel.appendChild(o);
-            }
-            sel.value = res.data.padrao.perfil;
-            document.getElementById('opt-names').checked = !!res.data.padrao.nomes;
-            document.getElementById('opt-lowq').checked = !!res.data.padrao.baixa_qualidade;
-            sel.onchange = refreshOptionStates;
+            optState.perfil = res.data.padrao.perfil;
+            optState.nomes = !!res.data.padrao.nomes;
+            optState.lowq = !!res.data.padrao.baixa_qualidade;
+            renderProfileButtons();
             refreshOptionStates();
+            fetchTasks();  // os cartões já desenhados passam a mostrar o nome do perfil (não o código interno)
         }
+
+        function renderProfileButtons() {
+            const group = document.getElementById('opt-profile');
+            group.textContent = '';
+            for (const p of uploadOptions.perfis) {
+                const b = document.createElement('button');
+                b.type = 'button'; b.className = 'opt-pill'; b.setAttribute('role', 'radio');
+                b.dataset.profile = String(p.id); b.dataset.testid = 'opt-profile-' + String(p.id);
+                b.setAttribute('data-testid', 'opt-profile-' + String(p.id));
+                b.textContent = profileLabel(p);
+                b.title = String(p.nome || '') + (p.descricao ? ' — ' + String(p.descricao) : '');
+                b.onclick = () => { optState.perfil = p.id; refreshOptionStates(); };
+                group.appendChild(b);
+            }
+        }
+
+        // Setas esquerda/direita percorrem os perfis (padrão de grupo de rádio)
+        document.getElementById('opt-profile').addEventListener('keydown', (ev) => {
+            if (!uploadOptions || !['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(ev.key)) return;
+            ev.preventDefault();
+            const ids = uploadOptions.perfis.map(p => p.id);
+            const step = (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') ? 1 : -1;
+            optState.perfil = ids[(ids.indexOf(optState.perfil) + step + ids.length) % ids.length];
+            refreshOptionStates();
+            document.querySelector(`#opt-profile [data-profile="${CSS.escape(optState.perfil)}"]`).focus();
+        });
 
         function refreshOptionStates() {
             if (!uploadOptions) return;
-            const sel = document.getElementById('opt-profile');
-            const prof = uploadOptions.perfis.find(p => p.id === sel.value);
+            const prof = uploadOptions.perfis.find(p => p.id === optState.perfil);
+            document.querySelectorAll('#opt-profile .opt-pill').forEach(b => {
+                const on = b.dataset.profile === optState.perfil;
+                b.setAttribute('aria-checked', on ? 'true' : 'false');
+                b.tabIndex = on ? 0 : -1;
+                const p = uploadOptions.perfis.find(x => x.id === b.dataset.profile);
+                if (p) b.textContent = profileLabel(p);
+            });
             const names = document.getElementById('opt-names');
             let reason = '';
             if (!uploadOptions.disponivel.nomes) reason = t('opt.namesUnavailable');
             else if (prof && !prof.pede_nomes) reason = t('opt.namesProfile');
+            if (reason) optState.nomes = false;
             names.disabled = !!reason;
-            if (reason) names.checked = false;
+            names.setAttribute('aria-pressed', optState.nomes ? 'true' : 'false');
             names.title = reason;
             document.getElementById('opt-names-hint').textContent = reason;
             const lowq = document.getElementById('opt-lowq');
+            lowq.setAttribute('aria-pressed', optState.lowq ? 'true' : 'false');
             lowq.title = t('opt.lowqHelp');
             document.getElementById('opt-lowq-hint').textContent =
-                (lowq.checked && !uploadOptions.disponivel.leitura_extra) ? t('opt.lowqPartial') : '';
+                (optState.lowq && !uploadOptions.disponivel.leitura_extra) ? t('opt.lowqPartial') : '';
+            // Resumo visível com o painel fechado
+            const summary = document.getElementById('opt-summary');
+            summary.textContent = '';
+            optionLabels({ perfil: optState.perfil, nomes: optState.nomes, baixa_qualidade: optState.lowq }).forEach(l => {
+                const chip = document.createElement('span'); chip.className = 'opt-chip'; chip.textContent = l;
+                summary.appendChild(chip);
+            });
         }
-        document.getElementById('opt-lowq').addEventListener('change', refreshOptionStates);
+        document.getElementById('opt-names').addEventListener('click', () => {
+            if (document.getElementById('opt-names').disabled) return;
+            optState.nomes = !optState.nomes; refreshOptionStates();
+        });
+        document.getElementById('opt-lowq').addEventListener('click', () => { optState.lowq = !optState.lowq; refreshOptionStates(); });
+        // O painel lembra se ficou aberto (só conveniência deste navegador)
+        (() => {
+            const d = document.getElementById('upload-options');
+            try { if (localStorage.getItem('privio.optsOpen') === '1') d.open = true; } catch (e) {}
+            d.addEventListener('toggle', () => { try { localStorage.setItem('privio.optsOpen', d.open ? '1' : '0'); } catch (e) {} });
+        })();
 
         function optionLabels(options) {
             if (!options || typeof options !== 'object') return [];
             const prof = uploadOptions && uploadOptions.perfis.find(p => p.id === options.perfil);
-            const labels = [prof ? String(prof.nome) : String(options.perfil || '')];
+            const labels = [prof ? profileLabel(prof) : String(options.perfil || '')];
             if (options.nomes) labels.push(t('opt.chipNames'));
             if (options.baixa_qualidade) labels.push(t('opt.chipLowq'));
             return labels.filter(Boolean);
@@ -1289,9 +1370,9 @@
         async function handleUpload(file, force = false) {
             const fd = new FormData(); fd.append('file', file);
             if (uploadOptions) {
-                fd.append('perfil', document.getElementById('opt-profile').value);
-                fd.append('nomes', document.getElementById('opt-names').checked ? '1' : '0');
-                fd.append('baixa_qualidade', document.getElementById('opt-lowq').checked ? '1' : '0');
+                fd.append('perfil', optState.perfil);
+                fd.append('nomes', optState.nomes ? '1' : '0');
+                fd.append('baixa_qualidade', optState.lowq ? '1' : '0');
             }
             const res = await api(`/upload${force ? '?force=true' : ''}`, { method:'POST', body: fd }, t('err.upload', {file: file.name}));
             if(res.ok && res.data && res.data.status === 'confirm') {

@@ -5,6 +5,10 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Corrigido
+- **Layout da barra lateral (relatado com print):** o painel de opções e os quatro botões espremiam a lista de tarefas (dois cartões e meio, o terceiro cortado) e a caixa de seleção cortava o nome do perfil. Agora as opções são **botões** (perfis em pílulas com nome curto; "Procurar nomes" e "Baixa qualidade" liga/desliga) num painel **recolhível** que, fechado, mostra só o resumo das escolhas; "Processar todos", "Excluir todos" e "Documentação" ficam numa linha; o rodapé tem teto de 60% da altura da tela. Acessível pelo teclado (grupo de rádio com setas). Testes de regressão do espaço da lista e da largura dos botões.
+- O cartão da tarefa mostrava o código interno do perfil ("lgpd_publicacao") até o próximo ciclo de atualização quando as tarefas chegavam antes das opções.
+
 ### Dependências
 - FastAPI 0.142.2, Uvicorn 0.54.0, Pillow 12.3.0, python-dotenv 1.2.4 e Ultralytics 8.4.171 (atualizações do Dependabot), conferidas com a suíte completa (808 testes, incluindo a interface) num ambiente isolado com essas versões e com o detector de assinaturas real carregando e rodando. Ações do GitHub (checkout, setup-python, upload-artifact) na v7.
 
