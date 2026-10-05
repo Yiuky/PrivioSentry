@@ -219,8 +219,12 @@ Defina `OLLAMA_MODEL` e `OLLAMA_VISION_MODEL` no `.env`. Para um GGUF próprio, 
 quando a principal cai, e um disjuntor desliga a IA que falha seguidamente ([configuração](docs/configuration.md)).
 
 **Opcionais medidos** ([benchmarks](docs/benchmarks.md)): nomes com GLiNER (`pip install -e ".[nomes]"`,
-`NER_ENGINE=gliner`) e uma terceira leitura de OCR somada às duas do Tesseract (`pip install -e ".[ocr-extra]"`,
-`OCR_EXTRA_ENGINE=rapidocr`).
+`NER_ENGINE=gliner`), uma terceira leitura de OCR somada às duas do Tesseract (`pip install -e ".[ocr-extra]"`,
+`OCR_EXTRA_ENGINE=rapidocr`) e o **segundo olhar** (`SECOND_LOOK=1`): um agente local revê as páginas em dúvida e só
+acrescenta proteção.
+
+Na interface, o painel **Opções do próximo envio** escolhe, por documento, o perfil de proteção, se procura nomes e
+se é um documento de baixa qualidade ([manual](docs/MANUAL_DE_USO.md)).
 
 ### Docker (opcional)
 

@@ -101,7 +101,7 @@ ollama pull <your-vision-model>    # e.g. qwen2.5vl:7b
 
 Set `OLLAMA_MODEL` and `OLLAMA_VISION_MODEL` in `.env` to the model name(s). For a custom GGUF see [scripts/ollama/Modelfile.example](scripts/ollama/Modelfile.example).
 
-**Other AI servers** (LM Studio, vLLM, llama.cpp, organization servers): `AI_PROVIDER=openai`, `AI_BASE_URL=http://localhost:1234/v1`, `AI_VISION_MODEL=<model>`. A **backup AI** (`AI_SECONDARY_*`) takes over when the primary fails, and a circuit breaker switches off a failing server ([configuration](docs/configuration.md), in Portuguese). Optional, measured add-ons: names with GLiNER and an extra OCR reading (RapidOCR) added to Tesseract's two ([benchmarks](docs/benchmarks.md)).
+**Other AI servers** (LM Studio, vLLM, llama.cpp, organization servers): `AI_PROVIDER=openai`, `AI_BASE_URL=http://localhost:1234/v1`, `AI_VISION_MODEL=<model>`. A **backup AI** (`AI_SECONDARY_*`) takes over when the primary fails, and a circuit breaker switches off a failing server ([configuration](docs/configuration.md), in Portuguese). Optional, measured add-ons: names with GLiNER, an extra OCR reading (RapidOCR) added to Tesseract's two, and the **second look** (`SECOND_LOOK=1`), a local agent that reviews doubtful pages and can only add protection ([benchmarks](docs/benchmarks.md)). In the web UI, the **Options for the next upload** panel picks, per document, the protection profile, whether to look for names and whether it is a low-quality scan.
 
 ### Docker (optional)
 

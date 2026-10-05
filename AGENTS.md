@@ -57,9 +57,12 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
 | `app_service.py` | Rotas HTTP, tarefas, retenção (`RETENTION_DAYS`, `sweep_retention`, `POST /purge/{id}`), validação de upload, `API_TOKEN` |
 | `gatekeeper.py` | Painel e proxy da porta 8000 |
 | `utils/ocr_engine.py` | Tesseract com coordenadas por palavra (*grounding map*), *fallback* de escala, `find_cpfs_in_grounding` |
+| `utils/ocr_extra.py` | Leitura extra de OCR opcional (RapidOCR), somada às duas do Tesseract (`OCR_EXTRA_ENGINE`) |
+| `utils/second_look.py` | Segundo olhar: agente local curto pela API (`/v1/chat/completions`) nas páginas em dúvida; valor precisa passar nos validadores e ser localizado no OCR; só acrescenta (`SECOND_LOOK`) |
+| `utils/task_options.py` | Opções por documento escolhidas na interface (perfil, nomes, baixa qualidade): catálogo, validação no servidor e aplicação só no processo da tarefa |
 | `utils/validators.py` | Dígitos verificadores de CPF e CNPJ |
 | `utils/yolo_engine.py` | Detector de assinaturas (Ultralytics) e recortes |
-| `utils/ai_client.py` | Cliente Ollama (`/api/chat`, texto e visão), limpeza da resposta JSON |
+| `utils/ai_client.py` | Cliente de IA para **qualquer servidor pela API**: Ollama ou padrão OpenAI (LM Studio, vLLM, llama.cpp, servidor da organização); IA reserva, disjuntor com estado compartilhado, teste de saúde e descarga do modelo pela API, `GET /health/ai` |
 | `utils/address_redactor.py` + `utils/lexicon.py` | Descoberta de endereços pelo LLM e casamento com as palavras do OCR; palavras "imunes" |
 | `utils/session.py` | Pastas da tarefa, logs, exportação, reconstrução do PDF e tarja nativa (`apply_native_pdf_redactions`) |
 | `utils/verifier.py` | Verificação pós-tarja: relê o PDF final e confronta o original (`find_uncovered_cpfs`) |
@@ -71,7 +74,7 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
 | `templates/index.html` | Editor web autocontido; textos no objeto `I18N` (pt-BR padrão, en-US), chaves conforme `docs/brand/UX_SPEC.md`; renderizador Markdown próprio que **nunca** injeta HTML |
 | `templates/gatekeeper.html` | Página do painel quando o app está desligado |
 | `scripts/audit_public_tree.py` | Auditoria de dados pessoais, segredos e caminhos locais antes de publicar |
-| `benchmarks/` | Benchmark sintético de CPF (`python -m benchmarks.run_benchmark`; resultados em `benchmarks/results/`) e corpus fictício de PII com métricas por tipo (`pii_corpus.py`, `python -m benchmarks.pii_eval [--ocr]`) |
+| `benchmarks/` | Benchmark sintético de CPF (`run_benchmark`), corpus fictício de PII com métricas por tipo (`pii_corpus.py`, `pii_eval [--ocr]`), motores de OCR e IAs de OCR (`ocr_compare`), LLM de endereços (`address_eval`), segundo olhar (`second_look_eval`) e teste de pressão pela API do app (`stress`). Resultados em docs/benchmarks.md |
 | `experimental/agent_loop/` | Abordagem com agente LLM, inacabada e **fora** do pipeline e do lint |
 
 ## 5. Armadilhas conhecidas
@@ -83,6 +86,7 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
   proposital (ver `test_readme_renderer_is_local_and_escapes_html`); não troque por `innerHTML`.
 - **`BASE_DPI` padrão é 300** (era 1000 até a 5.3.0). Medido: acima de 300 o Tesseract fragmenta os dígitos e a revocação de CPF cai (docs/benchmarks.md). Não suba o padrão sem rodar o benchmark.
 - **Regras como dados.** Palavras de contexto, listas e limiares ficam em `utils/detect/data/*.json`, não no código. Antes e depois de mexer neles (ou em `rules.py`), rode `python -m benchmarks.pii_eval` e `pytest tests/test_pii_corpus_gate.py`: revocação abaixo de 100% no modo texto reprova. Ao achar um erro num documento real, transforme o caso (com valores **fictícios**) num modelo de `benchmarks/pii_corpus.py` ou numa regressão em `tests/test_counter_analysis.py`.
+- **IA sempre pela API, nunca por aplicativo.** Servidores de IA (Ollama, LM Studio, servidor da organização) são usados só pela API HTTP; o modelo de visão nunca é a única leitura (o DeepSeek-OCR 2 chegou a inventar 32 CPFs numa página) e o que vier de um agente só vale se for localizado nas palavras do OCR.
 - **Retorno do revisor nunca reduz proteção sozinho.** `python -m utils.decisions detectores` só sugere; a mudança é humana e medida no corpus.
 - **OCR em paralelo.** As páginas passam pelo OCR em threads (`ocr_workers`). Detecte falha do Tesseract com `OCREngine.thread_failures()` (por thread), nunca com o contador global, senão a falha de uma página é atribuída a outra. As duas passadas (padrão + esparsa) são mantidas de propósito.
 - **Artefatos com dados pessoais.** `output/`, `WEB_INPUT/`, `documentos_finais/` e `tasks.json` estão no

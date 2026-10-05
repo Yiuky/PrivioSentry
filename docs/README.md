@@ -29,7 +29,7 @@ Ponto de partida para usar, operar e desenvolver o **SENTRY Redact**. Comece pel
 | [AGENTS.md](../AGENTS.md) | Invariantes, arquitetura, onde fica cada coisa e armadilhas (para pessoas e modelos de IA) |
 | [Arquitetura](architecture.md) | Processos, fases do pipeline, estados, API HTTP e pastas de uma tarefa |
 | [Decisor local e automelhoramento](decisions.md) | Laya (modelo de decisão local), treino, portão de qualidade, versões e privacidade dos exemplos |
-| [Benchmarks](benchmarks.md) | Revocação e precisão medidas em dados **sintéticos** (CPF e todos os tipos do corpus fictício, com e sem OCR) e como reproduzir |
+| [Benchmarks](benchmarks.md) | Medições e como reproduzir: CPF e todos os tipos do corpus fictício (com e sem OCR), motores de OCR e IAs de OCR, LLMs de endereço, servidores de IA com disjuntor, harness de agente com modelos pequenos, segundo olhar e teste de pressão |
 | [Model card](../models/MODEL_CARD.md) | Detector YOLO de assinaturas: dados, métricas e limites |
 | [Como contribuir](../CONTRIBUTING.md) | Regras de ouro, ambiente, verificações e PRs |
 | [Backlog](../BACKLOG.md) | Trabalho pendente, prioridades e visão |

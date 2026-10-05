@@ -5,6 +5,15 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+## [5.6.0] - 2026-10-05
+
+Escolhas por documento na interface e o segundo olhar. O painel **Opções do próximo envio** define, para cada PDF,
+o perfil de proteção, se procura nomes e se é um documento de baixa qualidade (leitura extra de OCR + segundo olhar);
+o servidor valida a escolha e cada tarefa aplica as opções só no próprio processo. O **segundo olhar** é um agente
+local curto, pela API, que revê as páginas em dúvida e só acrescenta proteção (valor precisa passar nos validadores e
+ser localizado no OCR). **Sem mudança de comportamento** para quem não usa as novidades: os padrões continuam os do
+`.env`.
+
 ### Adicionado
 - **Opções por documento na interface:** painel "Opções do próximo envio" com o perfil de proteção, "Procurar nomes" e "Documento de baixa qualidade" (leitura extra de OCR + segundo olhar). O que não está disponível aparece desativado com o motivo; o servidor valida a escolha (`GET /options`, campos `perfil`, `nomes` e `baixa_qualidade` no upload) e cada tarefa aplica as opções só no próprio processo. O cartão mostra as opções usadas e reprocessar as mantém. Testes de interface com contratestes (escolha forçada pelo navegador é recusada pelo servidor, texto do servidor nunca vira HTML, falha ao carregar as opções não impede o envio), conferidos com defeitos introduzidos de propósito.
 - **Segundo olhar** (`SECOND_LOOK=1`, `utils/second_look.py`): um agente local curto, pela API (`/v1/chat/completions`, qualquer servidor compatível), revê as páginas que já iam para revisão (ou todas) com duas ferramentas de leitura e instruções enxutas, e só **acrescenta** proteção: cada valor devolvido precisa ser localizado nas palavras do OCR (o que não existir é descartado), só os tipos do perfil contam, tarja acrescentada vem com aviso para conferir, e falha do agente manda a página para revisão. Benchmark em `benchmarks/second_look_eval.py` e docs/benchmarks.md.
