@@ -106,7 +106,8 @@ def test_sidebar_drawer_with_options_open_fits(page, live_app, open_app, width, 
     page.wait_for_function("() => document.querySelectorAll('#opt-profile .opt-pill').length > 0")
     page.get_by_test_id("opt-toggle").click()
     expect(page.get_by_test_id("opt-profile")).to_be_visible()
-    page.wait_for_timeout(400)                                          # animação de abrir a barra
+    page.wait_for_function("() => document.querySelector('.sidebar').getBoundingClientRect().left >= -1")  # barra aberta
+    page.wait_for_timeout(350)                                          # fim da transição (0,3 s)
     sidebar = rects(page, ".sidebar")[0]
     for sel in ("#opt-profile .opt-pill", "#opt-names", "#opt-lowq", ".sidebar-actions .tool-btn", ".sidebar-footer .btn-primary"):
         for b in rects(page, sel):

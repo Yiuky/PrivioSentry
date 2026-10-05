@@ -247,8 +247,12 @@ def test_cards_show_the_profile_name_not_the_internal_code(page, live_app, open_
                                                         "baixa_qualidade": False}})
     held = []
     page.route("**/options", lambda route: held.append(route))
+    # sem a atualização periódica (3 s): só a correção (redesenhar ao carregar as opções) pode atualizar o cartão,
+    # e o teste não depende da velocidade da máquina (o CI é mais lento)
+    page.add_init_script("""(() => { const orig = window.setInterval;
+        window.setInterval = (fn, ms, ...a) => ms === 3000 ? 0 : orig(fn, ms, ...a); })();""")
     open_app()
     chip = page.locator("[data-testid=task-opts] .opt-chip").first
     expect(chip).to_have_text("lgpd_publicacao")                         # opções ainda não chegaram
     held[0].continue_()
-    expect(chip).to_have_text("LGPD publicação", timeout=1500)           # antes do ciclo de 3 s
+    expect(chip).to_have_text("LGPD publicação", timeout=8000)
