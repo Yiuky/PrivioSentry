@@ -261,3 +261,25 @@ Na ata de condomínio, o pedido antigo deixava passar os endereços dos condômi
 | Ollama fora do ar (pipeline completo) | CPFs achados sem a IA; páginas para revisão |
 
 Invariantes conferidos em todos: nenhuma tarefa presa; nenhum "Concluído" com CPF do gabarito sem detecção.
+
+## Harness de agente com modelo pequeno (Claude Code apontado para o Ollama local)
+
+O Claude Code (e o Claude Agent SDK) aceita outro servidor por `ANTHROPIC_BASE_URL`, e o Ollama responde no formato
+de mensagens da Anthropic (`/v1/messages`): o harness inteiro roda com o modelo local, sem nada sair da máquina
+(tráfego não essencial desligado). Experimento em 10 páginas fictícias em condição "ruim", lidas pelo Tesseract
+(mesmo texto para todos), tarefa: listar os dados pessoais copiando-os do texto.
+
+| Configuração | Documentos | Datas | Contatos | Nomes | Inventados | s/pág |
+|---|---:|---:|---:|---:|---:|---:|
+| **Pipeline (regras) + GLiNER** | 18/18 | 5/5 | **11/14** | **11/11** | 0 | **2,3** |
+| Chamada direta à API, Gemma 4 12B | 18/18 | 5/5 | 8/14 | 11/11 | 0 | 7,6 |
+| Chamada direta à API, Qwen3.5-9B | 18/18 | 5/5 | 5/14 | 0/11 | 0 | 5,5 |
+| Claude Code + Gemma 4 12B | 18/18 | 5/5 | 9/14 | 11/11 | 0 | 88,9 |
+| Claude Code + Qwen3.5-9B | — | — | — | — | — | falha em 10/10 |
+
+* O harness funcionou com o Gemma 4 12B (usa a ferramenta de leitura, ~2,5 passos), ganhou 1 contato em relação à
+  chamada direta e custou **12 vezes mais tempo**: cada chamada leva ~34 mil tokens de instruções do harness.
+* Com o Qwen3.5-9B não funciona: o template de conversa do modelo recusa a estrutura de mensagens do Claude Code
+  (HTTP 500 no Ollama).
+* **Nenhuma configuração com LLM superou o pipeline** com GLiNER, que foi o mais completo e o mais rápido. O harness
+  não compensa como detector; pode valer como "segundo olhar" restrito nas páginas em dúvida (backlog B-86).
