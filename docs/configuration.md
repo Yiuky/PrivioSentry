@@ -62,6 +62,22 @@ os servidores (sem chaves), o disjuntor e o teste de saúde de cada um.
 | `AI_MAX_TOKENS` | `4096` | Limite de tokens da resposta nos servidores `openai`. |
 | `ADDRESS_PROMPT` | *(novo)* | `legado` volta ao pedido antigo de endereços (só imagem, "endereço completo e estruturado"). O novo pede para COPIAR do texto da página: nos documentos testados achou 3x mais endereços pessoais, sem inventar. |
 
+### Segundo olhar (agente local, opcional)
+
+Um agente curto (instruções enxutas + ferramentas `ler_pagina` e `buscar`, pela API `/v1/chat/completions`) revê as
+páginas em dúvida e só pode **acrescentar** proteção: cada valor que ele devolve precisa ser localizado nas palavras
+do OCR (o que não existir é descartado), só os tipos do perfil contam, e falha do agente manda a página para revisão.
+Medido em docs/benchmarks.md.
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `SECOND_LOOK` | `0` | `1` liga o segundo olhar |
+| `SECOND_LOOK_SCOPE` | `revisao` | `revisao`: só páginas que já iam para revisão; `todas`: todas as páginas (mais lento) |
+| `SECOND_LOOK_MODEL` | `gemma4:e4b` | Modelo com suporte a ferramentas (medido: melhor custo/benefício) |
+| `SECOND_LOOK_BASE_URL` | servidor de IA principal | API no padrão da OpenAI (Ollama: `{url}/v1`; LM Studio: `http://localhost:1234/v1`) |
+| `SECOND_LOOK_API_KEY` | *(vazio)* | Chave, se o servidor exigir |
+| `SECOND_LOOK_TIMEOUT` / `SECOND_LOOK_MAX_TURNS` | `120` / `6` | Tempo limite por chamada e passos máximos do agente |
+
 Variáveis antigas, ainda aceitas (valem como padrão do servidor principal):
 
 | Variável | Padrão | Descrição |

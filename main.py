@@ -18,6 +18,7 @@ from utils.pii import mask_text
 from utils import decisions
 from utils import detect as pii_detect
 from utils import ocr_extra
+from utils import second_look
 from utils.decisions import detector_stats
 from utils.decisions import feedback as decision_feedback
 from utils.decisions.questions import normalize_state
@@ -180,6 +181,7 @@ class SentryApp:
                 (self.run_address_discovery, "Análise Semântica (IA)", 65),
                 (self.run_phase_6, "Tarjamento Cirúrgico", 75),
                 (self.run_signature_audit, "Auditoria de Assinaturas (IA)", 85),
+                (self.run_second_look, "Segundo olhar (IA)", 90),
                 (self.run_phase_5, "Finalização e Exportação", 95),
                 (self.run_verification, "Verificação pós-tarja...", 98)
             ]
@@ -464,6 +466,81 @@ class SentryApp:
                     boxes = self.session.get_redaction_boxes(gmap, review)
                     self.add_review(page_num, reason,
                                     self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in boxes]))
+
+    @staticmethod
+    def _lines_from_words(words):
+        """Palavras -> linhas de texto (agrupa por altura), na ordem de leitura."""
+        rows = []
+        for w in sorted(words, key=lambda w: (w["box"]["y"], w["box"]["x"])):
+            b = w["box"]
+            if rows and abs(rows[-1][0] - b["y"]) <= max(4, b["h"] * 0.6):
+                rows[-1][1].append(w)
+            else:
+                rows.append([b["y"], [w]])
+        return "\n".join(" ".join(str(x.get("text", "")) for x in sorted(r[1], key=lambda w: w["box"]["x"])) for r in rows)
+
+    def run_second_look(self):
+        """
+        Segundo olhar (utils/second_look.py, SECOND_LOOK=1): um agente local revê as páginas em dúvida (ou todas) e só
+        acrescenta proteção. Valor que não for localizado nas palavras da página é descartado (defesa contra invenção).
+        """
+        if not second_look.enabled():
+            return
+        _, profile = pii_detect.get_profile(self.policy_profile)
+        types = [t for t in profile["acoes"] if t in second_look.TYPE_NAMES]
+        if not types:
+            return
+        pages = [p for p in range(1, len(self.grounding_maps) + 1)
+                 if second_look.scope() == "todas" or self.review_pages.get(p)]
+        self.logger.info(f"--- SEGUNDO OLHAR: {len(pages)} página(s), modelo {os.getenv('SECOND_LOOK_MODEL', 'gemma4:e4b')} ---")
+        stats = {"acrescentadas": 0, "ja_cobertas": 0, "nao_localizadas": 0, "falhas": 0}
+        for page_num in pages:
+            i = page_num - 1
+            native = self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else []
+            words = native or self.grounding_maps[i]
+            if not words:
+                continue
+            page_text = self._lines_from_words(words)
+            items, info = second_look.run_agent(page_text, types)
+            if items is None:
+                stats["falhas"] += 1
+                self.logger.error(f"[-] Segundo olhar falhou na pág {page_num}: {info.get('erro')}")
+                self.add_review(page_num, "Segundo olhar (IA) falhou nesta página. Revisar manualmente.")
+                continue
+            existing = self.global_redactions[page_num]
+            for label, value in items:
+                type_id = second_look.type_id_for(label)
+                if type_id not in types:
+                    continue
+                value = second_look.core_value(type_id, value)
+                context = next((ln for ln in page_text.splitlines() if value[:6] in ln), "")
+                if not second_look.plausible(type_id, value, context):
+                    stats["implausiveis"] = stats.get("implausiveis", 0) + 1
+                    continue
+                commands = second_look.locate(value, words)
+                if not commands:
+                    stats["nao_localizadas"] += 1
+                    continue
+                boxes = self.session.get_redaction_boxes(words, commands)
+                new = [b for b in boxes if not any(
+                    e["x"] <= b["x"] + b["w"] / 2 <= e["x"] + e["w"] and e["y"] <= b["y"] + b["h"] / 2 <= e["y"] + e["h"]
+                    for e in existing)]
+                if not new:
+                    stats["ja_cobertas"] += 1
+                    continue
+                name = pii_detect.catalog.get(type_id).nome
+                stats["acrescentadas"] += 1
+                if profile["acoes"][type_id] == pii_detect.TARJAR:
+                    for b in new:
+                        existing.append(b)
+                        self.box_labels[page_num][f"{b['x']}_{b['y']}_{b['w']}_{b['h']}"] = name
+                    self.add_review(page_num, f"Segundo olhar (IA) acrescentou tarja: {name}. Conferir.",
+                                    self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in new]))
+                else:
+                    self.add_review(page_num, f"Segundo olhar (IA): possível {name}. Revisar.",
+                                    self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in new]))
+        self.logger.info(f"[+] Segundo olhar: {stats}")
+        self.second_look_stats = stats
 
     def run_phase_3(self):
         """Fase 3: Mapeador Visual YOLO (02_DISCOVERY & CROPPING)"""

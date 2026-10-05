@@ -297,3 +297,35 @@ sem as instruções completas do Claude Code.
 * **Nenhuma configuração com LLM superou o pipeline**, que chegou a 100% em 4x menos tempo e sem variação entre
   execuções. O melhor harness (Claude Code enxuto + Gemma 4 E4B, 9 s por página) **empatou**: é o candidato para o
   "segundo olhar" restrito às páginas em dúvida (backlog B-86), não para substituir as regras.
+
+## Segundo olhar (`SECOND_LOOK=1`, `benchmarks/second_look_eval.py`)
+
+Agente pela API (`/v1/chat/completions`, Gemma 4 E4B no Ollama) com instruções enxutas e as ferramentas `ler_pagina`
+e `buscar`. Três travas que não dependem do modelo: só os tipos do perfil; o valor precisa passar nos validadores
+das regras (dígito verificador, formato, nome plausível, placa antiga com "placa" perto, sem números de serviço
+0800/4004); e precisa ser localizado nas palavras do OCR. Só acrescenta.
+
+### Corpus fictício (24 páginas por condição; referência = pipeline completo com GLiNER)
+
+| Condição | O pipeline perdeu | Recuperados pelo segundo olhar | Acréscimos fora do gabarito | Recusados pelos validadores | Descartados (não existiam na página) | s/pág |
+|---|---:|---:|---:|---:|---:|---:|
+| ruim (Gemma 4 E4B) | 3 | 0 | 2 | 22 | 17 | 12,1 |
+| péssima (Gemma 4 E4B) | 8 | **2** (1 identificador, 1 nome) | 4 | 14 | 12 | 12,4 |
+| péssima (Qwen3.5 4B) | 8 | 2 | 2 | 5 | 6 | 22,3 |
+
+* Os acréscimos fora do gabarito restantes são **dados verdadeiros lidos com erro pelo OCR** ("Carta" por "Carla",
+  placa "PHC3D28" lida "PHC3028", data com um dígito trocado, e-mail deformado): tarja no lugar certo.
+* Sem os validadores eram 9 acréscimos por condição, quase todos lixo de OCR ("CPF" de 12 dígitos, placa "BR4.47",
+  nome "EEE ERR..."). As travas descartaram dezenas de valores que o modelo devolveu e não existiam na página.
+
+### Documentos reais (44 páginas que foram para revisão; só contagens)
+
+* Antes dos ajustes: 14 acréscimos, entre eles o órgão emissor do RG ("SSP/MT") e números 0800 de empresa. Depois:
+  **5 acréscimos e 45 achados que o pipeline já tinha tarjado** (11,9 s por página).
+* Com o pipeline **atual** (GLiNER com corte de papéis e regra de e-mail corrigida), esses 5 já estão cobertos:
+  nome e e-mails por inteiro; nas filiações sobra uma palavra por trecho (pelo formato, o "e" entre os nomes da mãe e
+  do pai).
+
+**Conclusão:** nos documentos testados, o segundo olhar **concorda** com o pipeline e não acrescenta proteção; em
+digitalização péssima recupera ~1/4 do que o pipeline perde, a ~12 s por página revisada. Fica **desligado por
+padrão** e recomendado para lotes de digitalização ruim (só nas páginas em revisão, onde o custo é pequeno).

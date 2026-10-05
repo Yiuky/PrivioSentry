@@ -5,6 +5,9 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Adicionado
+- **Segundo olhar** (`SECOND_LOOK=1`, `utils/second_look.py`): um agente local curto, pela API (`/v1/chat/completions`, qualquer servidor compatível), revê as páginas que já iam para revisão (ou todas) com duas ferramentas de leitura e instruções enxutas, e só **acrescenta** proteção: cada valor devolvido precisa ser localizado nas palavras do OCR (o que não existir é descartado), só os tipos do perfil contam, tarja acrescentada vem com aviso para conferir, e falha do agente manda a página para revisão. Benchmark em `benchmarks/second_look_eval.py` e docs/benchmarks.md.
+
 ## [5.5.0] - 2026-10-05
 
 Menos regra fixa no código e mais medição: regras e limiares como dados, corpus de avaliação por tipo, nomes com
