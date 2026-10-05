@@ -97,9 +97,11 @@
         .sidebar-footer { padding:12px 16px 14px; display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--border); background:var(--white); max-height:60vh; overflow-y:auto; flex-shrink:0; }
 
         .main-content { flex:1; display:flex; flex-direction:column; position:relative; background:var(--surface); width: 100%; min-width:0; }
-        .header { background:var(--white); border-bottom:1px solid var(--border); padding:0 24px; min-height:60px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-        .header-left { display:flex; align-items:center; gap:12px; min-width:0; }
-        .header-right { display:flex; align-items:center; gap:12px; }
+        /* Cabeçalho responsivo: nome do documento + selo/idioma na 1ª linha; ferramentas numa linha própria, em
+           grupos que quebram com espaço (antes, sem espaçamento vertical, os botões ficavam grudados no topo) */
+        .header { background:var(--white); border-bottom:1px solid var(--border); padding:10px 24px; min-height:60px; display:flex; align-items:center; justify-content:space-between; gap:10px 16px; flex-wrap:wrap; }
+        .header-left { display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 240px; order:1; }
+        .header-right { display:flex; align-items:center; gap:12px; flex:0 0 auto; order:2; }
         #doc-name { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
         .local-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:var(--radius-pill); background:#E6F7F5; color:var(--teal-strong); border:1px solid var(--teal); font-size:11px; font-weight:700; letter-spacing:0.06em; white-space:nowrap; }
@@ -110,14 +112,34 @@
         .ai-notice { background:var(--primary-tint); color:var(--ink); border-bottom:1px solid var(--border); padding:8px 24px; font-size:12px; line-height:1.4; }
         .ai-notice strong { color:var(--primary-strong); }
 
+        .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; order:3; flex:1 1 100%; padding-top:2px; }
+        .toolbar-group { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+        .toolbar-spacer { flex:1 1 auto; }
+        .toolbar-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+        /* Até 1024 px a barra lateral vira menu (☰ fixo no canto): o cabeçalho abre espaço para ele */
+        @media (max-width: 1024px) {
+            .header { padding-left: 64px; }
+        }
         @media (max-width: 768px) {
-            .header { padding-left: 60px; padding-right: 12px; }
-            .toolbar { flex-wrap: wrap; }
+            .header { padding-right: 12px; }
             .ai-notice { padding: 8px 12px; }
         }
-
-        .toolbar { display:flex; gap:8px; align-items:center; }
-        .toolbar-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+        @media (max-width: 640px) {
+            .header { padding-top:8px; padding-bottom:8px; }
+            .header-right { flex:1 1 100%; justify-content:space-between; }
+            .toolbar-sep, .toolbar-spacer { display:none; }
+            /* celular: botões compactos em duas colunas; a ação principal ocupa a linha toda */
+            .toolbar { display:grid !important; grid-template-columns:1fr 1fr; gap:6px; }
+            .toolbar[style*="display: none"], .toolbar[style*="display:none"] { display:none !important; }
+            .toolbar-group { display:contents; }
+            .toolbar .tool-btn { padding:6px 8px; font-size:12px; min-width:0; }
+            #btn-generate, #btn-reset-ai { grid-column:1 / -1; }
+            /* zoom acima do paginador (no rodapé eles se sobrepunham) */
+            .zoom-info { bottom:76px !important; right:12px !important; }
+            /* página reduzida: etiqueta só na caixa selecionada (a descrição continua em cada caixa) */
+            .redaction-box:not(.selected)::before { display:none; }
+        }
         .tool-btn { background:var(--white); border:1px solid var(--border); color:var(--ink); padding:6px 14px; border-radius:var(--radius-control); font-size:13px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:var(--shadow-sm); }
         .tool-btn:hover { background:var(--surface-2); }
         .tool-btn.active { background:var(--primary-tint); border-color:var(--primary); color:var(--primary-strong); }
@@ -317,15 +339,24 @@
             <div class="header-left">
                 <div id="doc-name" data-i18n="doc.waiting">Aguardando documento...</div>
             </div>
-            <div class="toolbar" id="toolbar" style="display:none;">
-                <button class="tool-btn" id="btn-toggle" onclick="toggleRedactionsVisibility()"><span>Ocultar tarjas</span></button>
+            <div class="toolbar" id="toolbar" role="toolbar" data-i18n-aria="toolbar.label" aria-label="Ferramentas do editor" style="display:none;">
+                <div class="toolbar-group">
+                    <button class="tool-btn" id="btn-toggle" onclick="toggleRedactionsVisibility()"><span>Ocultar tarjas</span></button>
+                </div>
                 <div class="toolbar-sep"></div>
-                <button class="tool-btn active" id="btn-select" onclick="setMode('select')"><span data-i18n="btn.select">Selecionar</span></button>
-                <button class="tool-btn" id="btn-draw" onclick="setMode('draw')"><span data-i18n="btn.draw">Nova tarja</span></button>
+                <div class="toolbar-group">
+                    <button class="tool-btn active" id="btn-select" onclick="setMode('select')"><span data-i18n="btn.select">Selecionar</span></button>
+                    <button class="tool-btn" id="btn-draw" onclick="setMode('draw')"><span data-i18n="btn.draw">Nova tarja</span></button>
+                </div>
                 <div class="toolbar-sep"></div>
-                <button class="tool-btn" id="btn-save" onclick="saveDraft()"><span data-i18n="btn.save">Salvar</span></button>
-                <button class="tool-btn btn-protect" id="btn-generate" onclick="generateNativePDF()"><span data-i18n="btn.generate">Aplicar proteção (modo nativo)</span></button>
-                <button class="tool-btn btn-warn" id="btn-reset-ai" onclick="reloadAIRedactions()"><span data-i18n="btn.resetAi">Recarregar sugestões da IA</span></button>
+                <div class="toolbar-group">
+                    <button class="tool-btn" id="btn-save" onclick="saveDraft()"><span data-i18n="btn.save">Salvar</span></button>
+                </div>
+                <div class="toolbar-spacer"></div>
+                <div class="toolbar-group">
+                    <button class="tool-btn btn-warn" id="btn-reset-ai" onclick="reloadAIRedactions()"><span data-i18n="btn.resetAi">Recarregar sugestões da IA</span></button>
+                    <button class="tool-btn btn-protect" id="btn-generate" onclick="generateNativePDF()"><span data-i18n="btn.generate">Aplicar proteção (modo nativo)</span></button>
+                </div>
             </div>
             <div class="header-right">
                 <span class="local-badge" data-testid="local-badge" id="local-badge">LOCAL PROCESSING</span>
@@ -435,6 +466,7 @@
                 'notice.ai.lead': 'A IA sugere; você confirma.',
                 'notice.ai.body': 'A detecção por IA é probabilística e pode errar. Revise todas as sugestões antes de proteger e exportar.',
                 'btn.add': 'Adicionar PDFs', 'btn.processAll': 'Processar todos', 'btn.deleteAll': 'Excluir todos', 'btn.docs': 'Documentação',
+                'toolbar.label': 'Ferramentas do editor',
                 'opt.title': 'Opções do próximo envio', 'opt.profile': 'Perfil de proteção', 'opt.names': 'Procurar nomes',
                 'opt.lowq': 'Baixa qualidade', 'opt.chipNames': 'Nomes', 'opt.chipLowq': 'Baixa qualidade', 'opt.extras': 'Detecção',
                 'opt.namesUnavailable': 'Detector de nomes não instalado neste servidor.',
@@ -490,6 +522,7 @@
                 'notice.ai.lead': 'AI suggests; you confirm.',
                 'notice.ai.body': 'AI detection is probabilistic and can be wrong. Review every suggestion before protecting and exporting.',
                 'btn.add': 'Add PDFs', 'btn.processAll': 'Process all', 'btn.deleteAll': 'Delete all', 'btn.docs': 'Documentation',
+                'toolbar.label': 'Editor tools',
                 'opt.title': 'Options for the next upload', 'opt.profile': 'Protection profile', 'opt.names': 'Look for names',
                 'opt.lowq': 'Low quality', 'opt.chipNames': 'Names', 'opt.chipLowq': 'Low quality', 'opt.extras': 'Detection',
                 'profile.cpf_endereco': 'CPF + address', 'profile.lgpd_publicacao': 'LGPD publication',
