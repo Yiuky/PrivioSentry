@@ -264,22 +264,36 @@ Invariantes conferidos em todos: nenhuma tarefa presa; nenhum "Concluído" com C
 
 ## Harness de agente com modelo pequeno (Claude Code apontado para o Ollama local)
 
-O Claude Code (e o Claude Agent SDK) aceita outro servidor por `ANTHROPIC_BASE_URL`, e o Ollama responde no formato
-de mensagens da Anthropic (`/v1/messages`): o harness inteiro roda com o modelo local, sem nada sair da máquina
-(tráfego não essencial desligado). Experimento em 10 páginas fictícias em condição "ruim", lidas pelo Tesseract
-(mesmo texto para todos), tarefa: listar os dados pessoais copiando-os do texto.
+O Claude Code aceita outro servidor por `ANTHROPIC_BASE_URL`, e o Ollama responde no formato de mensagens da
+Anthropic (`/v1/messages`): o harness inteiro roda com o modelo local, sem nada sair da máquina (tráfego não
+essencial desligado). Variantes com janela de 32 mil tokens criadas pela API do Ollama (`/api/create`). Tarefa: listar
+os dados pessoais de 10 páginas fictícias em condição "ruim", lidas pelo Tesseract (mesmo texto para todos), copiando
+do texto. Os e-mails deformados pelo OCR contam como achados em todas as configurações (mesma regra do pipeline).
 
-| Configuração | Documentos | Datas | Contatos | Nomes | Inventados | s/pág |
+| Configuração | Contatos | Nomes | Documentos e datas | Inventados | s/pág | Tokens/chamada |
 |---|---:|---:|---:|---:|---:|---:|
-| **Pipeline (regras) + GLiNER** | 18/18 | 5/5 | **11/14** | **11/11** | 0 | **2,3** |
-| Chamada direta à API, Gemma 4 12B | 18/18 | 5/5 | 8/14 | 11/11 | 0 | 7,6 |
-| Chamada direta à API, Qwen3.5-9B | 18/18 | 5/5 | 5/14 | 0/11 | 0 | 5,5 |
-| Claude Code + Gemma 4 12B | 18/18 | 5/5 | 9/14 | 11/11 | 0 | 88,9 |
-| Claude Code + Qwen3.5-9B | — | — | — | — | — | falha em 10/10 |
+| **Pipeline (regras) + GLiNER** | 14/14 | 11/11 | 23/23 | 0 | **2,4** | — |
+| API direta, Qwen3.5 4B | 12/14 | 11/11 | 23/23 | 0 | 5,4 | — |
+| API direta, Gemma 4 E4B | 13/14 | 10/11 | 23/23 | 0 | 5,7 | — |
+| API direta, Qwen3.5 9B | 9/14 | 0/11 | 23/23 | 0 | 4,9 | — |
+| API direta, Gemma 4 12B | 13/14 | 11/11 | 23/23 | 0 | 7,6 | — |
+| **Claude Code enxuto, Gemma 4 E4B** | **14/14** | **11/11** | 23/23 | 0 | **9,3** | 1.221 |
+| Claude Code enxuto, Qwen3.5 4B | 13/14 | 10/11 | 23/23 | 0 | 12,2 | 3.183 |
+| Claude Code enxuto, Qwen3.5 9B | 12/14 | 11/11 | 23/23 | **1** | 15,1 | 1.561 |
+| Claude Code enxuto, Gemma 4 12B | 14/14 | 11/11 | 23/23 | 0 | 32,3 | 1.197 |
+| Claude Code padrão, Gemma 4 E4B | 14/14 | 11/11 | 23/23 | 0 | 17,7 | 33.917 |
+| Claude Code padrão, Qwen3.5 4B | 11/14 | 5/11 | 21/23 | 0 | 22,0 | 64.788 (2 falhas) |
 
-* O harness funcionou com o Gemma 4 12B (usa a ferramenta de leitura, ~2,5 passos), ganhou 1 contato em relação à
-  chamada direta e custou **12 vezes mais tempo**: cada chamada leva ~34 mil tokens de instruções do harness.
-* Com o Qwen3.5-9B não funciona: o template de conversa do modelo recusa a estrutura de mensagens do Claude Code
-  (HTTP 500 no Ollama).
-* **Nenhuma configuração com LLM superou o pipeline** com GLiNER, que foi o mais completo e o mais rápido. O harness
-  não compensa como detector; pode valer como "segundo olhar" restrito nas páginas em dúvida (backlog B-86).
+"Enxuto" = `--bare --system-prompt <curto> --tools Read Grep Glob`: o mesmo ciclo de agente e as mesmas ferramentas,
+sem as instruções completas do Claude Code.
+
+* **O harness melhorou os modelos pequenos em relação à chamada direta** (Gemma 4 E4B: 13/14 e 10/11 -> 14/14 e 11/11):
+  ler o arquivo com uma ferramenta e responder depois funciona melhor que receber tudo de uma vez.
+* **O peso vinha das instruções do harness, não do modelo:** modo padrão 34-77 mil tokens por chamada; enxuto ~1,2 mil
+  (Gemma 4 12B: 195 s -> 32 s por página).
+* **Qwen3.5 no Claude Code:** o GGUF do Hugging Face falhava (o template exige uma só mensagem de sistema, no início).
+  Com o modelo oficial do Ollama (ou o mesmo GGUF com o template do oficial, aplicado pela API), funciona no modo
+  enxuto; no padrão o Qwen 4B se perde (2 falhas, metade dos nomes) e o 9B inventou 1 valor no enxuto.
+* **Nenhuma configuração com LLM superou o pipeline**, que chegou a 100% em 4x menos tempo e sem variação entre
+  execuções. O melhor harness (Claude Code enxuto + Gemma 4 E4B, 9 s por página) **empatou**: é o candidato para o
+  "segundo olhar" restrito às páginas em dúvida (backlog B-86), não para substituir as regras.
