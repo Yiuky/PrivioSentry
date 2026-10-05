@@ -10,4 +10,4 @@ requests==2.34.2
 PyMuPDF==1.27.2.3
 pillow==12.3.0
 pytesseract==0.3.13
-ultralytics==8.4.62
+ultralytics==8.4.171
