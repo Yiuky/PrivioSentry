@@ -122,3 +122,49 @@ def test_repeated_unlocated_address_is_counted_once(redactor):
     addresses = pessoal("Rua Flores, Santa Rita") * 5
     redactor.refine_redaction_with_text_ai(1, "", addresses, gm)
     assert redactor.unlocated[1] == ["Rua Flores, Santa Rita"]
+
+
+def test_discovery_prompt_asks_to_copy_and_never_to_restructure():
+    from utils.address_redactor import DISCOVERY_PROMPT, DISCOVERY_SCHEMA, with_ocr_text
+    assert "EXATAMENTE" in DISCOVERY_PROMPT and "Não invente" in DISCOVERY_PROMPT
+    assert "estruturado" not in DISCOVERY_PROMPT          # o pedido antigo mandava montar um endereço "estruturado"
+    assert DISCOVERY_SCHEMA["required"] == ["addresses"]
+    with_text = with_ocr_text(DISCOVERY_PROMPT, "Rua   das\nFlores, 10")
+    assert "Rua das Flores, 10" in with_text and with_text.startswith(DISCOVERY_PROMPT)
+    assert with_ocr_text(DISCOVERY_PROMPT, "") == DISCOVERY_PROMPT
+    assert len(with_ocr_text(DISCOVERY_PROMPT, "x " * 50000)) < len(DISCOVERY_PROMPT) + 13000  # limite de tamanho
+
+
+def _capture_prompts(redactor, monkeypatch, tmp_path):
+    from PIL import Image
+    img = tmp_path / "p.png"
+    Image.new("L", (50, 50), 255).save(img)
+    prompts = []
+
+    def fake(path, prompt):
+        prompts.append(prompt)
+        return {"addresses": []}, b"", {}
+    monkeypatch.setattr(redactor.ai, "analyze_image", fake)
+    return str(img), prompts
+
+
+def test_discovery_sends_the_page_text_for_the_model_to_copy(redactor, monkeypatch, tmp_path):
+    monkeypatch.delenv("ADDRESS_PROMPT", raising=False)
+    img, prompts = _capture_prompts(redactor, monkeypatch, tmp_path)
+    redactor.run_discovery([img], page_texts=["residente na Rua Exemplo, 10"])
+    assert "EXATAMENTE" in prompts[0] and "residente na Rua Exemplo, 10" in prompts[0]
+
+
+def test_address_prompt_legado_restores_the_old_request(redactor, monkeypatch, tmp_path):
+    from utils.address_redactor import DISCOVERY_PROMPT_LEGACY
+    monkeypatch.setenv("ADDRESS_PROMPT", "legado")
+    img, prompts = _capture_prompts(redactor, monkeypatch, tmp_path)
+    redactor.run_discovery([img], page_texts=["qualquer"])
+    assert prompts == [DISCOVERY_PROMPT_LEGACY]
+
+
+def test_generic_only_address_is_not_sent_to_review(redactor):
+    # Medido nos documentos testados: o modelo às vezes devolve só termos genéricos; nada a tarjar, revisão à toa
+    gm = [{"id": 0, "text": "Floresta", "box": {"x": 0, "y": 0, "w": 90, "h": 20}}]
+    redactor.refine_redaction_with_text_ai(1, "", pessoal("Rua, Bairro, CEP"), gm)
+    assert redactor.unlocated[1] == []

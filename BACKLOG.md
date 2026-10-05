@@ -23,7 +23,7 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
 | 🟠 P1 | 13 | Falhar fechado em mais situações (OCR, respostas da IA, tarjas manuais, rotação) |
 | 🟡 P2 | 10 | Robustez dos processos, limites de recursos, Docker e editor |
 | 🔵 P3 | 5 | Limpeza de código, lint e marca |
-| 🧠 Roteiro | 13 | Detecção configurável (nomes, telefones, RG...), GLiNER e decisor Laya que aprende (B-71 a B-84) |
+| 🧠 Roteiro | 16 | Detecção configurável (nomes, telefones, RG...), GLiNER, decisor Laya que aprende, IAs de OCR e agentes (B-71 a B-87) |
 | 🔭 Visão | 5 | Auditoria, políticas e novos módulos SENTRY |
 
 ---
@@ -64,6 +64,9 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 | B-81 | P1 | **Corpus a partir dos testes reais:** cada erro achado num documento real vira um modelo fictício em `benchmarks/pii_corpus.py` (mais modelos: boletim, processo administrativo, nota fiscal, tabela com várias colunas) e o modo `--ocr` com fontes e ruídos variados | B-72 |
 | B-83 | P1 | **Nome de servidor no exercício da função (LAI):** nos documentos testados, metade dos nomes estava perto de "analista", "síndico", "responsável técnico", "procurador". Hoje o perfil `lgpd_publicacao` os tarja/alerta como qualquer nome; decidir com o usuário (perfil, lista de cargos ou B-74 com o Laya) | B-73 |
 | B-84 | P2 | **Retorno por detector só existe depois de "Aplicar proteção":** nenhum dos 7 documentos testados foi finalizado, então nada foi contado. Mostrar isso na interface e contar também as tarjas removidas/acrescentadas ao salvar no editor | B-82 |
+| B-85 | P2 | **Segunda leitura por IA de OCR só onde o Tesseract tiver baixa confiança:** DeepSeek-OCR 2 e glm-ocr leram 100% no corpus até em imagem péssima e acharam o telefone/e-mail que o Tesseract perdeu, mas custam 5-17 s por página na GPU e o DeepSeek-OCR 2 **inventou 32 CPFs** numa página (não determinístico). Usar só como segunda opinião: valor lido pela IA precisa ser localizado nas palavras do OCR; senão, revisão | B-81 |
+| B-86 | P2 | **"Segundo olhar" com agente nas páginas em dúvida** (harness com poucas ferramentas e modelo local, só acrescenta tarja/revisão), medido contra o pipeline; ver o experimento com o Claude Code em docs/benchmarks.md | B-85 |
+| B-87 | P3 | **Agendar o uso da GPU entre servidores de IA:** dois servidores com modelos grandes não cabem juntos em 11 GB (medido: verificador de 35B ficou lento e deu HTTP 500); descarregar pela API antes de trocar de servidor | — |
 | B-82 | P2 | **Painel do retorno por detector na interface** (precisão observada por tipo e sugestões, só contagens), junto do painel de aprendizado | B-77 |
 | B-79 | P3 | **Instalação offline e mais rápida**: modelo em pasta local / `HF_HUB_OFFLINE`, versão ONNX na CPU (`laya.onnx_agent`), cache compartilhado | B-70 |
 

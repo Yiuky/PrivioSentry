@@ -213,3 +213,78 @@ TEMPLATES = [ata_condominio, contrato_locacao, ficha_cadastro, oficio_publico, a
 def generate(n=50, seed=2026):
     rng = random.Random(seed)
     return [TEMPLATES[i % len(TEMPLATES)](rng) for i in range(n)]
+
+
+# ------------------------------------------------------------------------------------------- endereços
+LOGRADOUROS = [("Rua", "R."), ("Avenida", "Av."), ("Travessa", "Tv."), ("Alameda", "Al.")]
+NOMES_RUA = ["das Acácias", "Beija-Flor", "das Palmeiras", "do Sol", "Ipê Roxo", "dos Pinheiros", "São Benedito",
+             "Primavera", "Coronel Exemplo", "Presidente Fictício"]
+BAIRROS_ABREV = [("Jardim Exemplo", "Jd. Exemplo"), ("Vila Teste", "Vl. Teste"), ("Residencial Aurora", "Res. Aurora"),
+                 ("Bairro Fictício", "Bairro Fictício"), ("Centro", "Centro")]
+
+
+@dataclass
+class AddressDoc:
+    kind: str
+    lines: List[str]
+    enderecos: List[Tuple[str, str]] = field(default_factory=list)  # (texto exato como na página, tipo)
+
+    @property
+    def text(self):
+        return "\n".join(self.lines)
+
+
+def _address_text(rng, residencial):
+    tipo, abrev = rng.choice(LOGRADOUROS)
+    bairro, bairro_abrev = rng.choice(BAIRROS_ABREV)
+    abbreviate = rng.random() < 0.4
+    parts = [f"{abrev if abbreviate else tipo} {rng.choice(NOMES_RUA)}", f"nº {rng.randint(1, 2999)}"]
+    if residencial:
+        parts.append(rng.choice([f"Apto {rng.randint(101, 1204)}", f"Casa {rng.randint(1, 40)}",
+                                 f"Bloco {rng.choice('ABCD')}, Apto {rng.randint(101, 804)}", f"Quadra {rng.randint(1, 30)}, Lote {rng.randint(1, 40)}"]))
+    else:
+        parts.append(rng.choice([f"Sala {rng.randint(1, 1500)}", "Galpão 2", "Térreo", f"Loja {rng.randint(1, 30)}"]))
+    parts += [bairro_abrev if abbreviate else bairro, f"CEP {rng.randint(10, 99)}.{rng.randint(100, 999)}-{rng.randint(100, 999)}",
+              rng.choice(CIDADES)]
+    return ", ".join(parts)
+
+
+def _wrap(text, width=70):
+    """Quebra como numa página (o endereço pode ficar partido em duas linhas)."""
+    out, line = [], ""
+    for word in text.split():
+        if line and len(line) + 1 + len(word) > width:
+            out.append(line)
+            line = word
+        else:
+            line = f"{line} {word}".strip()
+    return out + ([line] if line else [])
+
+
+def address_doc(rng, i):
+    """Página fictícia com endereços pessoais, profissionais e secundários, e iscas (datas, "à", horários, valores)."""
+    d = AddressDoc(["contrato", "requerimento", "ata"][i % 3], [])
+    nome, empresa = _person(rng), rng.choice(EMPRESAS)
+    pessoal, prof, sec = _address_text(rng, True), _address_text(rng, False), _address_text(rng, False)
+    data = gen_date(rng, 2023, 2026)
+    if d.kind == "contrato":
+        body = (f"CONTRATO DE PRESTAÇÃO DE SERVIÇOS. CONTRATANTE: {nome}, residente e domiciliado na {pessoal}. "
+                f"CONTRATADA: {empresa}, com sede na {prof}. Objeto: reforma do imóvel situado na {sec}, "
+                f"com início em {data}, às 8:00, pelo valor de R$ {rng.randint(1, 9)}.{rng.randint(100, 999)},00.")
+        d.enderecos += [(pessoal, "pessoal"), (prof, "profissional"), (sec, "secundario")]
+    elif d.kind == "requerimento":
+        body = (f"REQUERIMENTO. {nome}, portador do CPF {gen_cpf(rng)}, residente à {pessoal}, vem requerer à "
+                f"Secretaria Municipal de Exemplo, situada na {prof}, licença para a obra localizada na {sec}. "
+                f"Protocolado em {data} às 14:30.")
+        d.enderecos += [(pessoal, "pessoal"), (prof, "profissional"), (sec, "secundario")]
+    else:
+        body = (f"ATA DA REUNIÃO realizada em {data}, às 19:00, na sede da {empresa}, {prof}. Compareceu o morador "
+                f"{nome}, residente na {pessoal}, que relatou problemas no canteiro de obras da {sec}.")
+        d.enderecos += [(prof, "profissional"), (pessoal, "pessoal"), (sec, "secundario")]
+    d.lines = _wrap(body)
+    return d
+
+
+def generate_addresses(n=12, seed=2026):
+    rng = random.Random(seed)
+    return [address_doc(rng, i) for i in range(n)]

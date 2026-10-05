@@ -363,3 +363,78 @@ def test_purge_also_removes_decision_log(svc):
     removed, _ = mod.purge_task_originals(mod.tasks[tid])
     assert "decisions.json" in [os.path.basename(r) for r in removed]
     assert not os.path.exists(os.path.join(base, "decisions.json"))
+
+
+# --- fila de tarefas (MAX_PARALLEL_TASKS) --------------------------------------------------------
+def test_queue_limits_parallel_tasks_and_dispatches_in_order(monkeypatch):
+    import app_service
+    monkeypatch.setenv("MAX_PARALLEL_TASKS", "2")
+    importlib.reload(app_service)
+    mod = app_service
+    monkeypatch.setattr(mod, "_ensure_dispatcher", lambda: None)   # o teste chama dispatch_queue na mão
+    monkeypatch.setattr(mod, "save_tasks", lambda: None)
+    started = []
+
+    class FakeProc:
+        def __init__(self, target, args):
+            self.tid, self.alive = args[0], True
+
+        def start(self):
+            started.append(self.tid)
+
+        def is_alive(self):
+            return self.alive
+
+    monkeypatch.setattr(mod.multiprocessing, "Process", FakeProc)
+    ids = []
+    for i in range(4):
+        tid = str(uuid.uuid4())
+        inp = os.path.join(mod.INPUT_DIR, f"fila_{i}.pdf")
+        open(inp, "wb").write(PDF)
+        mod.tasks[tid] = {"input_path": inp, "status": "x"}
+        mod.start_worker(tid)
+        ids.append(tid)
+    assert started == ids[:2]                                     # só 2 ao mesmo tempo
+    assert mod.tasks[ids[2]]["status"].startswith("Na fila") and mod.is_queued(ids[3])
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException):
+        mod.start_worker(ids[3])                                   # já na fila: 409
+    assert mod.dispatch_queue() == 0                               # sem vaga, nada muda
+    mod.procs[ids[0]].alive = False                                # uma terminou
+    assert mod.dispatch_queue() == 1 and started == ids[:3]        # a próxima, na ordem de chegada
+    assert "queued" not in mod.tasks[ids[2]]
+    assert mod.dequeue(ids[3]) and not mod.is_queued(ids[3])       # apagar tira da fila
+    for tid in ids:
+        os.remove(mod.tasks[tid]["input_path"])
+
+
+def test_queued_task_whose_pdf_vanished_becomes_a_visible_error(monkeypatch):
+    import app_service
+    monkeypatch.setenv("MAX_PARALLEL_TASKS", "1")
+    importlib.reload(app_service)
+    mod = app_service
+    monkeypatch.setattr(mod, "_ensure_dispatcher", lambda: None)
+    monkeypatch.setattr(mod, "save_tasks", lambda: None)
+
+    class FakeProc:
+        def __init__(self, target, args):
+            self.alive = True
+
+        def start(self):
+            pass
+
+        def is_alive(self):
+            return self.alive
+
+    monkeypatch.setattr(mod.multiprocessing, "Process", FakeProc)
+    a, b = str(uuid.uuid4()), str(uuid.uuid4())
+    for tid in (a, b):
+        inp = os.path.join(mod.INPUT_DIR, f"{tid}.pdf")
+        open(inp, "wb").write(PDF)
+        mod.tasks[tid] = {"input_path": inp, "status": "x"}
+        mod.start_worker(tid)
+    os.remove(mod.tasks[b]["input_path"])
+    mod.procs[a].alive = False
+    assert mod.dispatch_queue() == 0
+    assert mod.tasks[b]["error"] and "fila" in mod.tasks[b]["status"]
+    os.remove(mod.tasks[a]["input_path"])

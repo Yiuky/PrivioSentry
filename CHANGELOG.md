@@ -5,6 +5,19 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Adicionado (testes com vários OCRs, IAs de OCR, LLMs e o procedimento sob pressão)
+- **Qualquer servidor de IA, pela API:** Ollama ou qualquer servidor no padrão da OpenAI (LM Studio, vLLM, llama.cpp, LocalAI, servidor da organização com chave). `AI_PROVIDER`, `AI_BASE_URL`, `AI_API_KEY`, modelos e tempo limite próprios; as variáveis `OLLAMA_*` continuam valendo.
+- **IA reserva, disjuntor e verificação cruzada:** a reserva (`AI_SECONDARY_*`) assume quando a principal cai; o disjuntor desliga o servidor que falha seguidamente (estado compartilhado entre tarefas), testa a volta pela API (lista de modelos) e descarrega o modelo pela API (Ollama `keep_alive: 0`, LM Studio `/api/v1/models/unload`); `AI_CROSS_CHECK=1` faz a reserva conferir cada página (respostas somadas; discordância vira "pessoal" e revisão). Medido ao vivo com a principal travada: a primeira página paga as tentativas, as seguintes vão direto para a reserva (~12 s por página em vez de até 30 min). Rota `GET /health/ai`.
+- **Pedido de endereços novo:** o modelo COPIA os endereços do texto da página (texto digital ou OCR) em vez de "montar um endereço completo e estruturado". Nos 7 documentos reais testados: 3x mais endereços pessoais localizados (30 contra 10), sem endereço inventado. `ADDRESS_PROMPT=legado` volta ao antigo. Medido também: a saída estruturada (esquema JSON) fazia o modelo devolver pedaços soltos ("Bloco A") e foi descartada.
+- **Leitura extra de OCR opcional** (`OCR_EXTRA_ENGINE=rapidocr`, `pip install -e ".[ocr-extra]"`), somada às duas do Tesseract, em paralelo. Nos documentos reais achou um telefone e um e-mail que o Tesseract leu deformados (ficariam sem tarja).
+- **Fila de tarefas** (`MAX_PARALLEL_TASKS`, padrão 2): vários uploads ao mesmo tempo não abrem um processo pesado cada; os demais ficam "Na fila".
+- Ferramentas de medição: `benchmarks/ocr_compare.py` (motores de OCR e modelos de visão sob condições de imagem cada vez piores), `benchmarks/address_eval.py` (LLM × pedido de endereços), `benchmarks/stress.py` (pressão pela API do app: simultâneos, documento grande, digitalização péssima, PDFs hostis).
+
+### Corrigido (achados do teste de pressão)
+- **Página gigante derrubava a máquina:** um PDF com página de 200 x 200 polegadas levou um processo a 35-40 GB de RAM (renderização e verificação a 300 DPI). Agora a maior página tem teto de pixels (`MAX_PAGE_MEGAPIXELS`, padrão 150: um mapa A0 continua a 300 DPI); acima disso o documento inteiro é lido em DPI menor, de forma determinística (finalização usa o mesmo), e vai para revisão.
+- **PDF danificado saía "Concluído":** o leitor reparava o arquivo em silêncio; agora vai para revisão. PDF com senha ganha mensagem clara.
+- O docTR (testado, não adotado) vazava ~140 threads por página; registrado no comparador.
+
 ### Adicionado (menos regra fixa no código, mais medição)
 - **Regras, listas e limiares como dados versionados** (`utils/detect/data/*.json`, lidos e validados por `utils/detect/config.py`): palavras de contexto de cada detector, palavras nunca tarjadas como endereço, limiares do casamento de endereços, do filtro de ruído de OCR, da confiança dos nomes e das sugestões do revisor. Formato errado dá erro claro ao carregar.
 - **Corpus fictício de PII com métricas por tipo** (`benchmarks/pii_corpus.py`, `python -m benchmarks.pii_eval [--ocr]`): cinco modelos de documento com resposta conhecida e iscas; revocação e precisão por tipo, em texto direto ou desenhado em imagem com ruído e lido pelo OCR real. Portão nos testes (`tests/test_pii_corpus_gate.py`). Resultados em `docs/benchmarks.md`.

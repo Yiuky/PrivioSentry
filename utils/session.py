@@ -21,6 +21,33 @@ def render_dpi():
     return _env_int("BASE_DPI", 300, 30, 2400)
 
 
+def max_page_megapixels():
+    """Teto de pixels da MAIOR página renderizada (padrão 150 MP: um A0 a 300 DPI cabe)."""
+    return _env_int("MAX_PAGE_MEGAPIXELS", 150, 4, 2000)
+
+
+def effective_dpi(pdf_path):
+    """
+    DPI de renderização para ESTE documento: BASE_DPI, reduzido se a maior página passar de MAX_PAGE_MEGAPIXELS.
+    Teste de pressão: uma página de 200 x 200 polegadas a 300 DPI (60.000 x 60.000 px) levou um processo a 35 GB de
+    RAM. O valor depende só do PDF e da configuração, então o processamento e a finalização usam o mesmo DPI
+    (as coordenadas das tarjas continuam batendo). Devolve (dpi, reduzido?).
+    """
+    base = render_dpi()
+    try:
+        import fitz
+        with fitz.open(pdf_path) as doc:
+            area = max((p.rect.width * p.rect.height for p in doc), default=0)
+    except Exception:
+        return base, False
+    if area <= 0:
+        return base, False
+    cap = int(72 * (max_page_megapixels() * 1e6 / area) ** 0.5)
+    if cap >= base:
+        return base, False
+    return max(30, cap), True
+
+
 def _env_int(name, default, minimum, maximum=None):
     """Lê um inteiro do ambiente; valor ausente/inválido/fora da faixa volta ao padrão."""
     raw = os.getenv(name)
@@ -447,7 +474,7 @@ class Session:
                     src_w = b.get("source_width") or b.get("image_width")
                     if not src_w or src_w <= 0:
                         # Sem a largura da imagem de origem: assume a resolução de renderização (BASE_DPI)
-                        src_w = pdf_w * (render_dpi() / 72.0)
+                        src_w = pdf_w * (effective_dpi(self.pdf_path)[0] / 72.0)
 
                     scale = pdf_w / float(src_w)
 

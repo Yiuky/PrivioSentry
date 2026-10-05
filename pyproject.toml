@@ -44,6 +44,8 @@ ui = ["pytest-playwright>=0.7"]
 laya = ["laya==0.3.26", "truststore==0.10.4"]  # versões exatas (cadeia de suprimentos)
 # Detector opcional de nomes de pessoa (GLiNER, local; NER_ENGINE=gliner). Ver docs/configuration.md.
 nomes = ["gliner==0.2.29", "protobuf==7.36.2", "truststore==0.10.4"]
+# Leitura extra de OCR, somada às do Tesseract (PP-OCR latino em ONNX; OCR_EXTRA_ENGINE=rapidocr). Ver docs/benchmarks.md.
+ocr-extra = ["rapidocr==3.9.2", "onnxruntime==1.30.0"]
 
 [project.urls]
 Homepage = "https://github.com/Yiuky/PrivioSentry"

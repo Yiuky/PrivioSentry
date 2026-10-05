@@ -8,6 +8,7 @@ import json
 import logging
 import shutil
 import threading
+import time
 from datetime import datetime, timedelta
 import httpx
 from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException, Body, Request
@@ -220,18 +221,93 @@ def require_input(task):
     if not os.path.exists(task["input_path"]):
         raise HTTPException(status_code=409, detail="O PDF de entrada não existe mais (removido). Envie o arquivo novamente.")
 
-def start_worker(task_id, manual_redactions=None, native_mode=False):
-    """Inicia o worker da tarefa; levanta 409 se já houver um em execução."""
-    if is_running(task_id):
-        raise HTTPException(status_code=409, detail="Tarefa já está em execução.")
+# Fila: no máximo MAX_PARALLEL_TASKS documentos processando ao mesmo tempo. Sem limite, cada upload abria um
+# processo com OCR em paralelo + modelos (nomes, decisor): vários uploads de uma vez esgotavam memória e CPU.
+MAX_PARALLEL_TASKS = max(1, int(os.getenv("MAX_PARALLEL_TASKS", "2") or 2))
+task_queue = []  # [(task_id, manual_redactions, native_mode)], na ordem de chegada
+queue_lock = threading.RLock()
+_dispatcher = None
+
+
+def running_count():
+    return sum(1 for p in procs.values() if p.is_alive())
+
+
+def is_queued(task_id):
+    with queue_lock:
+        return any(q[0] == task_id for q in task_queue)
+
+
+def dequeue(task_id):
+    """Tira a tarefa da fila (ao apagar). Devolve True se ela estava na fila."""
+    with queue_lock:
+        before = len(task_queue)
+        task_queue[:] = [q for q in task_queue if q[0] != task_id]
+        return len(task_queue) != before
+
+
+def _spawn(task_id, manual_redactions, native_mode):
     task = tasks[task_id]
-    require_input(task)
+    task.pop("queued", None)
     p = multiprocessing.Process(
         target=redaction_worker,
         args=(task_id, task["input_path"], manual_redactions, native_mode, APP_PORT, INTERNAL_SECRET, AI_LOCK)
     )
     p.start()
     procs[task_id] = p
+
+
+def dispatch_queue():
+    """Inicia as próximas tarefas da fila enquanto houver vaga. Devolve quantas iniciou."""
+    started = 0
+    with queue_lock:
+        while task_queue and running_count() < MAX_PARALLEL_TASKS:
+            task_id, manual_redactions, native_mode = task_queue.pop(0)
+            task = tasks.get(task_id)
+            if task is None:
+                continue
+            if not os.path.exists(task["input_path"]):  # PDF removido enquanto esperava: erro visível, não silêncio
+                task.pop("queued", None)
+                task.update(status="Erro: PDF de entrada removido enquanto aguardava na fila.", error=True)
+                continue
+            _spawn(task_id, manual_redactions, native_mode)
+            started += 1
+    if started:
+        save_tasks()
+    return started
+
+
+def _ensure_dispatcher():
+    global _dispatcher
+    if _dispatcher is not None and _dispatcher.is_alive():
+        return
+
+    def loop():
+        while True:
+            time.sleep(1)
+            try:
+                dispatch_queue()
+            except Exception as e:  # a fila nunca pode morrer em silêncio
+                app_logger.error(f"Fila de tarefas: {e}")
+    _dispatcher = threading.Thread(target=loop, name="fila-tarefas", daemon=True)
+    _dispatcher.start()
+
+
+def start_worker(task_id, manual_redactions=None, native_mode=False):
+    """Inicia o worker da tarefa (ou a põe na fila se já houver MAX_PARALLEL_TASKS rodando); 409 se já estiver
+    rodando ou na fila."""
+    if is_running(task_id) or is_queued(task_id):
+        raise HTTPException(status_code=409, detail="Tarefa já está em execução ou na fila.")
+    task = tasks[task_id]
+    require_input(task)
+    with queue_lock:
+        if running_count() >= MAX_PARALLEL_TASKS:
+            task_queue.append((task_id, manual_redactions, native_mode))
+            task["queued"] = True
+            task["status"] = f"Na fila ({len(task_queue)}º)"
+            _ensure_dispatcher()
+            return
+        _spawn(task_id, manual_redactions, native_mode)
 
 def sanitize_filename(name: str) -> str:
     name = os.path.basename((name or "").replace("\\", "/"))
@@ -305,6 +381,13 @@ async def internal_update(task_id: str, request: Request, data: dict = Body(...)
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
+
+@app.get("/health/ai")
+def ai_health():
+    """Servidores de IA configurados (sem chaves), disjuntor e teste de saúde pela API de cada um."""
+    from utils.ai_client import AIClient
+    return AIClient().health(live=True)
+
 
 @app.get("/policy/catalog")
 async def policy_catalog():
@@ -433,6 +516,10 @@ async def process_all():
 async def delete_all():
     if any(is_running(tid) for tid in tasks):
         raise HTTPException(status_code=409, detail="Há tarefas em execução.")
+    with queue_lock:
+        task_queue.clear()
+    if any(is_running(tid) for tid in tasks):
+        raise HTTPException(status_code=409, detail="Há tarefas em execução.")
     failures = []
     with tasks_lock:
         for tid in list(tasks):
@@ -543,6 +630,7 @@ def download_result(task_id: str, inline: bool = False):
 @app.delete("/task/{task_id}")
 async def delete_task(task_id: str):
     task = get_task(task_id)
+    dequeue(task_id)
     if is_running(task_id):
         raise HTTPException(status_code=409, detail="Tarefa em execução.")
     removed, errors = remove_task_artifacts(task)

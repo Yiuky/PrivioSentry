@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
 from utils.transform_pdf_to_img import transform_pdf_to_img
-from utils.session import Session, render_dpi
+from utils.session import Session, effective_dpi, render_dpi
 from utils.ocr_engine import OCREngine, ocr_workers
 from utils.yolo_engine import YOLOEngine
 from utils.address_redactor import AddressRedactor
@@ -17,6 +17,7 @@ from utils.lexicon import is_immune
 from utils.pii import mask_text
 from utils import decisions
 from utils import detect as pii_detect
+from utils import ocr_extra
 from utils.decisions import detector_stats
 from utils.decisions import feedback as decision_feedback
 from utils.decisions.questions import normalize_state
@@ -62,7 +63,7 @@ class SentryApp:
         
         # 3. Armazenamento de Estado
         # 300 DPI: melhor revocação E mais rápido nas medições (docs/benchmarks.md, 2026-10-04)
-        self.base_dpi = render_dpi()
+        self.base_dpi, self.dpi_reduced = effective_dpi(pdf_path)  # BASE_DPI, menor se a página for gigante
         self.image_paths = [] 
         self.grounding_maps = []
         self.grounding_maps_sparse = []
@@ -79,6 +80,7 @@ class SentryApp:
         self.review_marks = []  # regiões a revisar: {"page", "reason", "box": [x0, y0, x1, y1] relativos}
         self.timings = {}  # segundos por etapa (para acompanhar o desempenho)
         self.grounding_maps_native = []  # palavras do texto digital do PDF (passada extra de CPF), por página
+        self.grounding_maps_extra = []   # leitura extra opcional (OCR_EXTRA_ENGINE=rapidocr), por página
         self.policy_profile = pii_detect.active_profile_id()  # perfil de política (utils/detect/profiles.py)
         self.pii_summary = {}   # tipo do catálogo -> quantidade de valores distintos achados (sem os valores)
         self.box_labels = defaultdict(dict)  # página -> {assinatura da caixa: rótulo do tipo} (mostrado no editor)
@@ -219,9 +221,23 @@ class SentryApp:
             })
         self.logger.info(f"[PROGRESS] {status}: {percentage}%")
 
+    def _check_pdf_integrity(self):
+        """PDF com senha: erro claro. PDF danificado que o leitor "consertou" ao abrir: revisão (parte pode faltar)."""
+        import fitz
+        with fitz.open(self.session.pdf_path) as doc:
+            if doc.needs_pass:
+                raise RuntimeError("PDF protegido por senha: remova a proteção e envie o arquivo de novo.")
+            if doc.is_repaired:
+                self.add_document_review("O PDF estava danificado e foi reparado ao abrir: parte do conteúdo pode "
+                                         "não ter sido lida. Confira o documento inteiro.")
+        if self.dpi_reduced:
+            self.add_document_review(f"Página muito grande: o documento foi lido a {self.base_dpi} DPI em vez de "
+                                     f"{render_dpi()} (limite MAX_PAGE_MEGAPIXELS). Textos pequenos podem ter escapado.")
+
     def run_phase_0(self):
         """Fase 0: Renderização do PDF para imagens."""
         try:
+            self._check_pdf_integrity()
             self.logger.info(f"--- PHASE 0: RENDERING PAGES (00_ORIGINAL) @ {self.base_dpi} DPI ---")
             self.image_paths = transform_pdf_to_img(self.session.pdf_path, self.session.dirs["00_raw"], dpi=self.base_dpi)
             self.logger.info(f"[+] Fase 0 concluída: {len(self.image_paths)} imagens geradas.")
@@ -250,12 +266,28 @@ class SentryApp:
         self.logger.info(f"[*] OCR de {total} página(s) com {workers} em paralelo"
                          f"{' + varredura suplementar (PSM ' + sparse_psm + ')' if sparse_psm else ''}...")
         results = [None] * total
+        # Leitura extra opcional (utils/ocr_extra.py): roda AO MESMO TEMPO que o Tesseract, numa thread própria
+        extra_pool = ThreadPoolExecutor(max_workers=1) if ocr_extra.enabled() else None
+        extra_futures = [extra_pool.submit(ocr_extra.read, path) for path in self.image_paths] if extra_pool else []
+        if extra_pool:
+            self.logger.info(f"[*] Leitura extra de OCR ligada ({ocr_extra.engine_name()}), somada às do Tesseract.")
         with ThreadPoolExecutor(max_workers=workers) as ex:
             futures = {ex.submit(self._ocr_page, path): i for i, path in enumerate(self.image_paths)}
             for done, future in enumerate(as_completed(futures), start=1):
                 results[futures[future]] = future.result()
                 if done % max(1, total // 10) == 0 or total < 10:
                     self.update_progress(f"OCR: Pagina {done}/{total}", int(10 + (done / total * 30)))
+        self.grounding_maps_extra = []
+        for i, future in enumerate(extra_futures):
+            try:
+                self.grounding_maps_extra.append(future.result())
+            except Exception as e:
+                self.grounding_maps_extra.append([])
+                self.logger.error(f"[-] Leitura extra de OCR falhou na pág {i + 1}: {e}")
+                self.add_review(i + 1, "Leitura extra de OCR falhou nesta página: menos uma chance de achar dados. "
+                                       "Revisar manualmente.")
+        if extra_pool:
+            extra_pool.shutdown(wait=False)
 
         for i, (indexed_text, coordinate_map, sparse_map, failed) in enumerate(results):
             if failed:
@@ -317,6 +349,8 @@ class SentryApp:
                 extra_maps.append(self.grounding_maps_sparse[i])
             if i < len(self.grounding_maps_native) and self.grounding_maps_native[i]:
                 extra_maps.append(self.grounding_maps_native[i])
+            if i < len(self.grounding_maps_extra) and self.grounding_maps_extra[i]:
+                extra_maps.append(self.grounding_maps_extra[i])
             for extra_map in extra_maps:
                 cmd_map_s, cpfs_s = self.ocr.find_cpfs_in_grounding(extra_map)
                 if cmd_map_s:
@@ -359,7 +393,8 @@ class SentryApp:
             page_num = i + 1
             maps = [m for m in (self.grounding_maps[i],
                                 self.grounding_maps_sparse[i] if i < len(self.grounding_maps_sparse) else [],
-                                self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else []) if m]
+                                self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else [],
+                                self.grounding_maps_extra[i] if i < len(self.grounding_maps_extra) else []) if m]
             for gmap in maps:
                 for type_id, (commands, values) in pii_detect.find_in_grounding(gmap, list(actions)).items():
                     found_values[type_id] |= {f"{page_num}:{v}" for v in values}
@@ -481,7 +516,14 @@ class SentryApp:
         service = decisions.get_engine()
         if service is not None:
             service.preload()  # o decisor carrega o modelo enquanto o LLM analisa as páginas
-        self.address_redactor.run_discovery(self.image_paths)
+        # O modelo COPIA os endereços do texto da página (texto digital do PDF, senão o OCR): medido nos documentos
+        # testados, achou 3x mais endereços pessoais que o pedido antigo, sem inventar (benchmarks/address_eval.py)
+        texts = []
+        for i in range(len(self.image_paths)):
+            native = self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else []
+            words = native or (self.grounding_maps[i] if i < len(self.grounding_maps) else [])
+            texts.append(" ".join(str(w.get("text", "")) for w in words))
+        self.address_redactor.run_discovery(self.image_paths, page_texts=texts)
         for page_num, reason in self.address_redactor.failed_pages.items():
             self.add_review(page_num, f"IA não analisou endereços ({reason[:120]}). Revisar manualmente.")
         for page_num, reason in getattr(self.address_redactor, "review_notes", {}).items():
@@ -891,12 +933,15 @@ class SentryApp:
             raise RuntimeError(f"PDF final não encontrado para verificação: {final_pdf}")
 
         use_ocr = os.getenv("VERIFY_OCR", "1") == "1"
+        verify_dpi = int(os.getenv("VERIFY_DPI", "300"))
+        if self.dpi_reduced:  # página gigante: a verificação também respeita o teto de pixels (senão, 40 GB de RAM)
+            verify_dpi = min(verify_dpi, self.base_dpi)
         found_at = {}
         leftovers, unverified = verify_pdf(
             final_pdf,
             ocr_engine=self.ocr,
             use_ocr=use_ocr,
-            dpi=int(os.getenv("VERIFY_DPI", "300")),
+            dpi=verify_dpi,
             psm=os.getenv("TESSERACT_CROP_PSM", "6"),
             logger=self.logger,
             progress=lambda done, total: self.update_progress(
@@ -917,7 +962,7 @@ class SentryApp:
             uncovered, failed = find_uncovered_cpfs(
                 self.session.pdf_path, self.global_redactions, self.ocr,
                 base_dpi=self.base_dpi,
-                dpi=int(os.getenv("VERIFY_DPI", "300")),
+                dpi=verify_dpi,
                 psm=os.getenv("TESSERACT_CROP_PSM", "6"),
                 logger=self.logger,
                 progress=lambda done, total: self.update_progress(

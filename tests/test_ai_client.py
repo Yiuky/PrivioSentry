@@ -19,13 +19,31 @@ class FakeOllama:
 
     def __init__(self, script):
         self.script = list(script)
-        self.requests = []
+        self.requests = []        # só as chamadas de chat (/api/chat ou /chat/completions)
+        self.other = []           # o resto (descarregar modelo, listar modelos)
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                outer.other.append(("GET", self.path))
+                payload = b'{"models": [], "data": []}'
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
             def do_POST(self):
                 length = int(self.headers.get("Content-Length", 0))
-                outer.requests.append(json.loads(self.rfile.read(length) or b"{}"))
+                body = json.loads(self.rfile.read(length) or b"{}")
+                if not self.path.endswith(("/api/chat", "/chat/completions")):
+                    outer.other.append(("POST", self.path, body))
+                    self.send_response(200)
+                    self.send_header("Content-Length", "2")
+                    self.end_headers()
+                    self.wfile.write(b"{}")
+                    return
+                outer.requests.append(body)
                 idx = min(len(outer.requests) - 1, len(outer.script) - 1)
                 status, body, delay = outer.script[idx]
                 if delay:
@@ -61,6 +79,7 @@ class FakeOllama:
 
 @pytest.fixture()
 def ollama(monkeypatch):
+    monkeypatch.setenv("AI_BREAKER_FAILURES", "100")  # estes testes medem as 3 tentativas; o disjuntor tem os seus
     servers = []
 
     def make(script):

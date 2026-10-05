@@ -90,7 +90,7 @@ def test_cli_end_to_end_on_text_pdf_without_models(tmp_path, monkeypatch):
     monkeypatch.setenv("YOLO_MODEL_PATH", str(tmp_path / "sem_modelo.pt"))
     monkeypatch.setattr(main.OCREngine, "get_grounding_map", lambda self, p, psm=3: ("", []))
     monkeypatch.setattr(main.AddressRedactor, "run_discovery",
-                        lambda self, paths: self.failed_pages.update({1: "IA indisponivel"}))
+                        lambda self, paths, **kw: self.failed_pages.update({1: "IA indisponivel"}))
     code = main.cli(["--input", str(tmp_path / "in"), "--output", str(tmp_path / "out")])
     assert code == 3   # IA falhou -> requer revisao (nunca 'Concluido' silencioso)
     assert (tmp_path / "out" / "doc_TARJADO_FINAL.pdf").exists()

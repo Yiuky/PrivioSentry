@@ -173,3 +173,91 @@ quando uma janela cruzava dois números; e um pedaço do Cartão SUS (15 dígito
   duas passadas.
 
 Como no resto desta página: imagem gerada é mais fácil que papel real. Trate como linha de base de regressão.
+
+
+## Motores de OCR e IAs de OCR (corpus fictício e documentos reais)
+
+`benchmarks/ocr_compare.py` desenha cada documento fictício numa página sob quatro condições (limpa; padrão; ruim:
+desfoque, ruído forte, rotação de 1,2°, JPEG 45, resolução reduzida; péssima: tudo pior) e mede, por combinação de
+leituras, revocação e precisão por tipo. "a+b" soma as leituras (o OCR duplo atual é `tesseract3+tesseract11`).
+Máquina: CPU de 20 núcleos, RTX 2080 Ti (11 GB), Tesseract 5.4.1 `por`.
+
+### Motores clássicos (30 documentos por condição; tempo por página na CPU)
+
+| Condição | Tesseract duplo (atual) | + RapidOCR | + docTR | RapidOCR sozinho | docTR sozinho |
+|---|---:|---:|---:|---:|---:|
+| limpa | 100% / 90,6% | 100% / 90,6% | 100% / 90,6% | 92,2% / 100% | 100% / 100% |
+| padrão | 100% / 91,3% | 100% / 91,3% | 100% / 90,6% | 96,6% / 100% | 99,1% / 99,1% |
+| ruim | 100% / 95,9% | 100% / 95,1% | 100% / 92,1% | 98,3% / 99,1% | 96,6% / 95,7% |
+| **péssima** | **98,3%** / 94,2% (perdeu 2 e-mails) | **100%** / 93,5% | 100% / 89,2% | 94,0% / 99,1% | 93,1% / 93,9% |
+
+(revocação / precisão). Tempo: Tesseract ~0,7 s por passada, RapidOCR ~1,3 s, docTR ~1,0 s. Nenhuma leitura sozinha
+chegou a 100% nas condições ruins: **as leituras se somam**. Os "falsos positivos" do Tesseract em imagem limpa vêm
+de linhas longas que o PSM 3 lê duas vezes (a segunda deformada) em cima do próprio dado: tarja a mais no lugar certo.
+O docTR vaza ~140 threads do sistema por página (13 mil em minutos) sem `DOCTR_MULTIPROCESSING_DISABLE=TRUE`.
+
+### Modelos de visão como OCR (12 documentos por condição; tempo na GPU)
+
+| Leitura | padrão | ruim | péssima | s/pág |
+|---|---:|---:|---:|---:|
+| Tesseract duplo | 100% / 88,9% | 100% / 98,0% | 95,8% / 92,0% | 1,4 (CPU) |
+| glm-ocr (1,1B) | 100% / 100% | 100% / 100% | 100% / 100% | 15-17 |
+| deepseek-ocr (v1, 3,3B) | 100% / 100% | 100% / 100% | 100% / 100% | 5 |
+| **DeepSeek-OCR 2** (3B, Q4_K_M) | 100% / 100% | 100% / 100% | 97,9% / 97,9% | 3,5-5 |
+| Qwen3.5-9B | 100% / 100% | 100% / 100% | 100% / 100% | 6,4 |
+| gemma4:12b | 97,9% / 97,9% | 97,9% / 97,9% | 93,8% / 100% | 6,8 |
+
+### Nos 7 documentos reais (69 páginas; sem gabarito; só contagens, nenhum valor exposto)
+
+* **Tesseract duplo** achou os 14 CPFs do documento com texto digital (o texto digital é o gabarito exato). glm-ocr,
+  Qwen3.5 e DeepSeek-OCR 2 também (14/14, 6/6 contas). O **deepseek-ocr v1 falha em página densa** (3-4 de 14: corta
+  o texto).
+* **O Tesseract perdeu um telefone e um e-mail** numa linha "Fone / Fax / e-mail" que leu deformada: RapidOCR e
+  DeepSeek-OCR 2 leram certo, cada um por conta própria. Por isso a leitura extra RapidOCR passou a ser recomendada
+  (custo: 2 tarjas a mais montadas com números de uma tabela).
+* **O DeepSeek-OCR 2 inventou 32 CPFs** numa página (ausentes do texto digital e de qualquer leitura de OCR), e não de
+  forma repetível: o mesmo documento, em outra rodada, saiu limpo. Modelo de visão nunca pode ser a única leitura;
+  como segunda opinião, só vale o que for localizado nas palavras do OCR (backlog B-85).
+
+## LLM de endereços: modelo × pedido (`benchmarks/address_eval.py`)
+
+No corpus fictício de endereços (pessoal, profissional, secundário; abreviações; endereço partido entre linhas) os
+dois modelos acertaram ~100% com qualquer pedido: o corpus é fácil demais para separar. A diferença apareceu nos
+**documentos reais** (Qwen3.5-9B, 69 páginas):
+
+| Pedido | Endereços pessoais localizados | Pessoais **não** localizados (inventados/montados) | s/pág |
+|---|---:|---:|---:|
+| antigo ("endereço completo e estruturado", só imagem) | 10 | 0 | 4,3 |
+| copiar exatamente (só imagem) | 25 | 2 | 4,4 |
+| **copiar + texto da página** (adotado) | **30** | **1** (só termos genéricos: agora ignorado) | 4,8 |
+| copiar + texto + esquema JSON | 56 | 28 (pedaços soltos como "Bloco A") | 3,6 |
+
+Na ata de condomínio, o pedido antigo deixava passar os endereços dos condôminos (bloco/apartamento).
+
+## Servidores de IA: reserva, disjuntor e verificação cruzada (ao vivo)
+
+* **LM Studio** pela API da OpenAI como principal: funciona (primeira chamada 54 s com carga sob demanda; depois ~11 s).
+* **Principal fora do ar ou travada** (aceita a conexão e não responde), reserva LM Studio: a primeira página paga as
+  tentativas (44 s / 73 s); **as seguintes vão direto para a reserva** (~12 s), porque o disjuntor já desligou a
+  principal. Sem ele, com o tempo limite padrão (600 s), uma IA travada custaria até 30 min por página. Achado do teste:
+  cada servidor precisa do próprio tempo limite (com o mesmo, a reserva mais lenta também era desligada).
+* **Descarga pela API** do LM Studio: GPU de 10,5 GB para 2,4 GB.
+* **Verificação cruzada** (ata de condomínio, 10 páginas): com Qwen 35B no LM Studio como verificador, os dois modelos
+  não cabem juntos em 11 GB (lento, HTTP 500); com Gemma 4 12B no Ollama, o verificador achou 6 endereços pessoais
+  contra 19 da principal, **não acrescentou nenhum** e dobrou o tempo (11 → 23 s por página). Fica desligada por padrão;
+  vale com um verificador ao menos tão bom quanto a principal.
+
+## Teste de pressão (`benchmarks/stress.py`, pela API do app, só PDFs fictícios)
+
+| Cenário | Resultado |
+|---|---|
+| 8 uploads simultâneos (fila de 2) | todos terminaram em 4 min; todos os CPFs achados; pico de 7,2 GB nos processos Python |
+| documento de 40 páginas | 6,7 min; todos os CPFs; pico de 5,1 GB; "Requer revisão" |
+| digitalização péssima | todos os CPFs; "Requer revisão" |
+| PDF truncado | antes: "Concluído" em silêncio → **agora revisão** |
+| PDF com senha | erro com mensagem clara |
+| PDF falso | erro na fase 0 |
+| **página gigante (200 x 200 pol.)** | antes: **35-40 GB de RAM** → agora DPI reduzido para o documento todo e revisão |
+| Ollama fora do ar (pipeline completo) | CPFs achados sem a IA; páginas para revisão |
+
+Invariantes conferidos em todos: nenhuma tarefa presa; nenhum "Concluído" com CPF do gabarito sem detecção.

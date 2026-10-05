@@ -12,6 +12,7 @@ Todas as configurações são variáveis de ambiente, normalmente definidas em u
 | `ALLOWED_HOSTS` | *(vazio)* | `utils/net_guard.py` (`app_service.py`, `gatekeeper.py`) | Nomes extras aceitos nos cabeçalhos `Host`/`Origin`, separados por vírgula. Loopback (`127.0.0.1`, `localhost`, `::1`) e `APP_HOST` sempre valem. Sem `API_TOKEN`, o app recusa outro `Host` (`421`, proteção contra *DNS rebinding*) e POST/DELETE vindos de outro site (`403`, proteção contra CSRF). O gatekeeper, que não tem token, faz essa checagem sempre: para acessá-lo por outro nome ou IP, liste-o aqui. `*` desliga a checagem (não recomendado). |
 | `SESSION_TTL_HOURS` | `12` | `utils/auth.py` | Validade da sessão do navegador aberta com `?token=`. As sessões ficam em memória: reiniciar o serviço pede login de novo. |
 | `MAX_UPLOAD_MB` | `500` | `app_service.py` | Tamanho máximo de upload. |
+| `MAX_PARALLEL_TASKS` | `2` | `app_service.py` | Quantos documentos processam ao mesmo tempo. Os demais ficam **"Na fila"** e começam sozinhos quando um termina. Sem limite, vários uploads de uma vez abriam um processo cada (OCR em paralelo + modelos de nomes e decisor) e podiam esgotar memória e CPU. |
 | `PRIVIO_INPUT_DIR` | `./WEB_INPUT` | `app_service.py` | Onde os PDFs enviados são armazenados. |
 | `PRIVIO_OUTPUT_DIR` | `./output` | `app_service.py`, `utils/session.py` | Artefatos por tarefa: imagens das páginas, resultados de OCR, recortes, logs, metadados de tarja (**contêm dados pessoais**). |
 | `PRIVIO_FINAL_DIR` | `./documentos_finais` | `app_service.py`, `utils/session.py` | PDFs finais tarjados. |
@@ -24,6 +25,7 @@ Todas as configurações são variáveis de ambiente, normalmente definidas em u
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `BASE_DPI` | `300` | DPI usado para renderizar cada página para o OCR. **300 é o recomendado**: nas medições (benchmarks.md) teve a melhor revocação e foi o mais rápido; acima disso o Tesseract quebra os dígitos em pedaços e perde CPFs (a 1000 DPI a revocação caiu para ~60% e cada página vira ~97 Mpx). Suba só para documentos com letra muito pequena, e meça antes. |
+| `OCR_EXTRA_ENGINE` | *(vazio)* | Leitura **extra** de OCR somada às duas do Tesseract e ao texto digital: `rapidocr` (modelos PP-OCR latinos em ONNX; `pip install -e ".[ocr-extra]"`). Roda em paralelo ao Tesseract (~1,3 a 3,4 s por página na CPU). **Recomendada.** Medido: em digitalização péssima recuperou e-mails que o Tesseract perdeu; nos documentos reais testados achou um telefone e um e-mail que o Tesseract leu deformados (ficariam sem tarja), ao custo de 2 tarjas a mais numa tabela de números (docs/benchmarks.md). Vem desligada só porque exige instalar o pacote extra. Falha numa página = revisão. |
 | `OCR_WORKERS` | metade dos núcleos (até 8) | Quantas páginas passam pelo OCR ao mesmo tempo, nas duas passadas e na verificação. Com `BASE_DPI` acima de 600 o padrão cai para 2 (memória). `1` = uma página por vez. |
 | `TESSERACT_PATH` | *(PATH do sistema)* | Caminho completo do executável `tesseract` caso ele não esteja no `PATH` (comum no Windows). |
 | `TESSERACT_LANG` | `por` | Idioma(s) do Tesseract, por exemplo `por+eng`. O traineddata precisa estar instalado. |
@@ -32,7 +34,35 @@ Todas as configurações são variáveis de ambiente, normalmente definidas em u
 | `TESSERACT_SPARSE_PSM` | *(vazio = pular)* | PSM para a segunda passada ("esparsa") na página inteira, por exemplo `11`; ela encontra fragmentos desconexos, como dígitos com ruído. |
 | `TESSERACT_CROP_PSM` | `6` | PSM para recortes pequenos (recortes de assinatura, verificação). |
 
-## LLM local (Ollama)
+## Servidor de IA (qualquer servidor local ou da organização)
+
+O projeto fala com a **API** do servidor de IA, não com um aplicativo específico. Dois tipos:
+
+* `ollama`: a API do Ollama (`/api/chat`).
+* `openai`: a API no padrão da OpenAI (`/v1/chat/completions`), oferecida por **LM Studio**, vLLM, llama.cpp
+  (`llama-server`), LocalAI e por servidores de IA de organizações (com chave em `AI_API_KEY`).
+
+Pode haver uma **IA reserva** (`AI_SECONDARY_*`), que assume quando a principal cai e, com `AI_CROSS_CHECK=1`,
+também confere cada página. Um **disjuntor** "desliga" o servidor que falha seguidamente e o testa de novo pela API
+(lista de modelos) depois de um intervalo; o estado é compartilhado entre as tarefas. A rota `GET /health/ai` mostra
+os servidores (sem chaves), o disjuntor e o teste de saúde de cada um.
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `AI_PROVIDER` | `ollama` | Tipo do servidor principal: `ollama` ou `openai` (LM Studio, vLLM, llama.cpp, servidor da organização). |
+| `AI_BASE_URL` | `OLLAMA_API_URL` (ollama) / `http://localhost:1234/v1` (openai) | Endereço da API. Para `openai`, inclua o `/v1`. |
+| `AI_API_KEY` | *(vazio)* | Chave, se o servidor exigir. Nunca vai para log nem para `/health/ai`. |
+| `AI_TEXT_MODEL` / `AI_VISION_MODEL` | `OLLAMA_MODEL` / `OLLAMA_VISION_MODEL` | Modelos de texto e de visão no servidor principal. |
+| `AI_TEXT_TIMEOUT` / `AI_VISION_TIMEOUT` | `OLLAMA_*_TIMEOUT` | Tempo limite por chamada no servidor principal. |
+| `AI_SECONDARY_PROVIDER`, `AI_SECONDARY_BASE_URL`, `AI_SECONDARY_API_KEY`, `AI_SECONDARY_TEXT_MODEL`, `AI_SECONDARY_VISION_MODEL`, `AI_SECONDARY_TEXT_TIMEOUT`, `AI_SECONDARY_VISION_TIMEOUT` | *(sem reserva)* | O mesmo para a **IA reserva**. Cada servidor tem o próprio tempo limite (medido: com o mesmo limite, a reserva mais lenta também era desligada). |
+| `AI_BREAKER_FAILURES` | `3` | Falhas seguidas (sem conexão, tempo esgotado, erro 5xx, resposta sem JSON) que desligam um servidor. |
+| `AI_BREAKER_COOLDOWN` | `120` | Segundos desligado antes do teste de saúde pela API. Medido: com a principal travada, a primeira página paga as tentativas e as seguintes vão direto para a reserva (~12 s por página em vez de até 30 min). |
+| `AI_RESET_EVERY` | `0` | A cada N chamadas, pede ao servidor (pela API) para descarregar o modelo: Ollama (`keep_alive: 0`) e LM Studio (`/api/v1/models/unload`). Também acontece quando o disjuntor desliga o servidor. `0` = só no disjuntor. |
+| `AI_CROSS_CHECK` | `0` | `1`: a IA reserva também analisa cada página de endereços; as respostas se **somam**, discordância de tipo vira "pessoal" e manda a página para revisão. Dobra o tempo da fase de endereços. |
+| `AI_MAX_TOKENS` | `4096` | Limite de tokens da resposta nos servidores `openai`. |
+| `ADDRESS_PROMPT` | *(novo)* | `legado` volta ao pedido antigo de endereços (só imagem, "endereço completo e estruturado"). O novo pede para COPIAR do texto da página: nos documentos testados achou 3x mais endereços pessoais, sem inventar. |
+
+Variáveis antigas, ainda aceitas (valem como padrão do servidor principal):
 
 | Variável | Padrão | Descrição |
 |---|---|---|

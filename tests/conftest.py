@@ -27,6 +27,12 @@ _ENV_TO_CLEAR = (
     "APP_HOST", "MAX_UPLOAD_MB", "AI_IMAGE_RESOLUTION", "AI_CONTEXT_WINDOW", "OLLAMA_TEXT_TIMEOUT",
     "OLLAMA_VISION_TIMEOUT", "DECISION_ENGINE", "DECISION_MODE", "LAYA_MODEL", "LAYA_DEVICE",
     "LEARNING_ENABLED", "PRIVIO_LEARNING_DIR",
+    "AI_PROVIDER", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL", "AI_VISION_MODEL", "AI_SECONDARY_PROVIDER",
+    "AI_SECONDARY_BASE_URL", "AI_SECONDARY_API_KEY", "AI_SECONDARY_TEXT_MODEL", "AI_SECONDARY_VISION_MODEL",
+    "AI_BREAKER_FAILURES", "AI_BREAKER_COOLDOWN", "AI_RESET_EVERY", "AI_CROSS_CHECK", "AI_TEXT_TIMEOUT",
+    "AI_VISION_TIMEOUT", "AI_SECONDARY_TEXT_TIMEOUT", "AI_SECONDARY_VISION_TIMEOUT", "AI_MAX_TOKENS",
+    "OCR_EXTRA_ENGINE", "NER_ENGINE", "ADDRESS_PROMPT", "MAX_PARALLEL_TASKS",
+    "MAX_PAGE_MEGAPIXELS",
 )
 
 
@@ -53,6 +59,8 @@ def isolated_environment(request, tmp_path, monkeypatch):
     monkeypatch.setenv("PRIVIO_FINAL_DIR", str(tmp_path / "state" / "final"))
     monkeypatch.setenv("GATEKEEPER_STATE_FILE", str(tmp_path / "state" / "gatekeeper_state"))
     monkeypatch.setenv("TESSERACT_SPARSE_PSM", "")
+    # Estado do disjuntor da IA (utils/ai_client.py) por teste: nunca compartilhado com outro teste nem com o app
+    monkeypatch.setenv("PRIVIO_RUNTIME_DIR", str(tmp_path / "state" / "runtime"))
     monkeypatch.chdir(tmp_path)
     yield
 

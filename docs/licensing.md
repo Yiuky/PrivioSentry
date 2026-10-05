@@ -55,6 +55,18 @@ O projeto importa **PyMuPDF** (AGPL-3.0 ou licença comercial paga da Artifex) e
 ### Componentes de terceiros
 Veja [../NOTICE](../NOTICE). Dependências permissivas compatíveis (Apache-2.0, MIT, BSD) são usadas sob suas próprias licenças. Modelos executados via Ollama **não** são distribuídos por este projeto e têm licenças próprias.
 
+### Dependências opcionais (extras do pyproject)
+
+| Extra | Pacotes | Licença |
+|---|---|---|
+| `nomes` | gliner, protobuf, truststore; modelo `urchade/gliner_multi_pii-v1` | Apache-2.0 / BSD-3 / MIT; modelo Apache-2.0 |
+| `ocr-extra` | rapidocr, onnxruntime (modelos PP-OCR do PaddleOCR) | Apache-2.0 / MIT; modelos Apache-2.0 |
+| `laya` | laya, truststore | Apache-2.0 / MIT |
+
+Modelos de IA servidos por Ollama/LM Studio/servidor da organização ficam fora do projeto: confira a licença de
+cada modelo que você baixar (ex.: DeepSeek-OCR 2 tem indicação de Apache-2.0 no Hugging Face e menção à licença
+própria da DeepSeek: confira antes de uso institucional).
+
 ### Contribuições
 Contribuições são aceitas sob a licença do projeto (AGPL-3.0-or-later). Os arquivos-fonte trazem o cabeçalho `SPDX-License-Identifier: AGPL-3.0-or-later`. Os contribuidores mantêm seus direitos autorais; use a assinatura DCO (`git commit -s`).
 

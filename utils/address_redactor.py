@@ -157,23 +157,92 @@ def locate_address_spans(address, coordinate_map, min_coverage=None):
     return sorted(spans)
 
 
-class AddressRedactor:
-    def __init__(self, session, logger):
-        self.session = session
-        self.logger = logger
-        self.ai = OllamaClient()
-        self.results = {}
-        self.failed_pages = {}  # page_num -> motivo; páginas sem análise de endereço (revisão obrigatória)
-        self.review_notes = {}  # page_num -> motivo; análise feita, mas com classificação incerta (revisão)
-        self.unlocated = {}     # page_num -> endereços pessoais que o LLM viu mas não foram achados no OCR
+# Pedido da descoberta de endereços: COPIAR como está na página (o pedido antigo mandava "juntar os componentes num
+# endereço completo e estruturado", e o modelo redigia endereços com partes que não estavam na página: não
+# localizados = revisão, e às vezes tarja no lugar errado). Medido em benchmarks/address_eval.py.
+DISCOVERY_PROMPT = """
+OBJETIVO: listar TODOS os endereços que aparecem nesta página de documento.
 
-    def run_discovery(self, image_paths):
-        """
-        Fase 1: Consulta a IA para identificar e classificar endereços nas imagens originais.
-        """
-        self.logger.info("--- ADDRESS REDACTOR: INICIANDO DESCOBERTA SEMÂNTICA ---")
-        
-        prompt = """
+REGRAS:
+1. Copie cada endereço EXATAMENTE como está escrito na página: as mesmas palavras, abreviações, números e pontuação.
+   Não complete, não corrija, não reorganize e não junte partes que estão em lugares diferentes da página.
+2. Se o endereço continuar na linha seguinte, copie as partes em sequência, como um só endereço.
+3. Não invente. Se não houver endereço, devolva a lista vazia.
+4. Classifique cada endereço:
+   - "pessoal": residência ou domicílio de pessoa física (residente, domiciliado, morador; Casa, Apto, Bloco,
+     Quadra/Lote residencial).
+   - "profissional": sede ou endereço de empresa, órgão público ou escritório.
+   - "secundário": local de obra, canteiro, imóvel objeto do contrato, fazenda ou empreendimento.
+5. Na dúvida entre "pessoal" e outro tipo, use "pessoal".
+
+FORMATO DE SAÍDA (APENAS JSON):
+{"addresses": [{"text": "endereço copiado da página", "type": "pessoal"}]}
+"""
+
+# Saída estruturada do Ollama ("format"): a resposta sempre vem no formato da lista
+DISCOVERY_SCHEMA = {
+    "type": "object",
+    "properties": {"addresses": {"type": "array", "items": {
+        "type": "object",
+        "properties": {"text": {"type": "string"}, "type": {"type": "string",
+                                                            "enum": ["pessoal", "profissional", "secundário"]}},
+        "required": ["text", "type"]}}},
+    "required": ["addresses"],
+}
+
+
+def with_ocr_text(prompt, ocr_text, limit=12000):
+    """Acrescenta o texto lido pelo OCR para o modelo COPIAR dele (a imagem continua indo junto)."""
+    text = " ".join(str(ocr_text or "").split())[:limit]
+    if not text:
+        return prompt
+    return (prompt + "\nTEXTO DA PÁGINA LIDO PELO OCR (pode ter erros de leitura; copie os endereços a partir dele "
+            "e use a imagem para conferir):\n<<<\n" + text + "\n>>>\n")
+
+
+def cross_check_enabled(client):
+    enabled = os.getenv("AI_CROSS_CHECK", "0").strip().lower() in ("1", "true", "sim")
+    return enabled and getattr(client, "has_secondary", False)
+
+
+def merge_cross_check(primary, secondary):
+    """
+    Soma as respostas da IA principal e da reserva. Endereço visto por uma só entra; tipos diferentes para o mesmo
+    endereço viram "pessoal" (o mais protetor). Devolve (resposta, motivo de revisão ou "").
+    """
+    def ok(r):
+        return isinstance(r, dict) and "error" not in r and isinstance(r.get("addresses"), list)
+    if not ok(primary) and not ok(secondary):
+        return primary, ""
+    if not ok(secondary):
+        return primary, "verificação cruzada: a IA reserva não respondeu"
+    if not ok(primary):
+        return secondary, "verificação cruzada: só a IA reserva respondeu"
+    merged, notes = {}, set()
+    for item in list(primary["addresses"]) + list(secondary["addresses"]):
+        if not isinstance(item, dict) or not str(item.get("text") or "").strip():
+            continue
+        key = " ".join(_norm_token(t) for t in str(item["text"]).split())
+        kind = classify_address_type(item.get("type"))
+        if key in merged:
+            if (merged[key][1] == "pessoal") != (kind == "pessoal"):
+                notes.add("as duas IAs discordaram do tipo de um endereço (tratado como pessoal)")
+                merged[key] = ({**merged[key][0], "type": "pessoal"}, "pessoal")
+            continue
+        merged[key] = (dict(item), kind)
+    def keys(resp):
+        return {" ".join(_norm_token(t) for t in str(i.get("text", "")).split())
+                for i in resp["addresses"] if isinstance(i, dict)}
+    # Só o que a VERIFICADORA viu e a principal não (é aí que ela acrescenta proteção). O contrário é normal quando a
+    # verificadora é mais fraca e, medido nos documentos reais, mandava TODAS as páginas para revisão à toa.
+    only_secondary = len(keys(secondary) - keys(primary))
+    if only_secondary:
+        notes.add(f"{only_secondary} endereço(s) apontado(s) só pela IA verificadora")
+    return {**primary, "addresses": [v[0] for v in merged.values()]}, "; ".join(sorted(notes))
+
+
+# Pedido original da descoberta de endereços (mantido para comparação em benchmarks/address_eval.py)
+DISCOVERY_PROMPT_LEGACY = """
         OBJETIVO: Agir como um perito em análise de documentos e extrair TODOS os endereços da imagem.
 
         INSTRUÇÕES CRÍTICAS:
@@ -192,12 +261,47 @@ class AddressRedactor:
         }
         """
 
+
+class AddressRedactor:
+    def __init__(self, session, logger):
+        self.session = session
+        self.logger = logger
+        self.ai = OllamaClient()
+        self.results = {}
+        self.failed_pages = {}  # page_num -> motivo; páginas sem análise de endereço (revisão obrigatória)
+        self.review_notes = {}  # page_num -> motivo; análise feita, mas com classificação incerta (revisão)
+        self.unlocated = {}     # page_num -> endereços pessoais que o LLM viu mas não foram achados no OCR
+
+    def run_discovery(self, image_paths, page_texts=None):
+        """
+        Fase 1: Consulta a IA para identificar e classificar endereços nas imagens originais.
+        page_texts: texto de cada página (texto digital do PDF ou OCR) para o modelo COPIAR os endereços dele.
+        ADDRESS_PROMPT=legado volta ao pedido antigo (só imagem, "endereço completo e estruturado").
+        """
+        self.logger.info("--- ADDRESS REDACTOR: INICIANDO DESCOBERTA SEMÂNTICA ---")
+        
+        legacy = (os.getenv("ADDRESS_PROMPT") or "").strip().lower() == "legado"
+
         for i, img_path in enumerate(image_paths):
             page_num = i + 1
+            if legacy:
+                prompt = DISCOVERY_PROMPT_LEGACY
+            else:
+                text = page_texts[i] if page_texts and i < len(page_texts) else ""
+                prompt = with_ocr_text(DISCOVERY_PROMPT, text)
             self.logger.info(f"[*] Analisando endereços na página {page_num} via AI ({self.ai.vision_model})...")
             
             # Consulta a visão da IA (agora retorna bytes e métricas)
             response, img_bytes, metrics = self.ai.analyze_image(img_path, prompt)
+            if cross_check_enabled(self.ai) and not (isinstance(response, dict) and response.get("_backend")):
+                # Verificação cruzada: a IA reserva também lê a página; as respostas se SOMAM (nunca reduz proteção)
+                second, _, second_metrics = self.ai.analyze_image(img_path, prompt, only="reserva")
+                self.session.save_ai_interaction(phase_key="Address_Redactor", prefix=f"page_{page_num}_crosscheck",
+                                                 prompt=prompt, response=second, metrics=second_metrics, img_bytes=None)
+                response, note = merge_cross_check(response, second)
+                if note:
+                    self.logger.warning(f"[!] Página {page_num}: {note}")
+                    self.review_notes[page_num] = "; ".join(x for x in (self.review_notes.get(page_num), note) if x)
             
             # Salva interação completa para debug (Prompt, Resposta, Imagem e Métricas)
             prefix = f"page_{page_num}_address_discovery"
@@ -292,6 +396,8 @@ class AddressRedactor:
 
         ids_to_redact = []
         for addr in pessoais:
+            if not _address_units(addr)[1]:
+                continue  # só termos genéricos ("Rua", "Centro", "Apto"): nada identificável para tarjar ou revisar
             spans = locate_address_spans(addr, coordinate_map)
             if not spans and addr not in self.unlocated[page_num]:  # o LLM às vezes repete o mesmo endereço
                 self.unlocated[page_num].append(addr)
