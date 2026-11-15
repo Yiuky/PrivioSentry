@@ -1,0 +1,101 @@
+# Portal + API + processos das tarefas (app_service.py). UMA réplica: o estado das tarefas, as sessões e a fila
+# ficam no processo, e cada documento roda num subprocesso dele. Para mais vazão, aumente MAX_PARALLEL_TASKS e os
+# recursos; várias réplicas exigem fila externa (BACKLOG B-91). Recreate: nunca dois pods no mesmo volume.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: privio-sentry
+  labels:
+    app.kubernetes.io/name: privio-sentry
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: privio-sentry
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: privio-sentry
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: pastas
+          image: privio-sentry
+          command: ["sh", "-c", "mkdir -p /data/state /data/input /data/output /data/final /data/learning /data/runtime"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: app
+          image: privio-sentry
+          ports:
+            - name: http
+              containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: privio-config
+            - secretRef:
+                name: privio-secrets
+          env:
+            - name: HOME
+              value: /tmp
+          # /healthz: sem token e sem dados (a sonda chega com o IP do pod no Host)
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 4
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: privio-data
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: privio-sentry
+spec:
+  selector:
+    app.kubernetes.io/name: privio-sentry
+  ports:
+    - name: http
+      port: 8001
+      targetPort: http

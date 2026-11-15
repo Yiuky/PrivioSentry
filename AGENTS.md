@@ -22,13 +22,16 @@ Os módulos Mask/Transform, Gateway e Audit são **visão**, não código: não 
 | I-01 | **Nenhum dado pessoal real** no repositório: CPFs, nomes, endereços, PDFs, capturas de tela ou logs de processos reais. Use `examples/make_sample_pdf.py` ou valores fictícios (os CPFs de teste permitidos estão em `scripts/audit_public_tree.py`, `ALLOWED_CPFS`) | `python scripts/audit_public_tree.py` precisa passar |
 | I-02 | **Falha fechado.** Na dúvida, o documento vai para **"Requer revisão"** com alerta por página (`SentryApp.add_review`), nunca para "Concluído". Falha da IA, página não verificada, reconstrução com erro = revisão ou nenhum PDF | `tests/test_fail_closed.py`, `tests/test_verifier*.py` |
 | I-03 | Toda mudança que possa causar **tarja a menos** precisa de teste que prove que não causa | Revisão de PR |
-| I-04 | **Local-first.** Nada de chamadas de rede que levem conteúdo de documento para fora da máquina; a interface não carrega CDN, fontes, scripts nem imagens externas | `tests/ui/test_ui_brand.py` |
-| I-05 | **Textos honestos.** Nunca escreva "conforme a LGPD"/"LGPD compliant", "100% seguro", "garantido", "sem acesso à rede". Use "potencial", "detectado", "sugerido", "revisão", "Proteção concluída", "Processado localmente". O rótulo da interface é exatamente `LOCAL PROCESSING` | `tests/ui/test_ui_brand.py`; [docs/brand/](docs/brand/) |
+| I-04 | **Local-first.** Conteúdo de documento só sai da rede local para um provedor de IA com `AI_ALLOW_EXTERNAL=1`, ligado de propósito pelo administrador; toda chamada de IA passa por `utils/egress.check` (bloqueada = erro = revisão) e os destinos usados vão para `ia_externa` na tarefa. Nenhuma outra chamada leva conteúdo para fora; a interface não carrega CDN, fontes, scripts nem imagens externas | `tests/test_egress.py`, `tests/ui/test_ui_brand.py` |
+| I-05 | **Textos honestos.** Nunca escreva "conforme a LGPD"/"LGPD compliant", "100% seguro", "garantido", "sem acesso à rede". Use "potencial", "detectado", "sugerido", "revisão", "Proteção concluída", "Processado localmente". O rótulo da interface é exatamente `LOCAL PROCESSING`; com IA externa liberada, vira `EXTERNAL AI` e a tarefa que a usou não diz "Processado localmente". Não repita na interface promessas do provedor (ex.: "não treina com seus dados"): isso depende do contrato | `tests/ui/test_ui_brand.py`, `tests/ui/test_ui_admin.py`; [docs/brand/](docs/brand/) |
 | I-06 | **Nenhum CPF completo em log.** `utils/pii.install_log_masking()` mascara os registros; não o contorne nem grave CPFs por `print` | `tests/test_pii.py` |
 | I-07 | Não enfraqueça a verificação pós-tarja nem o aviso permanente de que a detecção por IA é probabilística | Revisão de PR |
 | I-08 | Testes **não** podem exigir Ollama, GPU nem rede: o LLM e o YOLO são simulados | `tests/conftest.py`, `tests/sentry_testkit.py` |
 | I-09 | Todo alerta exige revisão: use `add_review(página, motivo)` ou `add_document_review(motivo)`, nunca `self.alerts.append` direto. Falha do OCR é detectada por `OCREngine.failure_count` (resultado vazio por erro ≠ página sem CPF) | `tests/test_fail_closed_ocr_address.py` |
 | I-10 | O decisor local (`utils/decisions`) **nunca reduz proteção**: só acrescenta tarja ou pede revisão (`policy.combine_address_decision`). Modo `assist` só com perfil aprovado pelo portão; o texto enviado ao modelo e aos exemplos passa por `normalize_state` | `tests/test_decisions.py` |
+| I-11 | **Agente não aprova.** API/MCP para agentes: só enviar, acompanhar e baixar o PDF aprovado (`/download?final=true`); nada de aprovar, editar tarjas, apagar ou purgar; nunca devolver texto do documento, motivos dos alertas nem coordenadas | `tests/test_mcp_server.py` |
+| I-12 | **Segredos só na máquina.** Chaves de API (Admin) nunca voltam pela API, logs, `/health/ai` nem estado da tarefa; `API_TOKEN`, `APP_HOST`, `ALLOWED_HOSTS` não mudam pela web | `tests/test_admin_api.py` |
+| I-13 | **Modelo de documento não aprova e não tarja a menos.** Tarja por modelo nunca marca `finalizado`. A IA de visão só é dispensada por página, com modelo **aprovado**, `dispensa_ia` e campos obrigatórios achados; depois sempre há inspeção (agente ou revisão obrigatória). Edição/importação volta a rascunho. Modelos parecidos: nenhum é aplicado | `tests/test_doc_templates*.py` |
 
 ## 3. Arquitetura: três processos
 
@@ -46,6 +49,8 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
   `INTERNAL_SECRET` (gerado a cada execução). `AI_LOCK` (`multiprocessing.Lock`) serializa as chamadas ao
   LLM entre *workers*. Operações concorrentes na mesma tarefa devolvem `409`. IDs de tarefa são UUIDs
   validados.
+- **`templates/admin.html` + `utils/settings.py`**: tela Administração (`/admin`); grava `privio_settings.json` e aplica no ambiente.
+- **`sentry_mcp.py`**: servidor MCP local (stdio) para agentes, sobre a API.
 - **`main.py`** (`SentryApp`): o pipeline; também é a CLI (`python main.py --input ... --output ...`, saída
   `0` concluído / `3` requer revisão / `1` erro).
 
@@ -62,6 +67,12 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
 | `utils/task_options.py` | Opções por documento escolhidas na interface (perfil, nomes, baixa qualidade): catálogo, validação no servidor e aplicação só no processo da tarefa |
 | `utils/validators.py` | Dígitos verificadores de CPF e CNPJ |
 | `utils/yolo_engine.py` | Detector de assinaturas (Ultralytics) e recortes |
+| `utils/doc_templates/` | Modelos de documento: formato e pasta (`schema.py`), reconhecer/aplicar/inspecionar sem IA (`engine.py`), rascunho a partir de documento revisado com IA opcional sobre texto mascarado (`draft.py`), router `/doc-templates/*` (`api.py`). Guia: docs/modelos-documento.md |
+| `deploy/k8s/` | Kubernetes (kustomize): app com 1 réplica, Ollama opcional, rede fechada por padrão. Guia: docs/deploy.md |
+| `utils/egress.py` | Trava de saída: o que é "fora desta rede", `AI_ALLOW_EXTERNAL`, registro dos destinos externos usados |
+| `utils/ratelimit.py` | Limite de uso do provedor de IA (HTTP 429): por minuto (espera) x cota esgotada, limitador por servidor compartilhado entre processos (`AI_REQUESTS_PER_MINUTE`, 12/min por padrão em provedor externo) e documento pendente (`AI_LIMIT_ACTION=pendente`: sem PDF, refeito pela fila) |
+| `utils/settings.py` | Itens configuráveis pela tela Administração, validação, arquivo `privio_settings.json` e aplicação no ambiente |
+| `sentry_mcp.py` | Servidor MCP local (JSON-RPC por stdio, sem dependência nova) para agentes de IA; guia em docs/mcp.md |
 | `utils/ai_client.py` | Cliente de IA para **qualquer servidor pela API**: Ollama ou padrão OpenAI (LM Studio, vLLM, llama.cpp, servidor da organização); IA reserva, disjuntor com estado compartilhado, teste de saúde e descarga do modelo pela API, `GET /health/ai` |
 | `utils/address_redactor.py` + `utils/lexicon.py` | Descoberta de endereços pelo LLM e casamento com as palavras do OCR; palavras "imunes" |
 | `utils/session.py` | Pastas da tarefa, logs, exportação, reconstrução do PDF e tarja nativa (`apply_native_pdf_redactions`) |
@@ -74,6 +85,7 @@ Navegador ─► gatekeeper.py (:8000, opcional) ─proxy─► app_service.py (
 | `templates/index.html` | Editor web autocontido; textos no objeto `I18N` (pt-BR padrão, en-US), chaves conforme `docs/brand/UX_SPEC.md`; renderizador Markdown próprio que **nunca** injeta HTML |
 | `templates/gatekeeper.html` | Página do painel quando o app está desligado |
 | `scripts/audit_public_tree.py` | Auditoria de dados pessoais, segredos e caminhos locais antes de publicar |
+| `benchmarks/provider_check.py` | Verificação de um provedor de IA real com dados fictícios (procedimento em docs/procedimento-ia-externa.md); testes `-m live` em `tests/test_live_provider.py`, nunca no CI |
 | `benchmarks/` | Benchmark sintético de CPF (`run_benchmark`), corpus fictício de PII com métricas por tipo (`pii_corpus.py`, `pii_eval [--ocr]`), motores de OCR e IAs de OCR (`ocr_compare`), LLM de endereços (`address_eval`), segundo olhar (`second_look_eval`) e teste de pressão pela API do app (`stress`). Resultados em docs/benchmarks.md |
 | `experimental/agent_loop/` | Abordagem com agente LLM, inacabada e **fora** do pipeline e do lint |
 

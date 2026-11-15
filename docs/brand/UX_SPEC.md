@@ -114,7 +114,9 @@ Summary:
 `18 elements processed`
 
 Status:
-`Processed locally`
+`Processed locally`, or `Protection complete · with external AI` when the task used an external AI provider
+(`AI_ALLOW_EXTERNAL=1`). The `LOCAL PROCESSING` badge likewise becomes `EXTERNAL AI` while an external provider
+is allowed. Never claim local processing for content that left the network.
 
 Actions:
 `Export protected document`

@@ -160,7 +160,7 @@ def test_start_worker_passes_the_task_options_to_the_process(monkeypatch):
     created = []
 
     class FakeProc:
-        def __init__(self, target, args):
+        def __init__(self, target, args, kwargs=None):
             created.append(args)
 
         def start(self):

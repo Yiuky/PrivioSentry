@@ -54,9 +54,26 @@ Estados da tarefa (texto de status livre mais um percentual de progresso): `Inic
 
 `00_original_images/`, `01_ocr_results/`, `02_signature_crops/`, `04_*`, `05_final_export/{cpf_only,address_only,combined}`, `07_addresses_crops_ia/`, `08_*`, `99_ia_interactions/` (prompts/respostas do LLM), `process_log.log`. **Tudo isso pode conter dados pessoais.** Os PDFs finais vão para `documentos_finais/`.
 
+## Modelos de documento
+
+`run_template_phase` (depois da política) reconhece o documento pelas frases fixas dos modelos salvos e tarja os
+campos ancorados em rótulos, sem IA. Modelo aprovado com `dispensa_ia` e campos obrigatórios achados põe a página
+em `template_skip_pages`, e `run_address_discovery` não chama a IA de visão nela. `run_template_inspection`
+(depois do segundo olhar) inspeciona as páginas do documento reconhecido: rótulos com valor sem tarja vão para
+revisão, e um agente lê o texto já tarjado (`DOC_TEMPLATE_INSPECTION=agente`). O pacote `utils/doc_templates`
+tem contrato JSON e router próprio (`/doc-templates/*`). Guia: [modelos-documento.md](modelos-documento.md);
+implantação modular: [deploy.md](deploy.md).
+
+## Administração, IA externa, API e MCP
+
+* **Administração** (`templates/admin.html`, `utils/settings.py`): a configuração salva vai para `privio_settings.json` e é aplicada como variáveis de ambiente no serviço; os processos das tarefas herdam o ambiente (e, no Windows, reaplicam o arquivo ao reimportar o `app_service`). Chaves de API nunca voltam pela API.
+* **Trava de saída** (`utils/egress.py`): toda chamada de IA (`AIClient._run` e o segundo olhar) passa por `egress.check`. Destino fora da rede local sem `AI_ALLOW_EXTERNAL=1` vira erro antes de sair (a página vai para revisão). Destinos externos efetivamente chamados vão para `ia_externa` no estado final da tarefa.
+* **API**: as mesmas rotas do portal, mais `GET /tasks/{id}`, `GET /api/info`, `GET /healthz` e `GET /download/{id}?final=true` (só o PDF aprovado: `finalizado` e sem `needs_review`). `PORTAL_ENABLED=0` desliga a interface. Guia: [api.md](api.md).
+* **MCP** (`sentry_mcp.py`): servidor stdio que usa a API; detalhes em [mcp.md](mcp.md).
+
 ## API HTTP (app_service)
 
-`GET /` UI · `GET /readme` · `POST /upload` · `GET /tasks` · `POST /reprocess/{id}` · `GET /logs/{id}` · `POST /process-all` · `DELETE /delete-all` · `GET /previews/{id}/{page}` · `GET /metadata/{id}` · `POST /update-redactions/{id}` · `POST /reprocess-metadata/{id}` · `POST /finalize-native/{id}` · `POST /finalize/{id}` (raster legado) · `GET /download/{id}` · `DELETE /task/{id}` · `POST /purge/{id}` (remove as imagens de página não tarjadas após a aprovação) · `POST /internal/update/{id}` (somente workers). Os ids de tarefa são UUIDs e são validados. · `GET /policy/catalog` e `GET /policy/profiles` (catálogo e perfis, só leitura)
+`GET /` UI · `GET /readme` · `POST /upload` · `GET /tasks` · `POST /reprocess/{id}` · `GET /logs/{id}` · `POST /process-all` · `DELETE /delete-all` · `GET /previews/{id}/{page}` · `GET /metadata/{id}` · `POST /update-redactions/{id}` · `POST /reprocess-metadata/{id}` · `POST /finalize-native/{id}` · `POST /finalize/{id}` (raster legado) · `GET /download/{id}` · `DELETE /task/{id}` · `POST /purge/{id}` (remove as imagens de página não tarjadas após a aprovação) · `POST /internal/update/{id}` (somente workers). Os ids de tarefa são UUIDs e são validados. · `GET /policy/catalog` e `GET /policy/profiles` (catálogo e perfis, só leitura) · `GET /tasks/{id}` · `GET /api/info` · `GET /healthz` · `GET /admin` · `GET/POST /admin/settings` · `POST /admin/ai/test` · `GET /admin/ai/models` · `/doc-templates/*` (modelos de documento) · `/docs` e `/redoc` desligados (CDN); contrato em `GET /openapi.json`
 
 ## Outros diretórios
 

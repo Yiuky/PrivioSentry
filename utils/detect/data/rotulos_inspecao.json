@@ -1,0 +1,12 @@
+{
+  "_doc": "Rótulos que costumam vir antes de dado pessoal. A inspeção dos modelos de documento (utils/doc_templates/engine.py) manda para revisão o valor ao lado de um destes rótulos que ficou sem tarja. Regras como dados: mude aqui e rode pytest tests/test_doc_templates.py.",
+  "rotulos": [
+    "CPF", "CPF/CNPJ", "CPF/MF", "RG", "Identidade", "CNH", "PIS", "NIS", "PIS/NIS", "CNS", "Título de eleitor",
+    "Nome", "Nome completo", "Proprietário", "Proprietária", "Interessado", "Interessada", "Requerente",
+    "Compromissário", "Detentor", "Representante", "Responsável", "Responsável técnico", "Filiação", "Mãe", "Pai",
+    "Endereço", "Endereço residencial", "Residência", "Logradouro", "Rua", "Bairro", "CEP", "Complemento",
+    "Telefone", "Fone", "Celular", "WhatsApp", "E-mail", "Email",
+    "Data de nascimento", "Nascimento", "Naturalidade", "Estado civil", "Profissão",
+    "Conta", "Agência", "Chave Pix", "Pix", "Placa"
+  ]
+}

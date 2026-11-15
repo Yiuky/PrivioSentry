@@ -158,6 +158,11 @@ def live_app(tmp_path, monkeypatch, chromium_ok):
     monkeypatch.setenv("PRIVIO_INPUT_DIR", str(tmp_path / "in"))
     monkeypatch.setenv("PRIVIO_OUTPUT_DIR", str(tmp_path / "output"))
     monkeypatch.setenv("PRIVIO_FINAL_DIR", str(tmp_path / "documentos_finais"))
+    # tela Admin: arquivo temporário (nunca o privio_settings.json real) e IA externa desligada
+    monkeypatch.setenv("PRIVIO_SETTINGS_FILE", str(tmp_path / "privio_settings.json"))
+    monkeypatch.setenv("PRIVIO_DOC_TEMPLATES_DIR", str(tmp_path / "modelos_documento"))
+    for k in ("AI_ALLOW_EXTERNAL", "ADMIN_ENABLED", "PORTAL_ENABLED"):
+        monkeypatch.delenv(k, raising=False)
     import app_service
     mod = importlib.reload(app_service)
     out, final = tmp_path / "output", tmp_path / "documentos_finais"
@@ -194,6 +199,9 @@ def live_app(tmp_path, monkeypatch, chromium_ok):
     finally:
         server.should_exit = True
         thread.join(timeout=10)
+        from utils import settings  # o que o teste salvou no Admin foi escrito direto no ambiente: desfaz
+        monkeypatch.setenv("PRIVIO_SETTINGS_FILE", str(tmp_path / "nenhum.json"))
+        settings.apply()
 
 
 # ---------------------------------------------------------------- página

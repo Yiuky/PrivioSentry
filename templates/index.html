@@ -106,6 +106,11 @@
 
         .local-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:var(--radius-pill); background:#E6F7F5; color:var(--teal-strong); border:1px solid var(--teal); font-size:11px; font-weight:700; letter-spacing:0.06em; white-space:nowrap; }
         .local-badge::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--teal); }
+        /* IA externa liberada (AI_ALLOW_EXTERNAL=1): o selo deixa de dizer LOCAL PROCESSING (I-05) */
+        .local-badge.external { background:var(--warning-tint); color:var(--warning-strong); border-color:var(--warning); cursor:help; }
+        .local-badge.external::before { background:var(--warning); }
+        .task-ext { margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--warning-strong); }
+        a.tool-btn { text-decoration:none; }
 
         .lang-select { border:1px solid var(--border); border-radius:var(--radius-control); background:var(--white); color:var(--ink); padding:5px 8px; font-size:12px; cursor:pointer; }
 
@@ -330,6 +335,7 @@
                 <button class="tool-btn" data-i18n="btn.processAll" onclick="processAll()">Processar todos</button>
                 <button class="tool-btn btn-danger-outline" data-i18n="btn.deleteAll" onclick="deleteAll()">Excluir todos</button>
                 <button class="tool-btn" data-i18n="btn.docs" onclick="openReadme()">Documentação</button>
+                <a class="tool-btn" id="btn-admin" data-testid="btn-admin" href="admin" data-i18n="btn.admin">Administração</a>
             </div>
         </div>
     </div>
@@ -389,7 +395,7 @@
                 <div class="steps">
                     <div class="step-card">
                         <h3><span class="step-n">1</span><span data-i18n="step.detect.title">Detectar</span></h3>
-                        <p data-i18n="step.detect.body">OCR, regras de validação e modelos locais sugerem possíveis CPFs, endereços e assinaturas.</p>
+                        <p data-i18n="step.detect.body">OCR, regras de validação e modelos de IA (locais por padrão) sugerem possíveis CPFs, endereços e assinaturas.</p>
                     </div>
                     <div class="step-card">
                         <h3><span class="step-n">2</span><span data-i18n="step.review.title">Revisar</span></h3>
@@ -485,7 +491,7 @@
                 'warn.finished': 'O processamento terminou. Salve suas edições e reabra o documento para ver o resultado.',
                 'warn.failed': 'O processamento terminou com erro. Veja o log da tarefa (menu ⋮ › Ver logs).',
                 'empty.title': 'Nenhum documento ainda', 'empty.sub': 'Adicione um PDF para iniciar a detecção.',
-                'step.detect.title': 'Detectar', 'step.detect.body': 'OCR, regras de validação e modelos locais sugerem possíveis CPFs, endereços e assinaturas.',
+                'step.detect.title': 'Detectar', 'step.detect.body': 'OCR, regras de validação e modelos de IA (locais por padrão) sugerem possíveis CPFs, endereços e assinaturas.',
                 'step.review.title': 'Revisar', 'step.review.body': 'Cada sugestão aparece como uma região editável. Ajuste, mova ou remova antes de continuar.',
                 'step.protect.title': 'Proteger', 'step.protect.body': 'A proteção só é aplicada ao PDF depois da sua confirmação. Páginas incertas ficam marcadas como Requer revisão.',
                 'empty.legal': 'Apoia práticas de privacidade e segurança, incluindo as relacionadas à LGPD. Não é aconselhamento jurídico e não assegura conformidade: a política de proteção e o resultado exigem revisão da sua organização.',
@@ -494,6 +500,11 @@
                 'task.actions': 'Ações de {file}', 'task.reprocess': 'Reprocessar', 'task.logs': 'Ver logs', 'task.delete': 'Excluir',
                 'task.view': 'Ver', 'task.download': 'Baixar PDF', 'task.review': 'Requer revisão',
                 'task.complete': 'Proteção concluída · Processado localmente',
+                'task.pending': 'Pendente: limite de uso da IA. Nova tentativa às {time}',
+                'task.template': 'Criar modelo de documento', 'task.templateUsed': 'Modelo: {name}',
+                'task.templateTip': 'Tarjado também pelo modelo de documento (sem IA). A revisão continua obrigatória.',
+                'task.completeExternal': 'Proteção concluída · com IA externa', 'task.external': 'IA externa: {hosts}',
+                'badge.external': 'Imagens e texto das páginas vão para: {hosts}', 'btn.admin': 'Administração',
                 'region.possible': 'Possível dado pessoal — verifique antes de proteger', 'region.possibleType': 'Possível {type} — verifique antes de proteger', 'pii.found': 'Dados encontrados',
                 'region.signature': 'Possível assinatura — verifique antes de proteger',
                 'region.manual': 'Região adicionada manualmente',
@@ -543,7 +554,7 @@
                 'warn.finished': 'Processing finished. Save your edits and reopen the document to see the result.',
                 'warn.failed': 'Processing finished with an error. See the task log (⋮ menu › View logs).',
                 'empty.title': 'No documents yet', 'empty.sub': 'Add a PDF to begin detection.',
-                'step.detect.title': 'Detect', 'step.detect.body': 'OCR, validation rules and local models suggest potential CPF numbers, addresses and signatures.',
+                'step.detect.title': 'Detect', 'step.detect.body': 'OCR, validation rules and AI models (local by default) suggest potential CPF numbers, addresses and signatures.',
                 'step.review.title': 'Review', 'step.review.body': 'Each suggestion appears as an editable region. Adjust, move or remove it before continuing.',
                 'step.protect.title': 'Protect', 'step.protect.body': 'Protection is applied to the PDF only after you confirm. Uncertain pages stay marked as Needs review.',
                 'empty.legal': 'Supports privacy and security practices, including those related to the LGPD. It is not legal advice and does not ensure compliance: the protection policy and the output require review by your organization.',
@@ -552,6 +563,11 @@
                 'task.actions': 'Actions for {file}', 'task.reprocess': 'Reprocess', 'task.logs': 'View logs', 'task.delete': 'Delete',
                 'task.view': 'View', 'task.download': 'Download PDF', 'task.review': 'Needs review',
                 'task.complete': 'Protection complete · Processed locally',
+                'task.pending': 'Pending: AI usage limit. Next attempt at {time}',
+                'task.template': 'Create document template', 'task.templateUsed': 'Template: {name}',
+                'task.templateTip': 'Also redacted by the document template (no AI). Review is still required.',
+                'task.completeExternal': 'Protection complete · with external AI', 'task.external': 'External AI: {hosts}',
+                'badge.external': 'Page images and text are sent to: {hosts}', 'btn.admin': 'Administration',
                 'region.possible': 'Potential personal data — verify before protecting', 'region.possibleType': 'Potential {type} — verify before protecting', 'pii.found': 'Data found',
                 'region.signature': 'Potential signature — verify before protecting',
                 'region.manual': 'Manually added region',
@@ -841,7 +857,11 @@
                         alertsHtml = `<span class="alert-icon" style="color:var(--warning-strong); cursor:help; font-size:14px; margin-left:6px;" title="${esc(alertText)}">⚠</span>`;
                     }
                     const badgeHtml = tk.needs_review ? `<div><span class="badge-review" data-testid="badge-review">${esc(t('task.review'))}</span></div>` : '';
-                    const completeHtml = (isDone && !tk.needs_review && !tk.error) ? `<div class="task-complete" data-testid="task-complete">${esc(t('task.complete'))}</div>` : '';
+                    // Conteúdo saiu para IA externa (AI_ALLOW_EXTERNAL=1): nunca dizer "Processado localmente"
+                    const ext = Array.isArray(tk.ia_externa) ? tk.ia_externa : [];
+                    const completeHtml = (isDone && !tk.needs_review && !tk.error) ? `<div class="task-complete" data-testid="task-complete">${esc(t(ext.length ? 'task.completeExternal' : 'task.complete'))}</div>` : '';
+                    const tplHtml = tk.modelo_documento ? `<div class="task-pii" data-testid="task-template" title="${esc(t('task.templateTip'))}">▣ ${esc(t('task.templateUsed', {name: tk.modelo_documento.nome}))}</div>` : '';
+                    const extHtml = ext.length ? `<div class="task-ext" data-testid="task-external">${esc(t('task.external', {hosts: ext.join(', ')}))}</div>` : '';
 
                     const cls = `task-item ${currentTaskId === id ? 'active' : ''}`;
                     const html = `
@@ -850,14 +870,17 @@
                             <div id="m-${id}" class="dropdown-menu" role="menu" style="${openMenuId === id ? 'display:block' : ''}">
                                 <button type="button" role="menuitem" data-action="reprocess" onclick="event.stopPropagation(); reprocessTask('${id}')">${esc(t('task.reprocess'))}</button>
                                 <button type="button" role="menuitem" data-action="logs" onclick="event.stopPropagation(); showLogs('${id}')">${esc(t('task.logs'))}</button>
+                                ${isDone && !tk.error && !(serviceInfo && serviceInfo.admin === false) ? `<button type="button" role="menuitem" data-action="template" onclick="event.stopPropagation(); location.href='admin?rascunho=${id}#modelos'">${esc(t('task.template'))}</button>` : ''}
                                 <button type="button" role="menuitem" data-action="delete" class="danger" onclick="event.stopPropagation(); deleteTask('${id}')">${esc(t('task.delete'))}</button>
                             </div>
                         </div>
                         <div class="task-title" title="${esc(tk.file)}">${esc(tk.file)}${alertsHtml}</div>
-                        <div class="task-meta"><span class="task-status">${esc(tk.status)} ${!isDone ? '('+esc(tk.percentage)+'%)' : ''}</span><span>${dateStr}</span></div>
+                        <div class="task-meta"><span class="task-status" ${tk.pendente ? 'data-testid="task-pending"' : ''}>${tk.pendente ? esc(t('task.pending', {time: new Date((Number(tk.pendente_ate) || 0) * 1000).toLocaleTimeString(lang, {hour: '2-digit', minute: '2-digit'})})) : esc(tk.status) + (!isDone ? ' ('+esc(tk.percentage)+'%)' : '')}</span><span>${dateStr}</span></div>
                         ${optsHtml}
                         ${badgeHtml}
                         ${completeHtml}
+                        ${extHtml}
+                        ${tplHtml}
                         ${piiHtml}
                         ${timeHtml}
                         ${downloadHtml}
@@ -1630,9 +1653,34 @@
             document.getElementById('readme-overlay').style.display = 'none';
         }
 
+        // Modo do serviço (/api/info): selo honesto quando há IA externa e botão de Administração só se existir
+        let serviceInfo = null;
+        function renderServiceInfo() {
+            const badge = document.getElementById('local-badge');
+            const ext = (serviceInfo && serviceInfo.ia_externa) || [];
+            badge.textContent = ext.length ? 'EXTERNAL AI' : 'LOCAL PROCESSING';
+            badge.classList.toggle('external', ext.length > 0);
+            if (ext.length) badge.title = t('badge.external', {hosts: ext.join(', ')}); else badge.removeAttribute('title');
+            document.getElementById('btn-admin').style.display = (serviceInfo && serviceInfo.admin === false) ? 'none' : '';
+        }
+        async function loadServiceInfo() {
+            const res = await api('/api/info', {}, null);
+            if (res.ok && res.data) { serviceInfo = res.data; renderServiceInfo(); }
+        }
+
+        // Link direto para um documento (?task=<id>): usado pelo servidor MCP para levar o revisor ao documento
+        async function openTaskFromUrl() {
+            const id = new URLSearchParams(location.search).get('task');
+            if (!id) return;
+            await fetchTasks();
+            if (tasks[id]) selectTask(id, tasks[id].file);
+        }
+
         applyI18n();
         loadOptions();
+        loadServiceInfo();
         setInterval(fetchTasks, 3000); fetchTasks();
+        openTaskFromUrl();
     </script>
 </body>
 </html>

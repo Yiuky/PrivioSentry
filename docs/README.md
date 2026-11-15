@@ -9,7 +9,12 @@ Ponto de partida para usar, operar e desenvolver o **SENTRY Redact**. Comece pel
 |---|---|
 | [Manual de uso](MANUAL_DE_USO.md) | Instalação passo a passo, editor web, linha de comando, resultados, solução de problemas e perguntas frequentes |
 | [Catálogo de dados pessoais](catalogo-pii.md) | Tipos de PII, enquadramento (LGPD, GDPR, ISO/IEC 29100, NIST, HIPAA) e como cada um é detectado |
-| [Configuração](configuration.md) | Todas as variáveis de ambiente (`.env`), com valores padrão |
+| [Configuração](configuration.md) | Todas as variáveis de ambiente (`.env`), com valores padrão, a tela Administração e a IA externa |
+| [Modelos de documento](modelos-documento.md) | Tarjar documentos de layout conhecido sem IA, inspeção depois e o gerenciador de modelos |
+| [Validar um provedor de IA](procedimento-ia-externa.md) | Procedimento e verificação automática (dados fictícios) antes de usar IA na nuvem com documentos reais |
+| [Implantação](deploy.md) | Arquitetura modular, Docker Compose e Kubernetes |
+| [API HTTP](api.md) | Usar o serviço por scripts e sistemas: rotas, token, modo só-API |
+| [Servidor MCP](mcp.md) | Agentes de IA usando o SENTRY Redact, com aprovação humana |
 | [Limitações](limitations.md) | O que a ferramenta **não** faz: leia antes de confiar nos resultados |
 
 ## 🔐 Para quem decide e opera

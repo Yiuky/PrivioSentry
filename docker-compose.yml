@@ -1,5 +1,8 @@
-# PRIVIO SENTRY - SENTRY Redact. Run the web app in a container. Ollama is NOT included: run it on the host
-# (https://ollama.com) and pull the models you configured in .env.
+# PRIVIO SENTRY - SENTRY Redact. Run the web app in a container. By default Ollama runs on the host
+# (https://ollama.com). To run it as another container instead (another "server" of the stack):
+#   AI_BASE_URL=http://ollama:11434 docker compose --profile ollama up -d
+#   docker compose exec ollama ollama pull gemma4:e4b
+# Kubernetes: deploy/k8s (docs/deploy.md).
 services:
   app:
     build: .
@@ -11,8 +14,9 @@ services:
       - path: .env
         required: false
     environment:
-      # Ollama running on the host machine
+      # Ollama running on the host machine (or the "ollama" service below: AI_BASE_URL=http://ollama:11434)
       OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434}
+      AI_BASE_URL: ${AI_BASE_URL:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"   # needed on Linux
     volumes:
@@ -22,8 +26,23 @@ services:
       - privio_sentry_state:/app/state
     restart: unless-stopped
 
+  ollama:
+    profiles: ["ollama"]
+    # Pin a reviewed version (supply chain): ollama/ollama:<version>
+    image: ollama/ollama:latest
+    volumes:
+      - privio_sentry_ollama:/root/.ollama
+    # No published port: only the app reaches it, on the compose network.
+    restart: unless-stopped
+    # NVIDIA GPU (needs the NVIDIA container toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+
 volumes:
   privio_sentry_output:
   privio_sentry_input:
   privio_sentry_final:
   privio_sentry_state:
+  privio_sentry_ollama:

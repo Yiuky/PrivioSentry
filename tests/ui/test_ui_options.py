@@ -113,6 +113,8 @@ def test_keyboard_arrows_move_between_profiles(page, open_app, installed):
 def test_panel_remembers_being_open(page, live_app, open_app, installed):
     open_app()
     open_panel(page)
+    # o evento "toggle" do <details> é assíncrono: recarregar antes da gravação perdia o estado (falhava no CI)
+    page.wait_for_function("() => localStorage.getItem('privio.optsOpen') === '1'")
     page.reload()
     page.wait_for_function("() => document.querySelectorAll('#opt-profile .opt-pill').length > 0")
     expect(page.get_by_test_id("opt-profile")).to_be_visible()

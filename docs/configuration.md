@@ -1,6 +1,6 @@
 # Configuração
 
-Todas as configurações são variáveis de ambiente, normalmente definidas em um arquivo `.env` na raiz do repositório (carregado com `python-dotenv`). Copie [`.env.example`](../.env.example) para `.env`. Todas as variáveis são opcionais; o **padrão** é o valor usado pelo código quando a variável não está definida. Esta lista foi gerada a partir do código (chamadas a `os.getenv`); se você adicionar uma variável, atualize este arquivo e o `.env.example`.
+Todas as configurações são variáveis de ambiente, normalmente definidas em um arquivo `.env` na raiz do repositório (carregado com `python-dotenv`). A maior parte também pode ser ajustada na tela **Administração** (`/admin`, ver abaixo), sem editar arquivos. Copie [`.env.example`](../.env.example) para `.env`. Todas as variáveis são opcionais; o **padrão** é o valor usado pelo código quando a variável não está definida. Esta lista foi gerada a partir do código (chamadas a `os.getenv`); se você adicionar uma variável, atualize este arquivo e o `.env.example`.
 
 ## Serviço web
 
@@ -12,6 +12,22 @@ Todas as configurações são variáveis de ambiente, normalmente definidas em u
 | `ALLOWED_HOSTS` | *(vazio)* | `utils/net_guard.py` (`app_service.py`, `gatekeeper.py`) | Nomes extras aceitos nos cabeçalhos `Host`/`Origin`, separados por vírgula. Loopback (`127.0.0.1`, `localhost`, `::1`) e `APP_HOST` sempre valem. Sem `API_TOKEN`, o app recusa outro `Host` (`421`, proteção contra *DNS rebinding*) e POST/DELETE vindos de outro site (`403`, proteção contra CSRF). O gatekeeper, que não tem token, faz essa checagem sempre: para acessá-lo por outro nome ou IP, liste-o aqui. `*` desliga a checagem (não recomendado). |
 | `SESSION_TTL_HOURS` | `12` | `utils/auth.py` | Validade da sessão do navegador aberta com `?token=`. As sessões ficam em memória: reiniciar o serviço pede login de novo. |
 | `MAX_UPLOAD_MB` | `500` | `app_service.py` | Tamanho máximo de upload. |
+| `PORTAL_ENABLED` | `1` | `app_service.py` | `0` = só API: sem a interface web (`GET /` responde JSON). Ver [api.md](api.md). |
+| `ADMIN_ENABLED` | `1` | `app_service.py` | `0` = sem a tela e a API de Administração (`/admin`, `/admin/*`): configuração só pelo `.env`. |
+| `PRIVIO_DOC_TEMPLATES_DIR` | `./modelos_documento` | `utils/doc_templates/schema.py` | Pasta dos modelos de documento (JSON). Modelos feitos de documentos reais podem conter texto deles: fora do git e da imagem. |
+| `PRIVIO_RUNTIME_DIR` | pasta temporária do sistema | `utils/ai_client.py` | Onde fica o estado do disjuntor da IA, compartilhado entre as tarefas. |
+| `PRIVIO_LEARNING_DIR` | `./learning` | `utils/decisions` | Exemplos e perfis do decisor local (ver "Decisor local"). |
+| `PRIVIO_SETTINGS_FILE` | `./privio_settings.json` | `utils/settings.py` | Onde a tela Administração guarda o que foi salvo. **Pode conter chaves de API:** fica no `.gitignore`/`.dockerignore` e as chaves nunca voltam pela API. |
+
+### Tela Administração
+
+`/admin` (botão **Administração** na barra lateral do editor) agrupa IA principal e reserva (com atalhos de
+provedor, teste de conexão e lista de modelos), detecção e política, OCR e verificação, operação e o guia de API e
+agentes (MCP). O valor salvo ali vale sobre o `.env`; **restaurar padrão** volta ao `.env`/código. Itens marcados
+"reiniciar" (`MAX_PARALLEL_TASKS`, `MAX_UPLOAD_MB`, `RETENTION_DAYS`) valem depois de reiniciar o serviço; o resto
+vale para o próximo documento. Por segurança `API_TOKEN`, `APP_HOST`, `APP_PORT`, `ALLOWED_HOSTS`, `ADMIN_ENABLED`,
+`PORTAL_ENABLED` e as pastas só mudam pelo `.env`. Quem acessa o portal acessa a Administração: na rede, use
+`API_TOKEN` ou desligue com `ADMIN_ENABLED=0`.
 
 Na interface, **perfil**, **nomes** e **baixa qualidade** podem ser escolhidos **por documento** (painel "Opções do próximo envio"; API: `GET /options` e os campos `perfil`, `nomes`, `baixa_qualidade` do `POST /upload`). As variáveis `POLICY_PROFILE`, `NER_ENGINE`, `SECOND_LOOK` e `OCR_EXTRA_ENGINE` passam a ser os **padrões** desse painel e de envios sem opções.
 
@@ -37,7 +53,7 @@ Na interface, **perfil**, **nomes** e **baixa qualidade** podem ser escolhidos *
 | `TESSERACT_SPARSE_PSM` | *(vazio = pular)* | PSM para a segunda passada ("esparsa") na página inteira, por exemplo `11`; ela encontra fragmentos desconexos, como dígitos com ruído. |
 | `TESSERACT_CROP_PSM` | `6` | PSM para recortes pequenos (recortes de assinatura, verificação). |
 
-## Servidor de IA (qualquer servidor local ou da organização)
+## Servidor de IA (local, da organização ou provedor na nuvem)
 
 O projeto fala com a **API** do servidor de IA, não com um aplicativo específico. Dois tipos:
 
@@ -55,15 +71,54 @@ os servidores (sem chaves), o disjuntor e o teste de saúde de cada um.
 | `AI_PROVIDER` | `ollama` | Tipo do servidor principal: `ollama` ou `openai` (LM Studio, vLLM, llama.cpp, servidor da organização). |
 | `AI_BASE_URL` | `OLLAMA_API_URL` (ollama) / `http://localhost:1234/v1` (openai) | Endereço da API. Para `openai`, inclua o `/v1`. |
 | `AI_API_KEY` | *(vazio)* | Chave, se o servidor exigir. Nunca vai para log nem para `/health/ai`. |
+| `AI_ALLOW_EXTERNAL` | `0` | `1` libera servidor de IA **fora desta rede** (provedor na nuvem com chave de API). Sem isso, a chamada a um destino externo é bloqueada antes de sair e a página vai para revisão. Liberado, **imagens das páginas, recortes de assinatura e o texto lido** são enviados ao provedor; a tarefa registra os destinos (`ia_externa`) e a interface troca o selo por **EXTERNAL AI**. Vale também para o segundo olhar. Ver "IA externa" abaixo. |
 | `AI_TEXT_MODEL` / `AI_VISION_MODEL` | `OLLAMA_MODEL` / `OLLAMA_VISION_MODEL` | Modelos de texto e de visão no servidor principal. |
 | `AI_TEXT_TIMEOUT` / `AI_VISION_TIMEOUT` | `OLLAMA_*_TIMEOUT` | Tempo limite por chamada no servidor principal. |
 | `AI_SECONDARY_PROVIDER`, `AI_SECONDARY_BASE_URL`, `AI_SECONDARY_API_KEY`, `AI_SECONDARY_TEXT_MODEL`, `AI_SECONDARY_VISION_MODEL`, `AI_SECONDARY_TEXT_TIMEOUT`, `AI_SECONDARY_VISION_TIMEOUT` | *(sem reserva)* | O mesmo para a **IA reserva**. Cada servidor tem o próprio tempo limite (medido: com o mesmo limite, a reserva mais lenta também era desligada). |
 | `AI_BREAKER_FAILURES` | `3` | Falhas seguidas (sem conexão, tempo esgotado, erro 5xx, resposta sem JSON) que desligam um servidor. |
 | `AI_BREAKER_COOLDOWN` | `120` | Segundos desligado antes do teste de saúde pela API. Medido: com a principal travada, a primeira página paga as tentativas e as seguintes vão direto para a reserva (~12 s por página em vez de até 30 min). |
+| `AI_REQUESTS_PER_MINUTE` | *(automático)* | Limitador: no máximo N pedidos de IA por minuto **por servidor**, somando todos os documentos em processamento (a vez de cada pedido é reservada num estado compartilhado entre os processos). Vazio = automático: `12` num provedor externo (abaixo dos 15 por minuto medidos no plano gratuito do Gemini Flash-Lite) e sem limite nesta rede. `0` = sem limite. O pedido espera a vez: o processamento fica mais lento, mas não é recusado. Com um plano pago de limite maior, aumente. |
+| `AI_LIMIT_ACTION` | `revisao` | O que fazer quando o provedor recusa por limite de uso (HTTP 429) e a espera curta não resolve. `revisao`: a página sem IA vai para revisão. `pendente`: o documento inteiro fica **Pendente**, sem PDF, e o serviço o processa de novo sozinho depois (as páginas já lidas são enviadas outra vez). Só no portal/API; na linha de comando (`main.py`) o documento termina com erro. |
+| `AI_LIMIT_RETRY_MINUTES` | `60` | Com `pendente`: minutos até a nova tentativa. |
+| `AI_LIMIT_MAX_RETRIES` | `24` | Com `pendente`: quantas vezes o documento pode ficar pendente. Depois disso, a tentativa seguinte roda como `revisao` (nunca fica pendente para sempre; ex.: conta sem crédito). |
 | `AI_RESET_EVERY` | `0` | A cada N chamadas, pede ao servidor (pela API) para descarregar o modelo: Ollama (`keep_alive: 0`) e LM Studio (`/api/v1/models/unload`). Também acontece quando o disjuntor desliga o servidor. `0` = só no disjuntor. |
 | `AI_CROSS_CHECK` | `0` | `1`: a IA reserva também analisa cada página de endereços; as respostas se **somam**, discordância de tipo vira "pessoal" e manda a página para revisão. Dobra o tempo da fase de endereços. |
 | `AI_MAX_TOKENS` | `4096` | Limite de tokens da resposta nos servidores `openai`. |
 | `ADDRESS_PROMPT` | *(novo)* | `legado` volta ao pedido antigo de endereços (só imagem, "endereço completo e estruturado"). O novo pede para COPIAR do texto da página: nos documentos testados achou 3x mais endereços pessoais, sem inventar. |
+
+### IA externa (provedor na nuvem por chave de API)
+
+Qualquer provedor com API no padrão OpenAI funciona com `AI_PROVIDER=openai`. A tela Administração tem atalhos que
+preenchem o endereço:
+
+| Provedor | `AI_BASE_URL` |
+|---|---|
+| OpenAI | `https://api.openai.com/v1` |
+| Anthropic (Claude) | `https://api.anthropic.com/v1` (camada compatível com a API da OpenAI) |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| OpenRouter | `https://openrouter.ai/api/v1` |
+| Mistral | `https://api.mistral.ai/v1` |
+
+O modelo precisa aceitar **imagens**. O que conta como "fora desta rede" (`utils/egress.py`): qualquer destino que
+não seja loopback, IP privado, nome sem ponto, `*.local`/`.lan`/`.internal`/`.intranet`/`.localhost`, ou nome que o
+DNS resolve só para IPs privados. Um servidor da organização na intranet continua sem precisar de liberação.
+Nome que não resolve conta como externo. Nos provedores externos o sistema não pede para descarregar modelos, a
+lista de modelos não é exigida no teste de saúde (apelidos), o erro 429 espera o `Retry-After` (até 30 s) e um erro
+400 sobre `max_tokens`/`temperature` (modelos de raciocínio) é repetido uma vez com `max_completion_tokens`.
+
+Antes de usar com documentos reais, valide o provedor e o modelo com o
+[procedimento](procedimento-ia-externa.md) (`python -m benchmarks.provider_check`), que usa só dados fictícios.
+
+**Limite de uso (HTTP 429).** O projeto separa dois casos. *Por minuto:* o provedor diz quanto esperar
+(`Retry-After` ou `retryDelay`) e cabe em 60 s; a chamada espera e tenta de novo, sem contar como falha no
+disjuntor. *Cota esgotada:* limite diário, conta sem crédito, nenhuma indicação de espera, espera acima de 60 s
+ou limite por minuto que continuou depois das novas tentativas; aí vale `AI_LIMIT_ACTION`. O processamento
+pendente para antes de gerar o PDF e nunca aparece como concluído nem como aprovado (um PDF de um processamento
+anterior do mesmo documento, se existir, continua no disco até a nova tentativa). Pendente vale só para
+documentos processados pelo serviço: o rascunho de modelo com IA e o teste da Administração não ficam pendentes.
+
+> O que o provedor faz com os dados enviados (retenção, uso para treino, região) depende do **contrato e do plano**
+> da sua organização com ele. Confira antes de processar documentos reais; o PRIVIO SENTRY não controla isso.
 
 ### Segundo olhar (agente local, opcional)
 
@@ -117,6 +172,15 @@ Ambas são lidas em `utils/session.py` e `app_service.py`.
 | `FINAL_IMAGE_WIDTH` | `1240` | Largura (px) das páginas no PDF final rasterizado. |
 | `FINAL_JPEG_QUALITY` | `75` | Qualidade JPEG (1-95; valores fora do intervalo voltam ao padrão) dessas páginas. |
 | `RETENTION_DAYS` | `0` (desativado) | Na inicialização, exclui tarefas (e todos os seus artefatos) com mais de N dias; `0`/não definido mantém tudo. `POST /purge/{id}` remove sob demanda as imagens originais das páginas de uma tarefa. Sempre exclua `output/` quando terminar: ele contém imagens das páginas e texto de OCR com dados pessoais. |
+
+## Modelos de documento
+
+Guia completo: [modelos-documento.md](modelos-documento.md).
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `DOC_TEMPLATES` | `1` | Reconhece documentos de layout conhecido pelos modelos salvos e tarja os campos deles, sem IA. `0` desliga. |
+| `DOC_TEMPLATE_INSPECTION` | `agente` | Inspeção depois das tarjas nas páginas do documento reconhecido. `agente`: o agente do segundo olhar (`SECOND_LOOK_*`, padrão: a IA principal) lê o texto **já tarjado** e aponta o que ficou de fora; falha vira revisão. `regras`: zero token, só rótulos com valor sem tarja; página em que a IA de visão foi dispensada vai sempre para revisão. |
 
 ## Política de dados pessoais
 

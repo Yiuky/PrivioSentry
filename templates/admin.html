@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRIVIO SENTRY — Administração</title>
+    <!-- Local-first: sem fontes, scripts ou estilos externos (I-04). Mesmos tokens do editor (docs/brand/design-tokens.json). -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22%3E%3Crect width=%22512%22 height=%22512%22 rx=%22112%22 fill=%22%232563EB%22/%3E%3Cpath d=%22M118 101h210l66 66v228H118z%22 fill=%22%23fff%22/%3E%3Cpath d=%22M150 190h196v34H150zM150 258h196v34H150zM150 326h128v34H150z%22 fill=%22%2308122E%22/%3E%3C/svg%3E">
+    <style>
+        :root {
+            --ink:#0B1220; --primary:#2563EB; --primary-strong:#1D4ED8; --primary-tint:#EFF4FF; --teal:#14B8A6;
+            --teal-strong:#0F766E; --purple:#6941C6; --slate:#667085; --slate-strong:#475467; --border:#D0D5DD;
+            --surface:#F8FAFC; --surface-2:#EEF2F6; --white:#FFFFFF; --warning:#F79009; --warning-strong:#B54708;
+            --warning-tint:#FFFAEB; --danger:#D92D20; --danger-strong:#B42318; --danger-tint:#FEF3F2;
+            --success:#039855; --success-strong:#027A48; --success-tint:#ECFDF3;
+            --radius-control:8px; --radius-card:12px; --radius-pill:999px;
+            --shadow-sm:0 1px 2px rgba(16,24,40,.06); --shadow-md:0 4px 12px rgba(16,24,40,.10);
+            --font:Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            --mono:Consolas, "SFMono-Regular", Menlo, monospace;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:var(--font); }
+        body { background:var(--surface); color:var(--ink); font-size:14px; min-height:100vh; display:flex; }
+        :where(a, button, input, select, textarea, [tabindex]):focus-visible { outline:3px solid var(--primary); outline-offset:2px; }
+        button { font:inherit; }
+        code, pre { font-family:var(--mono); font-size:12.5px; }
+
+        .nav { width:260px; flex:none; background:var(--white); border-right:1px solid var(--border); display:flex; flex-direction:column; position:sticky; top:0; height:100vh; }
+        .brand { display:flex; align-items:center; gap:12px; padding:20px; border-bottom:1px solid var(--border); text-decoration:none; color:inherit; }
+        .brand svg { width:36px; height:36px; flex:none; }
+        .brand-name { font-weight:700; letter-spacing:.06em; font-size:15px; }
+        .brand-sub { font-size:12px; font-weight:600; color:var(--primary-strong); margin-top:2px; }
+        .nav-links { padding:12px; display:flex; flex-direction:column; gap:2px; overflow-y:auto; flex:1; }
+        .nav-links a { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:var(--radius-control); color:var(--ink); text-decoration:none; font-weight:500; }
+        .nav-links a:hover { background:var(--surface-2); }
+        .nav-links a[aria-current="page"] { background:var(--primary-tint); color:var(--primary-strong); font-weight:600; }
+        .nav-links .ic { width:18px; text-align:center; color:var(--slate); }
+        .nav-foot { padding:12px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px; }
+
+        .main { flex:1; min-width:0; display:flex; flex-direction:column; }
+        .top { background:var(--white); border-bottom:1px solid var(--border); padding:14px 32px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; position:sticky; top:0; z-index:5; }
+        .top h1 { font-size:18px; font-weight:700; flex:1 1 auto; }
+        .menu-btn { display:none; }
+        .local-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:var(--radius-pill); background:#E6F7F5; color:var(--teal-strong); border:1px solid var(--teal); font-size:11px; font-weight:700; letter-spacing:.06em; white-space:nowrap; }
+        .local-badge::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--teal); }
+        .local-badge.external { background:var(--warning-tint); color:var(--warning-strong); border-color:var(--warning); }
+        .local-badge.external::before { background:var(--warning); }
+        .lang-select { border:1px solid var(--border); border-radius:var(--radius-control); background:var(--white); padding:5px 8px; font-size:12px; }
+
+        .content { padding:24px 32px 64px; max-width:1100px; width:100%; }
+        section.view { display:none; flex-direction:column; gap:16px; }
+        section.view.active { display:flex; }
+        .lead { color:var(--slate-strong); line-height:1.5; max-width:760px; }
+        .card { background:var(--white); border:1px solid var(--border); border-radius:var(--radius-card); box-shadow:var(--shadow-sm); padding:20px; }
+        .card h2 { font-size:15px; font-weight:700; margin-bottom:4px; }
+        .card .desc { color:var(--slate); font-size:13px; margin-bottom:14px; line-height:1.5; }
+        .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:12px; }
+        .stat { border:1px solid var(--border); border-radius:var(--radius-card); padding:14px 16px; background:var(--white); }
+        .stat .k { font-size:11px; color:var(--slate); text-transform:uppercase; letter-spacing:.05em; font-weight:600; }
+        .stat .v { font-size:16px; font-weight:700; margin-top:4px; word-break:break-word; }
+        .stat .s { font-size:12px; color:var(--slate); margin-top:2px; word-break:break-all; }
+        .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; background:var(--border); }
+        .dot.ok { background:var(--success); } .dot.bad { background:var(--danger); } .dot.warn { background:var(--warning); }
+
+        .banner { border-radius:var(--radius-card); padding:12px 16px; border:1px solid; line-height:1.5; font-size:13px; }
+        .banner.warn { background:var(--warning-tint); border-color:var(--warning); color:#7A2E0E; }
+        .banner.info { background:var(--primary-tint); border-color:#B2CCFF; color:var(--ink); }
+        .banner.ok { background:var(--success-tint); border-color:#A6F4C5; color:#054F31; }
+        .banner strong { font-weight:700; }
+
+        .fields { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px 20px; }
+        .f { display:flex; flex-direction:column; gap:5px; }
+        .f label { font-weight:600; font-size:13px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .f .help { font-size:12px; color:var(--slate); line-height:1.4; }
+        .f input[type=text], .f input[type=password], .f input[type=number], .f select { border:1px solid var(--border); border-radius:var(--radius-control); padding:8px 10px; font-size:13px; background:var(--white); color:var(--ink); width:100%; }
+        .f input:disabled { background:var(--surface-2); }
+        .origin { font-size:10px; font-weight:700; padding:1px 7px; border-radius:var(--radius-pill); text-transform:uppercase; letter-spacing:.04em; background:var(--surface-2); color:var(--slate-strong); }
+        .origin.admin { background:var(--primary-tint); color:var(--primary-strong); }
+        .origin.restart { background:var(--warning-tint); color:var(--warning-strong); }
+        .link-btn { background:none; border:none; color:var(--primary-strong); font-size:12px; cursor:pointer; text-decoration:underline; padding:0; }
+        .switch { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; }
+        .switch input { width:18px; height:18px; }
+        .f.wide { grid-column:1 / -1; }
+
+        .actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:16px; }
+        .btn { background:var(--white); border:1px solid var(--border); color:var(--ink); padding:8px 14px; border-radius:var(--radius-control); font-size:13px; font-weight:600; cursor:pointer; box-shadow:var(--shadow-sm); text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
+        .btn:hover { background:var(--surface-2); }
+        .btn.primary { background:var(--primary); border-color:var(--primary); color:var(--white); }
+        .btn.primary:hover { background:var(--primary-strong); }
+        .btn:disabled { opacity:.55; cursor:not-allowed; }
+        .presets { display:flex; flex-wrap:wrap; gap:8px; }
+        .preset { border:1px solid var(--border); background:var(--white); border-radius:var(--radius-pill); padding:6px 12px; font-size:12.5px; cursor:pointer; }
+        .preset:hover { border-color:var(--primary); background:var(--primary-tint); }
+        .preset .tag { font-size:10px; font-weight:700; margin-left:6px; color:var(--teal-strong); }
+        .preset .tag.cloud { color:var(--warning-strong); }
+        .result { font-size:13px; }
+        .result.ok { color:var(--success-strong); } .result.bad { color:var(--danger-strong); }
+
+        table { border-collapse:collapse; width:100%; font-size:13px; }
+        th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+        th { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--slate); }
+        td code { background:var(--surface-2); padding:1px 5px; border-radius:4px; }
+        pre { background:var(--ink); color:#E4E7EC; padding:14px; border-radius:var(--radius-control); overflow-x:auto; white-space:pre; line-height:1.5; }
+        .copy-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:8px; }
+        .copy-row h3 { font-size:13px; font-weight:700; }
+
+        #toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:var(--ink); color:var(--white); border-left:4px solid var(--danger); border-radius:var(--radius-control); padding:10px 18px; font-size:13px; z-index:100; display:none; max-width:90%; box-shadow:var(--shadow-md); }
+        #toast.ok { border-left-color:var(--success); }
+
+        @media (max-width: 860px) {
+            body { flex-direction:column; }
+            .nav { width:100%; height:auto; position:static; }
+            .nav-links { flex-direction:row; flex-wrap:wrap; padding:8px; }
+            .nav-links a { padding:6px 10px; font-size:13px; }
+            .nav-foot { flex-direction:row; flex-wrap:wrap; }
+            .top { position:static; padding:12px 16px; }
+            .content { padding:16px 16px 48px; }
+            .fields { grid-template-columns:1fr; }
+        }
+        @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+    </style>
+</head>
+<body>
+    <nav class="nav" aria-label="Seções da administração" data-i18n-aria="nav.label">
+        <a class="brand" href="./" data-testid="brand">
+            <svg role="img" aria-label="PRIVIO SENTRY" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563EB"/><stop offset="1" stop-color="#6941C6"/></linearGradient></defs>
+                <rect width="512" height="512" rx="112" fill="url(#g)"/>
+                <path d="M118 101h210l66 66v228H118z" fill="#fff"/>
+                <path d="M160 194h176v22H160zM160 243h176v22H160zM160 292h128v22H160z" fill="#08122E"/>
+            </svg>
+            <div><div class="brand-name">PRIVIO SENTRY</div><div class="brand-sub" data-i18n="brand.sub">Administração</div></div>
+        </a>
+        <div class="nav-links" id="nav-links">
+            <a href="#visao" data-view="visao"><span class="ic" aria-hidden="true">◉</span><span data-i18n="nav.overview">Visão geral</span></a>
+            <a href="#ia" data-view="ia"><span class="ic" aria-hidden="true">✦</span><span data-i18n="nav.ai">IA e provedores</span></a>
+            <a href="#deteccao" data-view="deteccao"><span class="ic" aria-hidden="true">◎</span><span data-i18n="nav.detect">Detecção e política</span></a>
+            <a href="#ocr" data-view="ocr"><span class="ic" aria-hidden="true">▤</span><span data-i18n="nav.ocr">OCR e verificação</span></a>
+            <a href="#operacao" data-view="operacao"><span class="ic" aria-hidden="true">⚙</span><span data-i18n="nav.ops">Operação</span></a>
+            <a href="#modelos" data-view="modelos" data-testid="nav-modelos"><span class="ic" aria-hidden="true">▣</span><span data-i18n="nav.models">Modelos de documento</span></a>
+            <a href="#api" data-view="api"><span class="ic" aria-hidden="true">⇄</span><span data-i18n="nav.api">API e agentes (MCP)</span></a>
+        </div>
+        <div class="nav-foot">
+            <a class="btn" href="./" data-testid="back-to-editor" data-i18n="nav.back">← Voltar ao editor</a>
+        </div>
+    </nav>
+
+    <div class="main">
+        <header class="top">
+            <h1 id="view-title" data-i18n="title.overview">Visão geral</h1>
+            <span class="local-badge" id="local-badge" data-testid="local-badge">LOCAL PROCESSING</span>
+            <select class="lang-select" id="lang-select" aria-label="Idioma" onchange="setLang(this.value)">
+                <option value="pt-BR">Português (BR)</option>
+                <option value="en-US">English (US)</option>
+            </select>
+        </header>
+
+        <main class="content">
+            <!-- ---------------------------------------------------------------- Visão geral -->
+            <section class="view" id="view-visao" data-testid="view-visao">
+                <p class="lead" data-i18n="overview.lead">Configure o SENTRY Redact sem editar arquivos. As mudanças valem para os próximos documentos; itens marcados com "reiniciar" valem depois de reiniciar o serviço.</p>
+                <div id="egress-banner"></div>
+                <div class="grid" id="stats"></div>
+                <div class="card">
+                    <h2 data-i18n="overview.servers">Servidores de IA</h2>
+                    <p class="desc" data-i18n="overview.serversDesc">Testa a conexão, a chave e o modelo com um pedido curto, sem nenhum conteúdo de documento.</p>
+                    <table><thead><tr><th data-i18n="th.role">Papel</th><th data-i18n="th.server">Servidor</th><th data-i18n="th.model">Modelo</th><th data-i18n="th.status">Situação</th><th></th></tr></thead>
+                        <tbody id="servers-body"></tbody></table>
+                </div>
+            </section>
+
+            <!-- ---------------------------------------------------------------- IA -->
+            <section class="view" id="view-ia" data-testid="view-ia">
+                <p class="lead" data-i18n="ai.lead">Escolha onde a fase de IA roda. Servidores nesta máquina ou na rede da organização são usados direto. Um provedor na nuvem, com a sua chave de API, só recebe conteúdo depois da liberação explícita abaixo.</p>
+                <div class="card">
+                    <h2 data-i18n="ai.presets">Atalhos de provedor</h2>
+                    <p class="desc" data-i18n="ai.presetsDesc">Preenche o tipo de API e o endereço da IA principal. Depois informe a chave (se houver) e o modelo, salve e teste.</p>
+                    <div class="presets" id="presets"></div>
+                </div>
+                <div class="card" data-group="ia" data-testid="group-ia"></div>
+                <div class="card" data-group="ia_reserva" data-testid="group-ia_reserva"></div>
+            </section>
+
+            <section class="view" id="view-deteccao"><div class="card" data-group="deteccao" data-testid="group-deteccao"></div></section>
+            <section class="view" id="view-ocr"><div class="card" data-group="ocr" data-testid="group-ocr"></div></section>
+            <section class="view" id="view-operacao">
+                <div class="card" data-group="operacao" data-testid="group-operacao"></div>
+                <div class="card">
+                    <h2 data-i18n="ops.envOnly">Só pelo arquivo .env</h2>
+                    <p class="desc" data-i18n="ops.envOnlyDesc">Por segurança, estes itens não mudam pela web: quem os altera pode se trancar fora ou expor o serviço na rede.</p>
+                    <p><code>API_TOKEN</code> · <code>APP_HOST</code> · <code>APP_PORT</code> · <code>ALLOWED_HOSTS</code> · <code>ADMIN_ENABLED</code> · <code>PORTAL_ENABLED</code> · <code>PRIVIO_*_DIR</code></p>
+                </div>
+            </section>
+
+            <!-- ---------------------------------------------------------------- Modelos de documento -->
+            <section class="view" id="view-modelos" data-testid="view-modelos">
+                <p class="lead" data-i18n="tpl.lead">Documentos de layout conhecido (licenças, formulários) são reconhecidos por frases fixas e tarjados pelos rótulos, sem IA. Depois, uma inspeção procura o que ficou de fora. A revisão humana continua obrigatória.</p>
+                <div class="card">
+                    <h2 data-i18n="tpl.new">Novo modelo a partir de um documento</h2>
+                    <p class="desc" data-i18n="tpl.newDesc">Escolha um documento já processado e revisado no editor: as tarjas confirmadas viram campos, e as primeiras linhas fixas viram as frases de reconhecimento. Com a IA, ela recebe só o texto mascarado (tarjas e dígitos escondidos) e sugere nome, frases e rótulos.</p>
+                    <div class="fields">
+                        <div class="f"><label for="tpl-task" data-i18n="tpl.task">Documento revisado</label><select id="tpl-task" data-testid="tpl-task"></select></div>
+                        <div class="f"><label class="switch"><input type="checkbox" id="tpl-ai" data-testid="tpl-ai"> <span data-i18n="tpl.ai">Com ajuda da IA (texto mascarado)</span></label></div>
+                    </div>
+                    <div class="actions">
+                        <button type="button" class="btn primary" data-testid="tpl-draft" onclick="draftTemplate()" data-i18n="tpl.draft">Gerar rascunho</button>
+                        <button type="button" class="btn" onclick="editTemplate(blankTemplate())" data-i18n="tpl.blank">Em branco</button>
+                        <button type="button" class="btn" onclick="document.getElementById('tpl-import').click()" data-i18n="tpl.import">Importar JSON</button>
+                        <input type="file" id="tpl-import" accept=".json,application/json" style="display:none" onchange="importTemplate(this)">
+                        <span class="result" id="tpl-draft-result" role="status"></span>
+                    </div>
+                </div>
+                <div class="card" id="tpl-editor" data-testid="tpl-editor" style="display:none"></div>
+                <div class="card">
+                    <h2 data-i18n="tpl.list">Modelos salvos</h2>
+                    <p class="desc" id="tpl-state"></p>
+                    <table><thead><tr><th data-i18n="tpl.name">Nome</th><th data-i18n="tpl.status">Situação</th><th data-i18n="tpl.fields">Campos</th><th data-i18n="tpl.noAi">Dispensa IA</th><th></th></tr></thead>
+                        <tbody id="tpl-body" data-testid="tpl-body"></tbody></table>
+                </div>
+            </section>
+
+            <!-- ---------------------------------------------------------------- API e agentes -->
+            <section class="view" id="view-api" data-testid="view-api">
+                <p class="lead" data-i18n="api.lead">O mesmo serviço atende o portal, scripts e agentes de IA. Agentes recebem só situação, contagens e caminhos de arquivo; o PDF só sai depois da aprovação de um revisor no portal.</p>
+                <div class="card">
+                    <h2 data-i18n="api.endpoints">Rotas principais</h2>
+                    <p class="desc" id="api-auth"></p>
+                    <table><thead><tr><th data-i18n="th.route">Rota</th><th data-i18n="th.what">O que faz</th></tr></thead><tbody>
+                        <tr><td><code>POST /upload</code></td><td data-i18n="api.upload">Envia um PDF (multipart: file, perfil, nomes, baixa_qualidade). Devolve task_id.</td></tr>
+                        <tr><td><code>GET /tasks/{id}</code></td><td data-i18n="api.task">Situação, progresso, pendências de revisão e tipos encontrados (só contagens).</td></tr>
+                        <tr><td><code>GET /download/{id}?final=true</code></td><td data-i18n="api.download">PDF protegido, só depois de "Aplicar proteção" e sem pendências (senão 409).</td></tr>
+                        <tr><td><code>GET /policy/profiles</code></td><td data-i18n="api.profiles">Perfis de proteção disponíveis.</td></tr>
+                        <tr><td><code>GET /api/info</code></td><td data-i18n="api.info">Versão, modos, fila e se há IA externa ligada.</td></tr>
+                        <tr><td><code>GET /openapi.json</code></td><td data-i18n="api.openapi">Contrato completo da API (OpenAPI), servido localmente.</td></tr>
+                        <tr><td><code>GET /healthz</code></td><td data-i18n="api.healthz">Serviço no ar (sem token e sem dados).</td></tr>
+                    </tbody></table>
+                </div>
+                <div class="card">
+                    <div class="copy-row"><h3 data-i18n="api.curl">Exemplo com curl</h3><button class="btn" onclick="copyText('curl-ex')" data-i18n="btn.copy">Copiar</button></div>
+                    <pre id="curl-ex"></pre>
+                </div>
+                <div class="card">
+                    <h2 data-i18n="api.mcp">Servidor MCP local</h2>
+                    <p class="desc" data-i18n="api.mcpDesc">Permite que um agente (Claude Code, Claude Desktop, outros clientes MCP) envie PDFs, acompanhe a fila e baixe o resultado aprovado. Roda nesta máquina e conversa com este serviço pela API.</p>
+                    <div class="copy-row"><h3 data-i18n="api.mcpConfig">Configuração do cliente MCP</h3><button class="btn" onclick="copyText('mcp-ex')" data-i18n="btn.copy">Copiar</button></div>
+                    <pre id="mcp-ex"></pre>
+                    <p class="desc" style="margin-top:10px" data-i18n="api.mcpTools">Ferramentas: sentry_status, sentry_list_documents, sentry_submit_pdf, sentry_document, sentry_wait, sentry_download_final, sentry_profiles. Aprovar, editar tarjas e apagar ficam com o revisor humano.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <datalist id="models-principal"></datalist>
+    <datalist id="models-reserva"></datalist>
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+        const I18N = {
+            'pt-BR': {
+                'nav.models': 'Modelos de documento', 'title.models': 'Modelos de documento',
+                'tpl.lead': 'Documentos de layout conhecido (licenças, formulários) são reconhecidos por frases fixas e tarjados pelos rótulos, sem IA. Depois, uma inspeção procura o que ficou de fora. A revisão humana continua obrigatória.',
+                'tpl.new': 'Novo modelo a partir de um documento', 'tpl.newDesc': 'Escolha um documento já processado e revisado no editor: as tarjas confirmadas viram campos, e as primeiras linhas fixas viram as frases de reconhecimento. Com a IA, ela recebe só o texto mascarado (tarjas e dígitos escondidos) e sugere nome, frases e rótulos.',
+                'tpl.task': 'Documento revisado', 'tpl.ai': 'Com ajuda da IA (texto mascarado)', 'tpl.draft': 'Gerar rascunho', 'tpl.blank': 'Em branco', 'tpl.import': 'Importar JSON',
+                'tpl.list': 'Modelos salvos', 'tpl.name': 'Nome', 'tpl.status': 'Situação', 'tpl.fields': 'Campos', 'tpl.noAi': 'Dispensa IA',
+                'tpl.on': 'Modelos ligados', 'tpl.off': 'Modelos desligados (DOC_TEMPLATES=0)', 'tpl.mode.agente': 'inspeção por agente', 'tpl.mode.regras': 'inspeção só por regras (zero token)',
+                'tpl.noTasks': 'nenhum documento processado', 'tpl.empty': 'Nenhum modelo ainda.', 'tpl.st.rascunho': 'rascunho', 'tpl.st.aprovado': 'aprovado',
+                'tpl.edit': 'Editar', 'tpl.approve': 'Aprovar', 'tpl.export': 'Exportar', 'tpl.delete': 'Excluir', 'tpl.other': 'outro',
+                'tpl.report': '{c} campo(s), {a} frase(s) de reconhecimento, {s} tarja(s) sem rótulo perto', 'tpl.label': 'Rótulo', 'tpl.type': 'Tipo', 'tpl.dir': 'Valor',
+                'tpl.right': 'à direita', 'tpl.below': 'abaixo', 'tpl.maxWords': 'Máx. palavras', 'tpl.lines': 'Linhas', 'tpl.required': 'Obrigatório', 'tpl.pages': 'Páginas',
+                'tpl.allPages': 'todas', 'tpl.remove': 'remover', 'tpl.aiSuggested': 'sugerido pela IA', 'tpl.editing': 'Editando', 'tpl.newTitle': 'Novo modelo',
+                'tpl.editDesc': 'Confira cada campo e as frases de reconhecimento antes de salvar. Salvar sempre deixa o modelo como rascunho; a aprovação é um passo separado.',
+                'tpl.desc': 'Descrição', 'tpl.anchors': 'Frases de reconhecimento (uma por linha)', 'tpl.anchorsHelp': 'Frases FIXAS do título ou cabeçalho, que todo documento deste tipo tem e outros tipos não têm. Nunca use nomes ou números.',
+                'tpl.min': 'Mínimo de frases encontradas (%)', 'tpl.pageRange': 'Páginas (mín-máx)', 'tpl.noAiLong': 'Dispensar a IA de visão nas páginas do modelo (depois de aprovado)',
+                'tpl.noAiHelp': 'Economiza tokens. Só vale para modelo aprovado e com todos os campos obrigatórios encontrados; a inspeção roda depois (por agente ou, se só por regras, a página vai para revisão).',
+                'tpl.addField': '+ Campo', 'tpl.test': 'Testar no documento', 'tpl.cancel': 'Cancelar',
+                'tpl.matched': 'Reconhecido ({p}%)', 'tpl.notMatched': 'Não reconhecido ({p}%)', 'tpl.conflict': 'parecido com: {ids}', 'tpl.missing': 'faltando: {f}',
+                'tpl.saved': 'Modelo salvo (versão {v}, rascunho).', 'tpl.approved': 'Modelo aprovado.',
+                'tpl.approveConfirm': 'Aprovar este modelo? Com "dispensar a IA" ligado, as páginas reconhecidas deixam de passar pela IA de visão de endereços. A revisão humana de cada documento continua obrigatória.',
+                'tpl.deleteConfirm': 'Excluir este modelo?', 'tpl.makeTemplate': 'Criar modelo de documento',
+                'brand.sub': 'Administração', 'nav.label': 'Seções da administração', 'nav.overview': 'Visão geral',
+                'nav.ai': 'IA e provedores', 'nav.detect': 'Detecção e política', 'nav.ocr': 'OCR e verificação',
+                'nav.ops': 'Operação', 'nav.api': 'API e agentes (MCP)', 'nav.back': '← Voltar ao editor',
+                'title.overview': 'Visão geral', 'title.ai': 'IA e provedores', 'title.detect': 'Detecção e política',
+                'title.ocr': 'OCR e verificação', 'title.ops': 'Operação', 'title.api': 'API e agentes (MCP)',
+                'overview.lead': 'Configure o SENTRY Redact sem editar arquivos. As mudanças valem para os próximos documentos; itens marcados com "reiniciar" valem depois de reiniciar o serviço.',
+                'overview.servers': 'Servidores de IA', 'overview.serversDesc': 'Testa a conexão, a chave e o modelo com um pedido curto, sem nenhum conteúdo de documento.',
+                'th.role': 'Papel', 'th.server': 'Servidor', 'th.model': 'Modelo', 'th.status': 'Situação', 'th.route': 'Rota', 'th.what': 'O que faz',
+                'ai.lead': 'Escolha onde a fase de IA roda. Servidores nesta máquina ou na rede da organização são usados direto. Um provedor na nuvem, com a sua chave de API, só recebe conteúdo depois da liberação explícita abaixo.',
+                'ai.presets': 'Atalhos de provedor', 'ai.presetsDesc': 'Preenche o tipo de API e o endereço da IA principal. Depois informe a chave (se houver) e o modelo, salve e teste.',
+                'ops.envOnly': 'Só pelo arquivo .env', 'ops.envOnlyDesc': 'Por segurança, estes itens não mudam pela web: quem os altera pode se trancar fora ou expor o serviço na rede.',
+                'api.lead': 'O mesmo serviço atende o portal, scripts e agentes de IA. Agentes recebem só situação, contagens e caminhos de arquivo; o PDF só sai depois da aprovação de um revisor no portal.',
+                'api.endpoints': 'Rotas principais', 'api.upload': 'Envia um PDF (multipart: file, perfil, nomes, baixa_qualidade). Devolve task_id.',
+                'api.task': 'Situação, progresso, pendências de revisão e tipos encontrados (só contagens).',
+                'api.download': 'PDF protegido, só depois de "Aplicar proteção" e sem pendências (senão 409).',
+                'api.profiles': 'Perfis de proteção disponíveis.', 'api.info': 'Versão, modos, fila e se há IA externa ligada.',
+                'api.openapi': 'Contrato completo da API (OpenAPI), servido localmente.', 'api.healthz': 'Serviço no ar (sem token e sem dados).',
+                'api.curl': 'Exemplo com curl', 'api.mcp': 'Servidor MCP local',
+                'api.mcpDesc': 'Permite que um agente (Claude Code, Claude Desktop, outros clientes MCP) envie PDFs, acompanhe a fila e baixe o resultado aprovado. Roda nesta máquina e conversa com este serviço pela API.',
+                'api.mcpConfig': 'Configuração do cliente MCP',
+                'api.mcpTools': 'Ferramentas: sentry_status, sentry_list_documents, sentry_submit_pdf, sentry_document, sentry_wait, sentry_download_final, sentry_profiles. Aprovar, editar tarjas e apagar ficam com o revisor humano.',
+                'api.authToken': 'Este serviço exige token: envie o cabeçalho X-API-Token em toda chamada.',
+                'api.authNone': 'Sem API_TOKEN: o serviço aceita chamadas só desta máquina (e de ALLOWED_HOSTS). Para acesso pela rede, defina API_TOKEN no .env.',
+                'btn.copy': 'Copiar', 'btn.save': 'Salvar', 'btn.test': 'Testar', 'btn.testing': 'Testando...', 'btn.models': 'Listar modelos', 'btn.reset': 'restaurar padrão',
+                'ok.saved': 'Configuração salva.', 'ok.copied': 'Copiado.', 'err.load': 'Não foi possível carregar a configuração', 'err.save': 'Erro ao salvar',
+                'origin.admin': 'admin', 'origin.env': '.env', 'origin.padrao': 'padrão', 'origin.restart': 'reiniciar',
+                'secret.set': 'Definida (não é mostrada). Deixe em branco para manter.', 'secret.unset': 'Não definida.',
+                'stat.version': 'Versão', 'stat.ai': 'IA principal', 'stat.reserve': 'IA reserva', 'stat.none': 'não configurada',
+                'stat.mode': 'Onde a IA roda', 'stat.local': 'Nesta máquina / rede local', 'stat.external': 'Provedor externo liberado',
+                'stat.token': 'Acesso', 'stat.tokenOn': 'Com token (API_TOKEN)', 'stat.tokenOff': 'Só local, sem token',
+                'egress.on': '<strong>IA externa liberada.</strong> Imagens das páginas e o texto lido delas são enviados a: {hosts}. O que o provedor faz com esses dados depende do contrato e do plano da sua organização: confira antes de processar documentos reais.',
+                'egress.blocked': '<strong>Provedor externo configurado, mas bloqueado.</strong> {hosts} está fora desta rede e a liberação está desligada: nenhum conteúdo sai, e as páginas que dependem da IA vão para revisão.',
+                'egress.local': '<strong>IA local.</strong> Os servidores configurados estão nesta máquina ou na rede local.',
+                'consent.confirm': 'Liberar IA fora desta rede?\n\nCom isso, imagens das páginas e o texto lido delas são enviados ao provedor configurado ({hosts}). O uso desses dados depende do contrato e do plano da sua organização com o provedor.\n\nConfirmar?',
+                'test.ok': 'OK em {s} s', 'test.blocked': 'conexão ok, mas o envio de documentos está bloqueado (libere a IA externa)',
+                'role.principal': 'principal', 'role.reserva': 'reserva', 'models.found': '{n} modelo(s) disponível(is) na lista do campo Modelo.'
+            },
+            'en-US': {
+                'nav.models': 'Document templates', 'title.models': 'Document templates',
+                'tpl.lead': 'Documents with a known layout (licenses, forms) are recognized by fixed phrases and redacted by their labels, without AI. Then an inspection looks for anything left out. Human review is still required.',
+                'tpl.new': 'New template from a document', 'tpl.newDesc': 'Pick a document already processed and reviewed in the editor: confirmed redactions become fields, and the first fixed lines become the recognition phrases. With AI, it only receives the masked text (redactions and digits hidden) and suggests a name, phrases and labels.',
+                'tpl.task': 'Reviewed document', 'tpl.ai': 'With AI help (masked text)', 'tpl.draft': 'Create draft', 'tpl.blank': 'Blank', 'tpl.import': 'Import JSON',
+                'tpl.list': 'Saved templates', 'tpl.name': 'Name', 'tpl.status': 'Status', 'tpl.fields': 'Fields', 'tpl.noAi': 'Skips AI',
+                'tpl.on': 'Templates on', 'tpl.off': 'Templates off (DOC_TEMPLATES=0)', 'tpl.mode.agente': 'agent inspection', 'tpl.mode.regras': 'rules-only inspection (zero tokens)',
+                'tpl.noTasks': 'no processed document', 'tpl.empty': 'No templates yet.', 'tpl.st.rascunho': 'draft', 'tpl.st.aprovado': 'approved',
+                'tpl.edit': 'Edit', 'tpl.approve': 'Approve', 'tpl.export': 'Export', 'tpl.delete': 'Delete', 'tpl.other': 'other',
+                'tpl.report': '{c} field(s), {a} recognition phrase(s), {s} redaction(s) without a nearby label', 'tpl.label': 'Label', 'tpl.type': 'Type', 'tpl.dir': 'Value',
+                'tpl.right': 'to the right', 'tpl.below': 'below', 'tpl.maxWords': 'Max words', 'tpl.lines': 'Lines', 'tpl.required': 'Required', 'tpl.pages': 'Pages',
+                'tpl.allPages': 'all', 'tpl.remove': 'remove', 'tpl.aiSuggested': 'suggested by AI', 'tpl.editing': 'Editing', 'tpl.newTitle': 'New template',
+                'tpl.editDesc': 'Check each field and recognition phrase before saving. Saving always leaves the template as a draft; approval is a separate step.',
+                'tpl.desc': 'Description', 'tpl.anchors': 'Recognition phrases (one per line)', 'tpl.anchorsHelp': 'FIXED phrases from the title or header that every document of this type has and other types do not. Never use names or numbers.',
+                'tpl.min': 'Minimum phrases found (%)', 'tpl.pageRange': 'Pages (min-max)', 'tpl.noAiLong': 'Skip the vision AI on the template pages (after approval)',
+                'tpl.noAiHelp': 'Saves tokens. Applies only to an approved template with every required field found; the inspection runs afterwards (by agent or, if rules only, the page goes to review).',
+                'tpl.addField': '+ Field', 'tpl.test': 'Test on the document', 'tpl.cancel': 'Cancel',
+                'tpl.matched': 'Recognized ({p}%)', 'tpl.notMatched': 'Not recognized ({p}%)', 'tpl.conflict': 'similar to: {ids}', 'tpl.missing': 'missing: {f}',
+                'tpl.saved': 'Template saved (version {v}, draft).', 'tpl.approved': 'Template approved.',
+                'tpl.approveConfirm': 'Approve this template? With "skip AI" on, recognized pages no longer go through the vision AI for addresses. Human review of each document is still required.',
+                'tpl.deleteConfirm': 'Delete this template?', 'tpl.makeTemplate': 'Create document template',
+                'brand.sub': 'Administration', 'nav.label': 'Administration sections', 'nav.overview': 'Overview',
+                'nav.ai': 'AI and providers', 'nav.detect': 'Detection and policy', 'nav.ocr': 'OCR and verification',
+                'nav.ops': 'Operations', 'nav.api': 'API and agents (MCP)', 'nav.back': '← Back to the editor',
+                'title.overview': 'Overview', 'title.ai': 'AI and providers', 'title.detect': 'Detection and policy',
+                'title.ocr': 'OCR and verification', 'title.ops': 'Operations', 'title.api': 'API and agents (MCP)',
+                'overview.lead': 'Configure SENTRY Redact without editing files. Changes apply to the next documents; items marked "restart" apply after restarting the service.',
+                'overview.servers': 'AI servers', 'overview.serversDesc': 'Tests the connection, key and model with a short request, without any document content.',
+                'th.role': 'Role', 'th.server': 'Server', 'th.model': 'Model', 'th.status': 'Status', 'th.route': 'Route', 'th.what': 'What it does',
+                'ai.lead': 'Choose where the AI phase runs. Servers on this machine or on the organization network are used directly. A cloud provider, with your API key, receives content only after the explicit permission below.',
+                'ai.presets': 'Provider shortcuts', 'ai.presetsDesc': 'Fills in the API type and address of the primary AI. Then enter the key (if any) and the model, save and test.',
+                'ops.envOnly': 'Only through the .env file', 'ops.envOnlyDesc': 'For safety these items do not change through the web: changing them can lock you out or expose the service on the network.',
+                'api.lead': 'The same service serves the portal, scripts and AI agents. Agents receive only status, counts and file paths; the PDF is released only after a reviewer approves it in the portal.',
+                'api.endpoints': 'Main routes', 'api.upload': 'Uploads a PDF (multipart: file, perfil, nomes, baixa_qualidade). Returns task_id.',
+                'api.task': 'Status, progress, pending reviews and data types found (counts only).',
+                'api.download': 'Protected PDF, only after "Apply protection" and with nothing pending (otherwise 409).',
+                'api.profiles': 'Available protection profiles.', 'api.info': 'Version, modes, queue and whether external AI is on.',
+                'api.openapi': 'Full API contract (OpenAPI), served locally.', 'api.healthz': 'Service is up (no token, no data).',
+                'api.curl': 'Example with curl', 'api.mcp': 'Local MCP server',
+                'api.mcpDesc': 'Lets an agent (Claude Code, Claude Desktop, other MCP clients) upload PDFs, follow the queue and download the approved result. Runs on this machine and talks to this service through the API.',
+                'api.mcpConfig': 'MCP client configuration',
+                'api.mcpTools': 'Tools: sentry_status, sentry_list_documents, sentry_submit_pdf, sentry_document, sentry_wait, sentry_download_final, sentry_profiles. Approving, editing redactions and deleting stay with the human reviewer.',
+                'api.authToken': 'This service requires a token: send the X-API-Token header on every call.',
+                'api.authNone': 'No API_TOKEN: the service only accepts calls from this machine (and ALLOWED_HOSTS). For network access, set API_TOKEN in .env.',
+                'btn.copy': 'Copy', 'btn.save': 'Save', 'btn.test': 'Test', 'btn.testing': 'Testing...', 'btn.models': 'List models', 'btn.reset': 'restore default',
+                'ok.saved': 'Configuration saved.', 'ok.copied': 'Copied.', 'err.load': 'Could not load the configuration', 'err.save': 'Error saving',
+                'origin.admin': 'admin', 'origin.env': '.env', 'origin.padrao': 'default', 'origin.restart': 'restart',
+                'secret.set': 'Set (never shown). Leave blank to keep it.', 'secret.unset': 'Not set.',
+                'stat.version': 'Version', 'stat.ai': 'Primary AI', 'stat.reserve': 'Backup AI', 'stat.none': 'not configured',
+                'stat.mode': 'Where AI runs', 'stat.local': 'This machine / local network', 'stat.external': 'External provider allowed',
+                'stat.token': 'Access', 'stat.tokenOn': 'Token required (API_TOKEN)', 'stat.tokenOff': 'Local only, no token',
+                'egress.on': '<strong>External AI allowed.</strong> Page images and the text read from them are sent to: {hosts}. What the provider does with this data depends on your organization\'s contract and plan: check it before processing real documents.',
+                'egress.blocked': '<strong>External provider configured but blocked.</strong> {hosts} is outside this network and the permission is off: no content leaves, and pages that depend on AI go to review.',
+                'egress.local': '<strong>Local AI.</strong> The configured servers are on this machine or the local network.',
+                'consent.confirm': 'Allow AI outside this network?\n\nPage images and the text read from them will be sent to the configured provider ({hosts}). How that data is used depends on your organization\'s contract and plan with the provider.\n\nConfirm?',
+                'test.ok': 'OK in {s} s', 'test.blocked': 'connection ok, but sending documents is blocked (allow external AI)',
+                'role.principal': 'primary', 'role.reserva': 'backup', 'models.found': '{n} model(s) available in the Model field list.'
+            }
+        };
+        let lang = 'pt-BR';
+        try { const s = localStorage.getItem('privio.lang'); if (s && I18N[s]) lang = s; } catch (e) {}
+        const t = (k, vars) => { let s = (I18N[lang] && I18N[lang][k]) || I18N['pt-BR'][k] || k; if (vars) Object.keys(vars).forEach(n => { s = s.split('{' + n + '}').join(String(vars[n])); }); return s; };
+        const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const VIEWS = { visao: 'title.overview', ia: 'title.ai', deteccao: 'title.detect', ocr: 'title.ocr', operacao: 'title.ops', modelos: 'title.models', api: 'title.api' };
+        // Provedores pela API no padrão OpenAI (nenhum SDK, nenhuma chamada daqui: só preenche os campos)
+        const PRESETS = [
+            { nome: 'Ollama', provider: 'ollama', url: 'http://localhost:11434', local: true },
+            { nome: 'LM Studio', provider: 'openai', url: 'http://localhost:1234/v1', local: true },
+            { nome: 'OpenAI', provider: 'openai', url: 'https://api.openai.com/v1' },
+            { nome: 'Anthropic (Claude)', provider: 'openai', url: 'https://api.anthropic.com/v1' },
+            { nome: 'Google Gemini', provider: 'openai', url: 'https://generativelanguage.googleapis.com/v1beta/openai' },
+            { nome: 'OpenRouter', provider: 'openai', url: 'https://openrouter.ai/api/v1' },
+            { nome: 'Mistral', provider: 'openai', url: 'https://api.mistral.ai/v1' }
+        ];
+        let state = null;
+
+        function toast(msg, ok = false) {
+            const el = document.getElementById('toast');
+            el.textContent = msg; el.className = ok ? 'ok' : ''; el.style.display = 'block';
+            clearTimeout(toast._t); toast._t = setTimeout(() => { el.style.display = 'none'; }, 4500);
+        }
+
+        async function api(url, opts = {}) {
+            const r = await fetch(url, Object.assign({ credentials: 'same-origin' }, opts));
+            let body = null;
+            try { body = await r.json(); } catch (e) {}
+            if (!r.ok) throw new Error((body && (typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail))) || ('HTTP ' + r.status));
+            return body;
+        }
+
+        function applyI18n() {
+            document.documentElement.lang = lang;
+            document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+            document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+            document.getElementById('lang-select').value = lang;
+            showView(currentView(), false);
+            if (state) render();
+        }
+        function setLang(l) { if (!I18N[l]) return; lang = l; try { localStorage.setItem('privio.lang', l); } catch (e) {} applyI18n(); }
+
+        function currentView() { const v = (location.hash || '#visao').slice(1); return VIEWS[v] ? v : 'visao'; }
+        function showView(v, focus = true) {
+            document.querySelectorAll('section.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
+            document.querySelectorAll('#nav-links a').forEach(a => {
+                if (a.dataset.view === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+            });
+            document.getElementById('view-title').textContent = t(VIEWS[v]);
+            if (v === 'modelos' && state) loadTemplates();
+            if (focus) document.getElementById('view-title').focus?.();
+        }
+        window.addEventListener('hashchange', () => showView(currentView()));
+
+        function fieldsOf(group) { return state.campos.filter(f => f.group === group); }
+
+        // Valor em uso quando o campo está vazio (ex.: OLLAMA_VISION_MODEL antigo no .env): vira o texto de exemplo
+        function effectiveValue(key) {
+            const b = papel => (state.ia.servidores || []).find(x => x.papel === papel) || {};
+            const map = { AI_BASE_URL: b('principal').endereco, AI_VISION_MODEL: b('principal').modelo_visao,
+                          AI_SECONDARY_BASE_URL: b('reserva').endereco, AI_SECONDARY_VISION_MODEL: b('reserva').modelo_visao };
+            return map[key] || '';
+        }
+
+        function fieldHtml(f) {
+            const id = 'f-' + f.key;
+            const badges = [`<span class="origin ${f.origem === 'admin' ? 'admin' : ''}">${esc(t('origin.' + f.origem))}</span>`];
+            if (f.pendente_reinicio || f.restart) badges.push(`<span class="origin ${f.pendente_reinicio ? 'restart' : ''}" title="${esc(t('origin.restart'))}">${esc(t('origin.restart'))}</span>`);
+            const reset = f.origem === 'admin' ? ` <button type="button" class="link-btn" onclick="resetField('${f.key}')">${esc(t('btn.reset'))}</button>` : '';
+            let input;
+            if (f.kind === 'bool') {
+                input = `<label class="switch"><input type="checkbox" id="${id}" data-key="${f.key}" ${f.valor === '1' ? 'checked' : ''}> <span>${esc(f.label)}</span></label>`;
+                return `<div class="f ${f.key === 'AI_ALLOW_EXTERNAL' ? 'wide' : ''}">${input}<div>${badges.join(' ')}${reset}</div><div class="help">${esc(f.help)}</div></div>`;
+            }
+            if (f.kind === 'choice') {
+                const opts = f.choices.includes('') ? f.choices : [''].concat(f.choices);  // '' = padrão do .env/código
+                input = `<select id="${id}" data-key="${f.key}">` + opts.map(c => `<option value="${esc(c)}" ${c === (f.valor || '') ? 'selected' : ''}>${esc(c || '— ' + t('origin.padrao') + ' —')}</option>`).join('') + '</select>';
+            } else if (f.kind === 'secret') {
+                input = `<input type="password" id="${id}" data-key="${f.key}" autocomplete="new-password" placeholder="${esc(f.definido ? '••••••••' : '')}">`;
+            } else {
+                const list = f.key === 'AI_VISION_MODEL' ? 'list="models-principal"' : (f.key === 'AI_SECONDARY_VISION_MODEL' ? 'list="models-reserva"' : '');
+                input = `<input type="${f.kind === 'number' ? 'number' : 'text'}" id="${id}" data-key="${f.key}" value="${esc(f.valor)}" placeholder="${esc(effectiveValue(f.key) || f.placeholder)}" ${list} ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} spellcheck="false">`;
+            }
+            const help = f.kind === 'secret' ? (f.definido ? t('secret.set') : t('secret.unset')) + (f.help ? ' ' + f.help : '') : f.help;
+            return `<div class="f"><label for="${id}">${esc(f.label)} ${badges.join(' ')}${reset}</label>${input}<div class="help">${esc(help)}</div></div>`;
+        }
+
+        function renderGroup(card) {
+            const g = state.grupos.find(x => x.id === card.dataset.group);
+            const extra = (g.id === 'ia' || g.id === 'ia_reserva')
+                ? `<button type="button" class="btn" onclick="testAI('${g.id === 'ia' ? 'principal' : 'reserva'}', this)">${esc(t('btn.test'))}</button>
+                   <button type="button" class="btn" onclick="listModels('${g.id === 'ia' ? 'principal' : 'reserva'}')">${esc(t('btn.models'))}</button>
+                   <span class="result" id="result-${g.id}" role="status"></span>` : '';
+            card.innerHTML = `<h2>${esc(g.titulo)}</h2><p class="desc">${esc(g.descricao)}</p>
+                <div class="fields">${fieldsOf(g.id).map(fieldHtml).join('')}</div>
+                <div class="actions"><button type="button" class="btn primary" data-testid="save-${g.id}" onclick="saveGroup('${g.id}')">${esc(t('btn.save'))}</button>${extra}</div>`;
+        }
+
+        function backendRow(b) {
+            const st = (state.ia.disjuntor || {});
+            const off = Object.keys(st).some(k => k.indexOf(b.endereco) >= 0 && st[k].desligado);
+            const dot = off ? 'bad' : (b.externo ? 'warn' : 'ok');
+            return `<tr><td>${esc(t('role.' + b.papel))}</td><td><code>${esc(b.endereco)}</code>${b.externo ? ' <span class="origin restart">externo</span>' : ''}</td>
+                <td>${esc(b.modelo_visao)}</td><td><span class="dot ${dot}"></span><span class="result" id="row-${b.papel}"></span></td>
+                <td><button class="btn" onclick="testAI('${b.papel}', this)">${esc(t('btn.test'))}</button></td></tr>`;
+        }
+
+        function render() {
+            const ext = state.ia_externa || [];
+            const extConfigured = (state.ia.servidores || []).filter(b => b.externo).map(b => b.endereco);
+            const badge = document.getElementById('local-badge');
+            badge.textContent = ext.length ? 'EXTERNAL AI' : 'LOCAL PROCESSING';
+            badge.classList.toggle('external', !!ext.length);
+            badge.title = ext.join(', ');
+            const banner = document.getElementById('egress-banner');
+            if (ext.length) banner.innerHTML = `<div class="banner warn" data-testid="egress-banner">${t('egress.on', { hosts: esc(ext.join(', ')) })}</div>`;
+            else if (extConfigured.length) banner.innerHTML = `<div class="banner info" data-testid="egress-banner">${t('egress.blocked', { hosts: esc(extConfigured.join(', ')) })}</div>`;
+            else banner.innerHTML = `<div class="banner ok" data-testid="egress-banner">${t('egress.local')}</div>`;
+
+            const [p, r] = [state.ia.servidores.find(b => b.papel === 'principal'), state.ia.servidores.find(b => b.papel === 'reserva')];
+            const stat = (k, v, s) => `<div class="stat"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>${s ? `<div class="s">${esc(s)}</div>` : ''}</div>`;
+            document.getElementById('stats').innerHTML = [
+                stat(t('stat.version'), state.versao, state.arquivo + (state.atualizado_em ? ' · ' + state.atualizado_em : '')),
+                stat(t('stat.mode'), ext.length ? t('stat.external') : t('stat.local'), ext.join(', ')),
+                stat(t('stat.ai'), p ? p.modelo_visao : t('stat.none'), p ? p.endereco : ''),
+                stat(t('stat.reserve'), r ? r.modelo_visao : t('stat.none'), r ? r.endereco : ''),
+                stat(t('stat.token'), state.token_exigido ? t('stat.tokenOn') : t('stat.tokenOff'), '')
+            ].join('');
+            document.getElementById('servers-body').innerHTML = state.ia.servidores.map(backendRow).join('');
+            document.querySelectorAll('[data-group]').forEach(renderGroup);
+            document.getElementById('presets').innerHTML = PRESETS.map((p, i) =>
+                `<button type="button" class="preset" onclick="usePreset(${i})">${esc(p.nome)}<span class="tag ${p.local ? '' : 'cloud'}">${p.local ? 'LOCAL' : 'NUVEM'}</span></button>`).join('');
+
+            const origin = location.origin;
+            const tokenHdr = state.token_exigido ? ' -H "X-API-Token: $SENTRY_TOKEN"' : '';
+            document.getElementById('api-auth').textContent = state.token_exigido ? t('api.authToken') : t('api.authNone');
+            document.getElementById('curl-ex').textContent =
+                `# 1. enviar\ncurl${tokenHdr} -F "file=@documento.pdf" -F "perfil=cpf_endereco" ${origin}/upload\n` +
+                `# 2. acompanhar\ncurl${tokenHdr} ${origin}/tasks/<task_id>\n` +
+                `# 3. depois da aprovação no portal\ncurl${tokenHdr} -o protegido.pdf "${origin}/download/<task_id>?final=true"`;
+            const mcp = state.mcp || {};
+            const env = { PRIVIO_URL: origin };
+            if (state.token_exigido) env.API_TOKEN = '<o mesmo API_TOKEN do .env>';
+            document.getElementById('mcp-ex').textContent = JSON.stringify({ mcpServers: { 'privio-sentry': { command: mcp.comando || 'python', args: mcp.args || ['sentry_mcp.py'], env } } }, null, 2);
+        }
+
+        function collect(group) {
+            const changes = {};
+            fieldsOf(group).forEach(f => {
+                const el = document.getElementById('f-' + f.key);
+                if (!el) return;
+                let v;
+                if (f.kind === 'bool') v = el.checked ? '1' : '0';
+                else v = el.value.trim();
+                if (f.kind === 'secret') { if (v) changes[f.key] = v; return; }
+                const before = f.kind === 'bool' ? (f.valor === '1' ? '1' : '0') : (f.valor || '');
+                if (v !== before) changes[f.key] = v === '' ? null : v;
+            });
+            return changes;
+        }
+
+        async function saveGroup(group, extra) {
+            const changes = Object.assign(collect(group), extra || {});
+            if (changes.AI_ALLOW_EXTERNAL === '1') {
+                const url = (changes.AI_BASE_URL || document.getElementById('f-AI_BASE_URL').value || '').trim();
+                let host = url; try { host = new URL(url).host; } catch (e) {}
+                if (!confirm(t('consent.confirm', { hosts: host || '?' }))) return;
+            }
+            if (!Object.keys(changes).length) { toast(t('ok.saved'), true); return; }
+            try {
+                state = await api('/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values: changes }) });
+                render(); toast(t('ok.saved'), true);
+            } catch (e) { toast(t('err.save') + ': ' + e.message); }
+        }
+
+        async function resetField(key) {
+            const f = state.campos.find(x => x.key === key);
+            await saveGroup(f.group, { [key]: null });
+        }
+
+        function usePreset(i) {
+            const p = PRESETS[i];
+            document.getElementById('f-AI_PROVIDER').value = p.provider;
+            document.getElementById('f-AI_BASE_URL').value = p.url;
+            document.getElementById('f-AI_VISION_MODEL').focus();
+        }
+
+        async function testAI(papel, btn) {
+            const out = document.getElementById(papel === 'principal' ? 'result-ia' : 'result-ia_reserva');
+            const row = document.getElementById('row-' + papel);
+            if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = t('btn.testing'); }
+            try {
+                const r = await api('/admin/ai/test?papel=' + encodeURIComponent(papel), { method: 'POST' });
+                const msg = r.ok ? (r.externo && !r.externo_permitido ? t('test.blocked') : t('test.ok', { s: r.segundos })) : r.motivo;
+                [out, row].forEach(el => { if (el) { el.textContent = msg; el.className = 'result ' + (r.ok ? 'ok' : 'bad'); } });
+            } catch (e) {
+                [out, row].forEach(el => { if (el) { el.textContent = e.message; el.className = 'result bad'; } });
+            } finally { if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label; } }
+        }
+
+        async function listModels(papel) {
+            try {
+                const r = await api('/admin/ai/models?papel=' + encodeURIComponent(papel));
+                const dl = document.getElementById('models-' + papel);
+                dl.innerHTML = r.modelos.map(m => `<option value="${esc(m)}"></option>`).join('');
+                toast(t('models.found', { n: r.modelos.length }), true);
+            } catch (e) { toast(e.message); }
+        }
+
+        async function copyText(id) {
+            try { await navigator.clipboard.writeText(document.getElementById(id).textContent); toast(t('ok.copied'), true); } catch (e) {}
+        }
+
+        // ---------------------------------------------------------------- Modelos de documento
+        let tplCatalog = [], tplTasks = {}, tplEditing = null, tplList = [];
+        const blankTemplate = () => ({ id: '', nome: '', descricao: '', status: 'rascunho', dispensa_ia: false,
+            reconhecimento: { ancoras: [], minimo: 0.8, paginas_min: 1, paginas_max: 2000 },
+            campos: [{ rotulo: '', tipo: 'outro', direcao: 'direita', max_palavras: 12, linhas: 1, obrigatorio: true, paginas: [] }] });
+
+        async function loadTemplates() {
+            try {
+                const [list, tasks, cat] = await Promise.all([api('/doc-templates'), api('/tasks'), tplCatalog.length ? null : api('/policy/catalog')]);
+                if (cat) tplCatalog = cat.tipos.map(x => ({ id: x.id, nome: x.nome }));
+                tplList = list.modelos; tplTasks = tasks;
+                document.getElementById('tpl-state').textContent = (list.ligado ? t('tpl.on') : t('tpl.off')) + ' · ' + t('tpl.mode.' + list.inspecao) + (list.erros.length ? ' · ' + list.erros.join('; ') : '');
+                const done = Object.entries(tasks).filter(([, x]) => x.completed && !x.error);
+                const sel = document.getElementById('tpl-task');
+                const want = new URLSearchParams(location.search).get('rascunho');
+                sel.innerHTML = done.map(([id, x]) => `<option value="${esc(id)}" ${id === want ? 'selected' : ''}>${esc(x.file)}</option>`).join('') || `<option value="">${esc(t('tpl.noTasks'))}</option>`;
+                document.getElementById('tpl-body').innerHTML = tplList.map(m => `<tr>
+                    <td><strong>${esc(m.nome)}</strong><div class="help"><code>${esc(m.id)}</code> · v${esc(m.versao)}</div></td>
+                    <td><span class="origin ${m.status === 'aprovado' ? 'admin' : 'restart'}">${esc(t('tpl.st.' + m.status))}</span></td>
+                    <td>${m.campos.length}</td><td>${m.dispensa_ia ? '✓' : '—'}</td>
+                    <td><div class="actions" style="margin:0">
+                        <button class="btn" onclick="editTemplate(tplList.find(x => x.id === '${esc(m.id)}'))">${esc(t('tpl.edit'))}</button>
+                        ${m.status !== 'aprovado' ? `<button class="btn primary" data-testid="tpl-approve-${esc(m.id)}" onclick="approveTemplate('${esc(m.id)}')">${esc(t('tpl.approve'))}</button>` : ''}
+                        <button class="btn" onclick="exportTemplate('${esc(m.id)}')">${esc(t('tpl.export'))}</button>
+                        <button class="btn" onclick="deleteTemplate('${esc(m.id)}')">${esc(t('tpl.delete'))}</button>
+                    </div></td></tr>`).join('') || `<tr><td colspan="5">${esc(t('tpl.empty'))}</td></tr>`;
+                if (want && !loadTemplates._auto) { loadTemplates._auto = true; draftTemplate(); }
+            } catch (e) { toast(e.message); }
+        }
+
+        async function draftTemplate() {
+            const task_id = document.getElementById('tpl-task').value;
+            const out = document.getElementById('tpl-draft-result');
+            if (!task_id) return;
+            out.textContent = t('btn.testing'); out.className = 'result';
+            try {
+                const r = await api('/doc-templates/rascunho', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id, ia: document.getElementById('tpl-ai').checked }) });
+                const rel = r.relatorio;
+                out.textContent = t('tpl.report', { c: rel.campos, s: rel.tarjas_sem_rotulo, a: rel.ancoras }) + (rel.ia ? ' · ' + rel.ia : '') + (rel.aviso ? ' · ' + rel.aviso : '');
+                out.className = 'result ok';
+                editTemplate(r.modelo, task_id);
+            } catch (e) { out.textContent = e.message; out.className = 'result bad'; }
+        }
+
+        function fieldRow(f, i) {
+            const types = ['outro'].concat(tplCatalog.map(x => x.id));
+            const tname = id => (tplCatalog.find(x => x.id === id) || { nome: t('tpl.other') }).nome;
+            return `<tr data-row="${i}">
+                <td><input type="text" data-k="rotulo" value="${esc(f.rotulo)}" aria-label="${esc(t('tpl.label'))}">${f.sugerido_ia ? `<div class="help">${esc(t('tpl.aiSuggested'))}</div>` : ''}</td>
+                <td><select data-k="tipo" aria-label="${esc(t('tpl.type'))}">${types.map(x => `<option value="${esc(x)}" ${x === f.tipo ? 'selected' : ''}>${esc(tname(x))}</option>`).join('')}</select></td>
+                <td><select data-k="direcao" aria-label="${esc(t('tpl.dir'))}"><option value="direita" ${f.direcao === 'direita' ? 'selected' : ''}>${esc(t('tpl.right'))}</option><option value="abaixo" ${f.direcao === 'abaixo' ? 'selected' : ''}>${esc(t('tpl.below'))}</option></select></td>
+                <td><input type="number" data-k="max_palavras" min="1" max="60" value="${esc(f.max_palavras)}" style="width:70px" aria-label="${esc(t('tpl.maxWords'))}"></td>
+                <td><input type="number" data-k="linhas" min="1" max="6" value="${esc(f.linhas)}" style="width:60px" aria-label="${esc(t('tpl.lines'))}"></td>
+                <td><input type="checkbox" data-k="obrigatorio" ${f.obrigatorio ? 'checked' : ''} aria-label="${esc(t('tpl.required'))}"></td>
+                <td><input type="text" data-k="paginas" value="${esc((f.paginas || []).join(','))}" placeholder="${esc(t('tpl.allPages'))}" style="width:80px" aria-label="${esc(t('tpl.pages'))}"></td>
+                <td><button type="button" class="link-btn" onclick="this.closest('tr').remove()">${esc(t('tpl.remove'))}</button></td></tr>`;
+        }
+
+        function editTemplate(m, taskId) {
+            tplEditing = JSON.parse(JSON.stringify(m));
+            const box = document.getElementById('tpl-editor');
+            const rec = tplEditing.reconhecimento;
+            const taskOpts = Object.entries(tplTasks).filter(([, x]) => x.completed && !x.error)
+                .map(([id, x]) => `<option value="${esc(id)}" ${id === taskId ? 'selected' : ''}>${esc(x.file)}</option>`).join('');
+            box.innerHTML = `<h2>${esc(m.id ? t('tpl.editing') + ' ' + m.nome : t('tpl.newTitle'))}</h2>
+                <p class="desc">${esc(t('tpl.editDesc'))}</p>
+                <div class="fields">
+                    <div class="f"><label for="te-nome">${esc(t('tpl.name'))}</label><input type="text" id="te-nome" value="${esc(m.nome)}"></div>
+                    <div class="f"><label for="te-id">id</label><input type="text" id="te-id" value="${esc(m.id)}" placeholder="licenca-ambiental"></div>
+                    <div class="f wide"><label for="te-desc">${esc(t('tpl.desc'))}</label><input type="text" id="te-desc" value="${esc(m.descricao)}"></div>
+                    <div class="f wide"><label for="te-anchors">${esc(t('tpl.anchors'))}</label>
+                        <textarea id="te-anchors" rows="5" style="border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px">${esc(rec.ancoras.join('\n'))}</textarea>
+                        <div class="help">${esc(t('tpl.anchorsHelp'))}</div></div>
+                    <div class="f"><label for="te-min">${esc(t('tpl.min'))}</label><input type="number" id="te-min" min="50" max="100" value="${Math.round(rec.minimo * 100)}"></div>
+                    <div class="f"><label for="te-pmax">${esc(t('tpl.pageRange'))}</label><input type="text" id="te-prange" value="${esc(rec.paginas_min + '-' + rec.paginas_max)}"></div>
+                    <div class="f wide"><label class="switch"><input type="checkbox" id="te-noai" ${m.dispensa_ia ? 'checked' : ''}> <span>${esc(t('tpl.noAiLong'))}</span></label><div class="help">${esc(t('tpl.noAiHelp'))}</div></div>
+                </div>
+                <h2 style="margin-top:16px">${esc(t('tpl.fields'))}</h2>
+                <div style="overflow-x:auto"><table><thead><tr><th>${esc(t('tpl.label'))}</th><th>${esc(t('tpl.type'))}</th><th>${esc(t('tpl.dir'))}</th><th>${esc(t('tpl.maxWords'))}</th><th>${esc(t('tpl.lines'))}</th><th>${esc(t('tpl.required'))}</th><th>${esc(t('tpl.pages'))}</th><th></th></tr></thead>
+                    <tbody id="te-fields">${tplEditing.campos.map(fieldRow).join('')}</tbody></table></div>
+                <div class="actions"><button type="button" class="btn" onclick="addField()">${esc(t('tpl.addField'))}</button></div>
+                <div class="actions">
+                    <select id="te-test-task" aria-label="${esc(t('tpl.task'))}">${taskOpts}</select>
+                    <button type="button" class="btn" data-testid="tpl-test" onclick="testTemplate()">${esc(t('tpl.test'))}</button>
+                    <span class="result" id="te-test-result" role="status" data-testid="tpl-test-result"></span>
+                </div>
+                <div class="actions">
+                    <button type="button" class="btn primary" data-testid="tpl-save" onclick="saveTemplate()">${esc(t('btn.save'))}</button>
+                    <button type="button" class="btn" onclick="document.getElementById('tpl-editor').style.display='none'">${esc(t('tpl.cancel'))}</button>
+                </div>`;
+            box.style.display = '';
+            box.scrollIntoView({ block: 'start' });
+        }
+
+        function addField() {
+            const body = document.getElementById('te-fields');
+            body.insertAdjacentHTML('beforeend', fieldRow(blankTemplate().campos[0], body.children.length));
+        }
+
+        function collectTemplate() {
+            const [pmin, pmax] = document.getElementById('te-prange').value.split('-').map(x => parseInt(x, 10));
+            const campos = [...document.querySelectorAll('#te-fields tr')].map(tr => {
+                const v = k => tr.querySelector(`[data-k="${k}"]`);
+                return { rotulo: v('rotulo').value.trim(), tipo: v('tipo').value, direcao: v('direcao').value,
+                    max_palavras: parseInt(v('max_palavras').value, 10) || 12, linhas: parseInt(v('linhas').value, 10) || 1,
+                    obrigatorio: v('obrigatorio').checked,
+                    paginas: v('paginas').value.split(',').map(x => parseInt(x, 10)).filter(x => x > 0) };
+            }).filter(f => f.rotulo);
+            const nome = document.getElementById('te-nome').value.trim();
+            return Object.assign({}, tplEditing, { nome, descricao: document.getElementById('te-desc').value.trim(),
+                id: document.getElementById('te-id').value.trim().toLowerCase() || nome.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+                dispensa_ia: document.getElementById('te-noai').checked, campos,
+                reconhecimento: { ancoras: document.getElementById('te-anchors').value.split('\n').map(x => x.trim()).filter(Boolean),
+                    minimo: (parseInt(document.getElementById('te-min').value, 10) || 80) / 100,
+                    paginas_min: pmin || 1, paginas_max: pmax || 2000 } });
+        }
+
+        async function testTemplate() {
+            const out = document.getElementById('te-test-result');
+            const task_id = document.getElementById('te-test-task').value;
+            if (!task_id) return;
+            try {
+                const r = await api('/doc-templates/testar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id, modelo: collectTemplate() }) });
+                const fields = Object.entries(r.campos).map(([k, v]) => `${k}: ${v.palavras}${v.truncado ? '⚠' : ''}`).join(' · ');
+                out.textContent = (r.reconhecido ? t('tpl.matched', { p: Math.round(r.pontuacao * 100) }) : t('tpl.notMatched', { p: Math.round(r.pontuacao * 100) }))
+                    + (r.conflito_com.length ? ' · ' + t('tpl.conflict', { ids: r.conflito_com.join(', ') }) : '')
+                    + (r.faltando.length ? ' · ' + t('tpl.missing', { f: r.faltando.join(', ') }) : '') + (fields ? ' · ' + fields : '');
+                out.className = 'result ' + (r.reconhecido && !r.conflito_com.length && !r.faltando.length ? 'ok' : 'bad');
+            } catch (e) { out.textContent = e.message; out.className = 'result bad'; }
+        }
+
+        async function saveTemplate(data) {
+            try {
+                const saved = await api('/doc-templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || collectTemplate()) });
+                toast(t('tpl.saved', { v: saved.versao }), true);
+                document.getElementById('tpl-editor').style.display = 'none';
+                loadTemplates();
+            } catch (e) { toast(t('err.save') + ': ' + e.message); }
+        }
+
+        async function approveTemplate(id) {
+            if (!confirm(t('tpl.approveConfirm'))) return;
+            try { await api('/doc-templates/' + encodeURIComponent(id) + '/aprovar', { method: 'POST' }); toast(t('tpl.approved'), true); loadTemplates(); }
+            catch (e) { toast(e.message); }
+        }
+
+        async function deleteTemplate(id) {
+            if (!confirm(t('tpl.deleteConfirm'))) return;
+            try { await api('/doc-templates/' + encodeURIComponent(id), { method: 'DELETE' }); loadTemplates(); }
+            catch (e) { toast(e.message); }
+        }
+
+        function exportTemplate(id) {
+            const m = tplList.find(x => x.id === id);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(m, null, 2)], { type: 'application/json' }));
+            a.download = id + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        }
+
+        function importTemplate(input) {
+            const file = input.files[0];
+            if (!file) return;
+            file.text().then(txt => { try { editTemplate(JSON.parse(txt)); } catch (e) { toast(e.message); } input.value = ''; });
+        }
+
+        async function load() {
+            try { state = await api('/admin/settings'); render(); if (currentView() === 'modelos') loadTemplates(); }
+            catch (e) { toast(t('err.load') + ': ' + e.message); }
+        }
+
+        applyI18n();
+        load();
+    </script>
+</body>
+</html>

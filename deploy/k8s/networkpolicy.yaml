@@ -1,0 +1,100 @@
+# Local-first também na rede: nada entra nem sai do namespace, exceto o que está liberado abaixo.
+# Segunda trava além do AI_ALLOW_EXTERNAL: mesmo com a IA externa liberada na Administração, o app não alcança a
+# internet até você acrescentar uma regra de saída para o provedor (docs/deploy.md).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: padrao-nega-tudo
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# DNS do cluster
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dns
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Entrada no app: só pelo controlador de ingress (ajuste o nome do namespace do seu ingress)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: app-entrada
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: privio-sentry
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8001
+---
+# App -> Ollama (e só isso)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: app-saida-ia
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: privio-sentry
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ollama
+      ports:
+        - protocol: TCP
+          port: 11434
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ollama-entrada
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: privio-sentry
+      ports:
+        - protocol: TCP
+          port: 11434
+---
+# Ollama baixa modelos pela internet (HTTPS). Depois de baixar, apague esta política.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ollama-baixar-modelos
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+  policyTypes: ["Egress"]
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443

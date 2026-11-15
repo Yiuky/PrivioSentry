@@ -59,7 +59,8 @@ proteção ao PDF.
 | Exportação | Gera um PDF com as tarjas e um JSON com as caixas, usado pelo editor |
 | Verificação pós-tarja | Relê o PDF final e confronta o original para conferir se cada CPF encontrado está coberto |
 
-OCR, detecção e modelos rodam na sua máquina. O rótulo **LOCAL PROCESSING** da interface indica onde o
+OCR, detecção e modelos rodam na sua máquina por padrão (um provedor de IA na nuvem só com liberação explícita
+na Administração, [seção 4.12](#412-administração)). O rótulo **LOCAL PROCESSING** da interface indica onde o
 processamento ocorre (arquitetura); ele não afirma que a máquina esteja desconectada da rede.
 
 ### 1.2 O que não é
@@ -299,8 +300,8 @@ início e quedas em `service_heartbeat.log`. Feche outras janelas do serviço an
 
 | Área | O que contém |
 |---|---|
-| Barra lateral | Marca, lista de tarefas, o painel recolhível **Opções do próximo envio**, o botão **Adicionar PDFs** e, numa linha, **Processar todos**, **Excluir todos** e **Documentação** |
-| Cabeçalho | Nome do documento aberto (ou "Aguardando documento..."), barra de ferramentas do editor, selo `LOCAL PROCESSING` e seletor de idioma |
+| Barra lateral | Marca, lista de tarefas, o painel recolhível **Opções do próximo envio**, o botão **Adicionar PDFs** e, numa linha, **Processar todos**, **Excluir todos**, **Documentação** e **Administração** |
+| Cabeçalho | Nome do documento aberto (ou "Aguardando documento..."), barra de ferramentas do editor, selo `LOCAL PROCESSING` (ou `EXTERNAL AI`, em laranja, quando há IA externa liberada; passe o mouse para ver o destino) e seletor de idioma |
 | Aviso permanente | "**A IA sugere; você confirma.** A detecção por IA é probabilística e pode errar. Revise todas as sugestões antes de proteger e exportar." |
 | Barra de pendências | Aparece quando o documento **Requer revisão** |
 | Área de trabalho | Páginas do documento com as tarjas sobrepostas, controles de zoom e navegação de páginas |
@@ -491,6 +492,11 @@ Comparação dos modos de saída:
 - **Ver** abre o PDF tarjado numa nova aba do navegador.
 - **Baixar PDF** baixa o arquivo com o nome `<nome original>_TARJADO.pdf`.
 
+Um documento processado com IA externa mostra no cartão **IA externa: <destino>** e, ao concluir,
+"Proteção concluída · com IA externa" no lugar de "Processado localmente".
+
+O endereço `/?task=<id>` abre um documento direto no editor (é o link que o servidor MCP entrega ao revisor).
+
 ### 4.11 Reprocessar
 
 Use **Reprocessar** quando mudar a configuração (por exemplo, `BASE_DPI` ou o modelo do Ollama) ou depois de
@@ -499,6 +505,63 @@ corrigir uma falha. O pipeline completo roda de novo e os alertas são recalcula
 > [!TIP]
 > Se você já tinha **salvo** caixas no editor, o editor continua mostrando esse rascunho mesmo após reprocessar.
 > Para ver as novas sugestões da IA, use **Recarregar sugestões da IA**.
+
+### 4.12 Administração
+
+O botão **Administração** (ou `/admin`) abre a configuração sem editar o `.env`:
+
+| Seção | O que ajusta |
+|---|---|
+| Visão geral | Versão, onde a IA roda, servidores configurados e o botão **Testar** (pedido curto, sem nenhum conteúdo de documento) |
+| IA e provedores | Atalhos (Ollama, LM Studio, OpenAI, Anthropic, Gemini, OpenRouter, Mistral), endereço, chave de API, modelo, **Listar modelos**, IA reserva e verificação cruzada. Também o limitador de pedidos (**Pedidos por minuto**: 12 por padrão em provedor externo; mais lento, mas sem recusas) e o que fazer **se o provedor recusar por limite de uso** |
+| Detecção e política | Perfil padrão, detector de nomes, leitura extra de OCR e segundo olhar |
+| OCR e verificação | Tesseract, idioma, DPI e verificação final |
+| Operação | Documentos ao mesmo tempo, tamanho máximo e retenção (valem depois de reiniciar o serviço) |
+| API e agentes (MCP) | Rotas, exemplo com `curl` e o trecho pronto para configurar o servidor MCP |
+
+**Limite de uso do provedor.** Com a opção **pendente**, o documento que bateu na cota do provedor aparece como
+"Pendente: limite de uso da IA. Nova tentativa às HH:MM". Ele não tem PDF. O serviço o processa de novo sozinho
+no horário indicado; para tentar antes, use **⋮ › Reprocessar**. Com a opção **revisao** (padrão), as páginas que
+ficaram sem IA vão para "Requer revisão".
+
+A chave de API é guardada só nesta máquina (`privio_settings.json`) e nunca é mostrada de volta: deixe o campo em
+branco para manter a atual. Cada item mostra de onde vem o valor (**admin**, **.env** ou **padrão**);
+**restaurar padrão** volta ao `.env`.
+
+**IA na nuvem.** Para usar um provedor externo com a sua chave: escolha o atalho, informe a chave e o modelo (que
+precisa aceitar imagens), marque **Permitir IA fora desta rede**, confirme o aviso e salve; depois clique em
+**Testar**. Sem essa liberação, nada sai da rede: as páginas que dependem da IA vão para **Requer revisão**.
+Liberada, **imagens das páginas, recortes de assinatura e o texto lido** são enviados ao provedor. O que ele faz
+com esses dados (retenção, uso para treino, região) depende do contrato e do plano da sua organização: confira
+antes de processar documentos reais.
+
+> [!WARNING]
+> Quem abre o portal abre a Administração e pode, por exemplo, apontar a IA para outro servidor. Na rede, use
+> `API_TOKEN` ([seção 9](#9-expondo-na-rede-com-segurança)) ou desligue a tela com `ADMIN_ENABLED=0`.
+
+### 4.13 API e agentes de IA
+
+O mesmo serviço é uma API ([docs/api.md](api.md)); `PORTAL_ENABLED=0` deixa só a API. Para agentes de IA há o
+servidor MCP local `sentry_mcp.py` ([docs/mcp.md](mcp.md)): o agente envia PDFs, acompanha e baixa o resultado,
+mas **não aprova**. O PDF só é entregue a ele depois de **Aplicar proteção** sem pendências.
+
+### 4.14 Modelos de documento
+
+Para documentos que se repetem com o mesmo layout (licenças, autorizações, formulários), crie um **modelo**:
+
+1. Processe um documento do tipo e revise as tarjas no editor.
+2. No menu ⋮ da tarefa, clique em **Criar modelo de documento**. Se quiser, marque **Com ajuda da IA**: ela só
+   vê o texto com as tarjas e os dígitos escondidos.
+3. Confira as **frases de reconhecimento** (do título, nunca nomes ou números) e os **campos** (rótulo e onde
+   fica o valor).
+4. Clique em **Testar no documento** e teste também num documento de outro tipo, que **não** pode ser
+   reconhecido.
+5. **Salve** (fica como rascunho) e, quando estiver seguro, **Aprove**. Com **Dispensar a IA de visão**, as
+   páginas reconhecidas não passam pela IA de endereços e economizam tokens. A inspeção roda depois: um agente lê
+   o texto já tarjado ou, no modo só por regras, a página vai para revisão.
+
+O cartão do documento mostra **Modelo: <nome>** quando um modelo foi usado. A revisão continua obrigatória.
+Detalhes e limites: [docs/modelos-documento.md](modelos-documento.md).
 
 ---
 
@@ -909,9 +972,11 @@ sugerida (variações como "Pessoal" ou "residencial" também contam). Se o LLM 
 endereço é tarjado por segurança e a página vai para revisão. A classificação pode errar: revise.
 
 **Os documentos são enviados para a nuvem?**
-A aplicação não envia o conteúdo a serviços de terceiros: OCR, YOLO e LLM rodam na sua máquina. Mas a aplicação
-não bloqueia tráfego de saída, e `OLLAMA_API_URL` pode apontar para outro servidor: mantenha-o local ou
-confiável.
+Não por padrão: OCR, YOLO e LLM rodam na sua máquina ou num servidor da rede local. Um provedor de IA fora desta
+rede só recebe conteúdo se um administrador liberar (**Permitir IA fora desta rede** na Administração,
+`AI_ALLOW_EXTERNAL=1`); sem isso a chamada é bloqueada e a página vai para revisão. Liberado, o selo vira
+**EXTERNAL AI** e cada documento mostra para onde foi. A trava vale para as chamadas de IA do projeto; a máquina
+em si continua com rede.
 
 **Qual a diferença entre "Salvar" e "Aplicar proteção (modo nativo)"?**
 **Salvar** só grava o rascunho das caixas. **Aplicar proteção** grava as caixas, gera o PDF final a partir do

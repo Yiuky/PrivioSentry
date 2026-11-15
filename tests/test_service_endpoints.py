@@ -58,7 +58,8 @@ def test_upload_starts_worker_and_lists_task(svc):
     assert mod.started == [(tid, {})]
     task = c.get("/tasks").json()[tid]
     assert task["status"] == "Iniciando..." and task["completed"] is False
-    assert os.path.exists(task["input_path"])
+    assert "input_path" not in task                          # caminho no disco do servidor não sai pela API
+    assert os.path.exists(mod.tasks[tid]["input_path"])
     saved = json.load(open(mod.TASKS_FILE, encoding="utf-8"))
     assert tid in saved
 
@@ -310,7 +311,7 @@ def test_start_worker_spawns_process_once_and_rejects_duplicates(monkeypatch):
     class FakeProc:
         alive = True
 
-        def __init__(self, target, args):
+        def __init__(self, target, args, kwargs=None):
             created.append((target, args))
 
         def start(self):
@@ -376,7 +377,7 @@ def test_queue_limits_parallel_tasks_and_dispatches_in_order(monkeypatch):
     started = []
 
     class FakeProc:
-        def __init__(self, target, args):
+        def __init__(self, target, args, kwargs=None):
             self.tid, self.alive = args[0], True
 
         def start(self):
@@ -417,7 +418,7 @@ def test_queued_task_whose_pdf_vanished_becomes_a_visible_error(monkeypatch):
     monkeypatch.setattr(mod, "save_tasks", lambda: None)
 
     class FakeProc:
-        def __init__(self, target, args):
+        def __init__(self, target, args, kwargs=None):
             self.alive = True
 
         def start(self):
