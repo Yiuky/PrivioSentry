@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 LABEL org.opencontainers.image.title="PRIVIO SENTRY - SENTRY Redact" \
       org.opencontainers.image.description="Local AI Privacy Infrastructure: AI-assisted document redaction with human review" \
