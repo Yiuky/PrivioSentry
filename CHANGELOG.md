@@ -5,6 +5,47 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+Fácil de configurar e pronto para agentes: tela **Administração**, IA na nuvem por chave de API **só com
+liberação explícita**, o serviço também como **API** documentada e um **servidor MCP local**.
+
+### Adicionado
+- **Administração** (`/admin`, botão na barra lateral): IA principal e reserva com atalhos de provedor (Ollama, LM Studio, OpenAI, Anthropic, Gemini, OpenRouter, Mistral), teste de conexão (pedido curto, sem documento) e lista de modelos; detecção e política; OCR e verificação; fila, tamanho e retenção; guia de API e MCP. O salvo fica em `privio_settings.json` (`PRIVIO_SETTINGS_FILE`, fora do git e da imagem Docker), vale sobre o `.env` e "restaurar padrão" volta a ele. Chaves de API nunca voltam pela API. `API_TOKEN`, `APP_HOST`, `ALLOWED_HOSTS` e pastas continuam só no `.env`. `ADMIN_ENABLED=0` desliga a tela.
+- **IA externa por chave de API** (`AI_ALLOW_EXTERNAL`, desligada por padrão): um servidor fora desta rede só recebe conteúdo depois da liberação (com confirmação na tela). Sem ela, a chamada é bloqueada antes de sair e a página vai para **Requer revisão**. Liberada, a tarefa registra os destinos (`ia_externa`), o selo vira **EXTERNAL AI** e o cartão diz "com IA externa" em vez de "Processado localmente". Vale também para o segundo olhar.
+- **API:** `GET /tasks/{id}`, `GET /api/info`, `GET /healthz` (sem token, sem dados), `GET /download/{id}?final=true` (só o PDF aprovado pelo revisor, sem pendências) e `PORTAL_ENABLED=0` (só API). Guia em `docs/api.md`.
+- **Servidor MCP local** (`sentry_mcp.py`, stdio, sem dependência nova): enviar PDF, acompanhar, esperar e baixar o resultado aprovado. Não aprova, não edita, não apaga e não devolve texto do documento. Guia em `docs/mcp.md`.
+- Link direto `/?task=<id>` abre o documento no editor.
+- **Modelos de documento** (`utils/doc_templates`, guia em `docs/modelos-documento.md`): documentos de layout conhecido são reconhecidos por frases fixas e tarjados pelos rótulos **sem IA (zero token)**. Um modelo **aprovado** com "dispensar a IA" deixa de chamar a IA de visão de endereços nas páginas em que todos os campos obrigatórios foram achados. Depois vem a **inspeção** (`DOC_TEMPLATE_INSPECTION`): `agente` lê o texto com as tarjas já trocadas por █ e aponta o que ficou de fora (só acrescenta; falha = revisão); `regras` não gasta token, marca rótulos com valor sem tarja e manda para revisão a página sem IA. Modelos parecidos: nenhum é aplicado. Nada disso aprova o documento.
+- **Gerenciador de modelos** (Administração › Modelos de documento e menu ⋮ da tarefa): rascunho a partir de um documento revisado (tarjas viram campos ancorados em rótulos; títulos viram frases de reconhecimento), com ajuda opcional da IA sobre o texto **mascarado** (tarjas e dígitos escondidos; sugestão que não existe no texto é descartada); testar no documento (só contagens); salvar como rascunho; aprovar; importar/exportar JSON. API `/doc-templates/*` como router separado.
+- **Implantação modular** (`docs/deploy.md`): `deploy/k8s` com kustomize (app com 1 réplica e `Recreate`, Ollama opcional em outro pod, *Pod Security* restrito, NetworkPolicies que fecham a rede por padrão, segredo obrigatório) e `docker compose --profile ollama` com a IA em outro contêiner.
+- O agente do segundo olhar também reconhece endereço residencial (usado só na inspeção dos modelos).
+- **Validação de provedor de IA** (`python -m benchmarks.provider_check`, procedimento em `docs/procedimento-ia-externa.md`): roda o caminho real contra o provedor com dados fictícios. Confere a trava de saída, a conexão, o JSON, a visão de endereços, o agente com ferramentas, a inspeção de modelo (repetida; exige acerto em todas as repetições para "dispensar a IA") e o rascunho com IA, e grava um relatório sem a chave. Testes ao vivo opcionais: `pytest -m live` (`PRIVIO_LIVE_AI=1`), nunca no CI.
+
+- **Limite de uso do provedor de IA** (`utils/ratelimit.py`), em Administração › IA e provedores:
+  - **Limitador de pedidos por minuto** (`AI_REQUESTS_PER_MINUTE`), ligado por padrão em provedor externo (12 por minuto; medido no plano gratuito do Gemini Flash-Lite: 15). Conta todos os documentos em processamento juntos, por servidor: cada pedido espera a vez. Mais lento, mas sem recusas. Nesta rede, sem limite salvo configuração; `0` desliga.
+  - `AI_LIMIT_ACTION=pendente`: quando a cota acaba, o documento fica **Pendente** (sem PDF, nunca "Concluído") e o serviço o processa de novo depois de `AI_LIMIT_RETRY_MINUTES` (padrão 60), até `AI_LIMIT_MAX_RETRIES` vezes (padrão 24); depois disso segue para revisão. O padrão continua `revisao`.
+  - O cartão mostra "Pendente: limite de uso da IA. Nova tentativa às HH:MM"; no MCP a situação é `pendente` e `sentry_wait` volta na hora.
+- O roteiro de validação roda a 10 pedidos por minuto (`--por-minuto`), informa `limite_de_uso_esgotado` e separa repetição "não medida" de erro do modelo.
+
+### Corrigido (achado ao testar com o Gemini)
+- O agente devolvia o tipo com o nome mostrado no pedido ("endereço residencial de pessoa"), que não era reconhecido; o achado era descartado em silêncio. Agora vale.
+- O pedido do agente passou a listar os identificadores dos tipos, a pedir o texto corrido e a ignorar trechos █. Com o pedido antigo, o Gemini Flash-Lite achou o endereço solto em 2 de 3 tentativas.
+- Limite de uso do provedor (HTTP 429): o agente e o cliente de IA esperam o tempo pedido (`Retry-After` ou `retryDelay` do Gemini, até 60 s) e tentam de novo até 2 vezes. Se o limite continuar, a página vai para revisão.
+- Na IA principal, recusa por limite de uso contava como falha no disjuntor: três seguidas desligavam o servidor por 120 s e as páginas seguintes iam direto para revisão. Agora não conta.
+- Cota esgotada (limite diário, conta sem crédito, sem indicação de espera) não é mais esperada à toa: a chamada desiste na hora.
+
+### Atenção ao atualizar
+- **Servidor de IA em endereço público agora é bloqueado** até a liberação (`AI_ALLOW_EXTERNAL=1` ou a caixa na Administração). Um servidor da organização que o DNS resolve para IP privado continua funcionando sem mudança; se ele tiver IP público, as páginas passam a ir para revisão com a mensagem "externo bloqueado" até a liberação.
+- `/download/{id}?final=true` (novo) só entrega o PDF de documentos aprovados **depois** desta versão: para os antigos, aplique a proteção de novo no editor. O download do portal não muda.
+- Na Administração, trocar o endereço de um servidor por outro host apaga a chave salva dele e desliga a liberação de IA externa (a chave de um provedor nunca segue para outro; destino novo pede nova confirmação).
+
+### Alterado
+- `/tasks` não devolve mais o caminho do arquivo no servidor (`input_path`).
+- A linha de comando (`main.py`) também aplica o que foi salvo na Administração.
+- `/docs` e `/redoc` do FastAPI desligados (carregavam scripts de CDN); o contrato segue em `/openapi.json`.
+- O `HEALTHCHECK` do Docker usa `/healthz` (antes recebia 401 com `API_TOKEN`). `/healthz` também não confere o `Host` (a sonda do Kubernetes chega com o IP do pod).
+- Cliente de IA: erro 429 espera o `Retry-After` (até 30 s); erro 400 sobre `max_tokens`/`temperature` (modelos de raciocínio) é repetido uma vez com `max_completion_tokens`; cabeçalhos da Anthropic; servidores externos nunca recebem pedido de descarga de modelo; o teste de saúde de provedores externos não exige o modelo na lista (apelidos).
+- O segundo olhar usa a chave da IA principal quando não tem servidor próprio.
+
 ## [5.6.1] - 2026-10-05
 
 Interface mais orgânica e responsiva, a partir de prints relatados: opções do envio em botões num painel recolhível

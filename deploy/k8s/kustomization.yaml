@@ -1,0 +1,28 @@
+# PRIVIO SENTRY no Kubernetes (docs/deploy.md). Uso:
+#   cp deploy/k8s/secrets.env.example deploy/k8s/secrets.env   # e troque o token (fora do git)
+#   docker build -t privio-sentry:5.6.1 .                      # ou envie a imagem ao seu registro e ajuste "images"
+#   kubectl apply -k deploy/k8s
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: privio-sentry
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: privio-sentry
+resources:
+  - namespace.yaml
+  - storage.yaml
+  - app.yaml
+  - ollama.yaml
+  - networkpolicy.yaml
+configMapGenerator:
+  - name: privio-config
+    envs:
+      - config.env
+secretGenerator:
+  # Sem secrets.env o build falha de propósito: o serviço exposto na rede precisa de API_TOKEN
+  - name: privio-secrets
+    envs:
+      - secrets.env
+images:
+  - name: privio-sentry
+    newTag: "5.6.1"

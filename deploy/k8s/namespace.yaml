@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: privio-sentry
+  labels:
+    # Restrito: nenhum contêiner privilegiado, root ou com escalada de privilégio
+    pod-security.kubernetes.io/enforce: restricted

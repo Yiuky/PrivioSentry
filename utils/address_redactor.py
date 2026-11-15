@@ -272,7 +272,7 @@ class AddressRedactor:
         self.review_notes = {}  # page_num -> motivo; análise feita, mas com classificação incerta (revisão)
         self.unlocated = {}     # page_num -> endereços pessoais que o LLM viu mas não foram achados no OCR
 
-    def run_discovery(self, image_paths, page_texts=None):
+    def run_discovery(self, image_paths, page_texts=None, skip_pages=()):
         """
         Fase 1: Consulta a IA para identificar e classificar endereços nas imagens originais.
         page_texts: texto de cada página (texto digital do PDF ou OCR) para o modelo COPIAR os endereços dele.
@@ -284,6 +284,8 @@ class AddressRedactor:
 
         for i, img_path in enumerate(image_paths):
             page_num = i + 1
+            if page_num in skip_pages:  # modelo de documento aprovado cobre a página (main.run_template_phase)
+                continue
             if legacy:
                 prompt = DISCOVERY_PROMPT_LEGACY
             else:

@@ -1,0 +1,21 @@
+# Volumes. privio-data guarda documentos, imagens das páginas e tarefas: CONTÉM DADOS PESSOAIS. Use uma
+# StorageClass com criptografia em repouso e política de retenção da sua organização (RETENTION_DAYS).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: privio-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 40Gi

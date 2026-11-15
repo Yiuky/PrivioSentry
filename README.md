@@ -45,8 +45,8 @@
 O **PRIVIO SENTRY** é um projeto *local-first* para detectar e proteger informações pessoais em documentos.
 Sua primeira (e, por enquanto, única) capacidade, o **SENTRY Redact**, lê arquivos PDF, encontra **CPFs** e
 **endereços pessoais (residenciais)** e prepara as tarjas para uma pessoa revisar num **editor web**. OCR,
-detecção e os modelos de linguagem/visão rodam na sua máquina: a aplicação não envia o conteúdo dos
-documentos a nuvens de terceiros.
+detecção e os modelos de linguagem/visão rodam na sua máquina por padrão: o conteúdo dos documentos só vai a
+um provedor de IA na nuvem se um administrador liberar isso de propósito (`AI_ALLOW_EXTERNAL`, desligado).
 
 > Projeto **pessoal e independente** de Joberth Firmino Gambati: não é um produto oficial de nenhuma instituição nem fala em nome dela.
 
@@ -139,7 +139,22 @@ flowchart LR
   num portão de qualidade, e o decisor nunca tira uma tarja. Desligado por padrão: veja
   [docs/decisions.md](docs/decisions.md).
 - **Local-first:** OCR, YOLO e LLM rodam na máquina; a interface não carrega fontes, scripts nem imagens
-  externas (os testes de interface garantem isso).
+  externas (os testes de interface verificam isso).
+- **IA na nuvem só se você liberar:** com uma chave de API, a fase de IA pode usar um provedor externo
+  (OpenAI, Anthropic, Gemini, OpenRouter, Mistral...). Fica **bloqueada por padrão**. Liberada na
+  Administração, as páginas vão para o provedor, a tarefa registra para onde e o selo vira **EXTERNAL AI**
+  ([docs/configuration.md](docs/configuration.md#ia-externa-provedor-na-nuvem-por-chave-de-api)).
+- **Modelos de documento:** licenças e formulários de layout conhecido são reconhecidos por frases fixas e
+  tarjados pelos rótulos **sem IA (zero token)**; depois, uma inspeção (regras e um agente lendo o texto já
+  tarjado) procura o que ficou de fora. Os modelos são criados no gerenciador a partir de um documento revisado,
+  com ajuda opcional da IA sobre texto mascarado ([docs/modelos-documento.md](docs/modelos-documento.md)).
+- **Modular, Docker e Kubernetes:** app, servidores de IA e dados em máquinas ou pods separados; manifestos com
+  rede fechada por padrão em `deploy/k8s` ([docs/deploy.md](docs/deploy.md)).
+- **Administração na interface:** IA principal e reserva (com teste de conexão), detecção, OCR, fila e retenção
+  em `/admin`, sem editar o `.env`.
+- **Portal, API e agentes:** o mesmo serviço atende o editor, scripts ([docs/api.md](docs/api.md)) e agentes de
+  IA por um **servidor MCP local** ([docs/mcp.md](docs/mcp.md)). Agentes enviam e acompanham; quem aprova é o
+  revisor humano.
 - **Falha fechado:** qualquer incerteza vira alerta e o estado **"Requer revisão"**; a CLI devolve o código
   `3` nesses casos.
 - **Seguro por padrão:** escuta só em `127.0.0.1`, valida uploads e IDs (UUID), token opcional (`API_TOKEN`)
@@ -236,13 +251,16 @@ Antes de distribuir imagens Docker, leia a ressalva de licenciamento em [docs/li
 
 ## ⚙️ Configuração
 
-Copie `.env.example` para `.env`. Todas as variáveis estão em [docs/configuration.md](docs/configuration.md).
-As principais:
+A forma mais simples é a tela **Administração** (botão na barra lateral do editor, ou `/admin`): servidores de IA,
+detecção, OCR, fila e retenção, com teste de conexão. Para o resto, copie `.env.example` para `.env`. Todas as
+variáveis estão em [docs/configuration.md](docs/configuration.md). As principais:
 
 | Variável | Para quê |
 |---|---|
 | `TESSERACT_PATH` | Caminho do executável do Tesseract (Windows) |
 | `AI_PROVIDER`, `AI_BASE_URL`, `AI_VISION_MODEL` (ou `OLLAMA_*`) | Servidor de IA (Ollama ou API da OpenAI) e modelos; `AI_SECONDARY_*` para a reserva |
+| `AI_API_KEY`, `AI_ALLOW_EXTERNAL` | Chave do provedor e liberação explícita de IA fora desta rede (desligada por padrão) |
+| `PORTAL_ENABLED`, `ADMIN_ENABLED` | Rodar só como API e desligar a Administração |
 | `POLICY_PROFILE`, `NER_ENGINE` | O que tarjar (perfil de política) e o detector de nomes |
 | `YOLO_MODEL_PATH` | Pesos do detector de assinaturas |
 | `BASE_DPI` | DPI de renderização das páginas (qualidade × memória × tempo) |
@@ -265,6 +283,18 @@ python gatekeeper.py           # http://127.0.0.1:8000/gatekeeper
 
 Para expor o serviço na rede, defina `APP_HOST=0.0.0.0` **e** `API_TOKEN`, e coloque-o atrás de HTTPS
 (proxy reverso): não há TLS nem contas de usuário embutidos.
+
+### API e agentes de IA
+
+```bash
+curl -F "file=@documento.pdf" http://127.0.0.1:8001/upload       # -> task_id
+curl http://127.0.0.1:8001/tasks/<task_id>                        # situação
+curl -o protegido.pdf "http://127.0.0.1:8001/download/<task_id>?final=true"   # só após a aprovação no portal
+python sentry_mcp.py                                              # servidor MCP local (stdio) para agentes
+```
+
+Rotas, autenticação e modo só-API em [docs/api.md](docs/api.md); configuração do cliente MCP em
+[docs/mcp.md](docs/mcp.md) (a Administração mostra o trecho pronto).
 
 ### Linha de comando (lote)
 
@@ -348,7 +378,8 @@ Lista completa: [docs/limitations.md](docs/limitations.md).
 
 ## 🔐 Privacidade e segurança
 
-O processamento é local. Os artefatos de cada tarefa (imagens das páginas, saída do OCR, recortes) ficam em
+O processamento é local por padrão. Um provedor de IA externo só recebe conteúdo com `AI_ALLOW_EXTERNAL=1`,
+ligado na Administração; nesse caso, o que ele faz com os dados depende do contrato da sua organização. Os artefatos de cada tarefa (imagens das páginas, saída do OCR, recortes) ficam em
 `output/` e **contêm dados pessoais**: apague-os quando não forem mais necessários (opções de retenção em
 [docs/configuration.md](docs/configuration.md)). Vulnerabilidades: relate de forma privada, conforme o
 [SECURITY.md](SECURITY.md).
@@ -415,7 +446,8 @@ documents. Its first capability, **SENTRY Redact**, finds **Brazilian CPF number
 (residential) addresses** in PDF files and prepares redactions for a person to review in a web editor:
 
 - **Local pipeline:** Tesseract OCR, a YOLO signature detector and a vision LLM served by Ollama, all running
-  on your machine; the UI loads no external assets.
+  on your machine by default (a cloud AI provider only with explicit permission); the UI loads no external
+  assets.
 - **Human in the loop:** the AI only *suggests*; automatic processing yields a *preliminary* PDF, and the protected
   version comes from the reviewer applying the reviewed boxes in the editor.
 - **Fails closed:** a post-redaction verifier re-reads the output and cross-checks the original; any doubt

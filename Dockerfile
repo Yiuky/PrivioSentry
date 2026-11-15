@@ -34,10 +34,12 @@ USER sentry
 ENV APP_HOST=0.0.0.0 \
     APP_PORT=8001 \
     PRIVIO_TASKS_FILE=/app/state/tasks.json \
+    PRIVIO_SETTINGS_FILE=/app/state/privio_settings.json \
+    PRIVIO_DOC_TEMPLATES_DIR=/app/state/modelos_documento \
     YOLO_MODEL_PATH=models/signature_stamp_detector.pt
 
 EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
-    CMD python -c "import urllib.request,os;urllib.request.urlopen('http://127.0.0.1:%s/' % os.environ.get('APP_PORT','8001'))" || exit 1
+    CMD python -c "import urllib.request,os;urllib.request.urlopen('http://127.0.0.1:%s/healthz' % os.environ.get('APP_PORT','8001'))" || exit 1
 
 CMD ["python", "app_service.py"]

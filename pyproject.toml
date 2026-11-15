@@ -53,8 +53,8 @@ Issues = "https://github.com/Yiuky/PrivioSentry/issues"
 Changelog = "https://github.com/Yiuky/PrivioSentry/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
-py-modules = ["main", "app_service", "gatekeeper"]
-packages = ["utils", "utils.decisions", "utils.detect"]
+py-modules = ["main", "app_service", "gatekeeper", "sentry_mcp"]
+packages = ["utils", "utils.decisions", "utils.detect", "utils.doc_templates"]
 
 [tool.setuptools.package-data]
 "utils.detect" = ["data/*.json"]  # regras e limiares como dados (utils/detect/config.py)

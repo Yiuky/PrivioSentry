@@ -18,7 +18,10 @@ from utils.pii import mask_text
 from utils import decisions
 from utils import detect as pii_detect
 from utils import ocr_extra
-from utils import second_look
+from utils import egress, ratelimit, second_look
+from utils import doc_templates
+from utils.doc_templates import engine as template_engine
+from utils.doc_templates import schema as template_schema
 from utils.decisions import detector_stats
 from utils.decisions import feedback as decision_feedback
 from utils.decisions.questions import normalize_state
@@ -45,6 +48,10 @@ def _cluster_boxes(boxes):
         else:
             clusters.append(r)
     return clusters
+
+
+class LimitPending(Exception):
+    """O provedor de IA recusou por limite de uso e o administrador pediu para o documento ficar pendente."""
 
 
 class SentryApp:
@@ -85,6 +92,9 @@ class SentryApp:
         self.policy_profile = pii_detect.active_profile_id()  # perfil de política (utils/detect/profiles.py)
         self.pii_summary = {}   # tipo do catálogo -> quantidade de valores distintos achados (sem os valores)
         self.box_labels = defaultdict(dict)  # página -> {assinatura da caixa: rótulo do tipo} (mostrado no editor)
+        self.doc_template = None          # modelo de documento reconhecido (id, versão, pontuação)
+        self.template_pages = set()       # páginas do documento reconhecido (inspeção depois das tarjas)
+        self.template_skip_pages = set()  # páginas em que o modelo APROVADO dispensa a IA de visão de endereços
 
     def add_review(self, page_num, reason, boxes=None):
         """Marca uma página como 'requer revisão' e registra o alerta (sem duplicar).
@@ -123,6 +133,10 @@ class SentryApp:
     def final_state(self):
         """Estado final reportado ao serviço: só é 'Concluído' se nada exige revisão."""
         state = self._final_state()
+        if getattr(self, "doc_template", None):
+            state["modelo_documento"] = self.doc_template
+        if egress.sent():  # conteúdo saiu para IA externa (AI_ALLOW_EXTERNAL=1): a interface não diz "localmente"
+            state["ia_externa"] = egress.sent()
         if getattr(self, "manual_mode", False):
             # Finalização (tarjas do revisor): o resumo de tipos, o perfil e os tempos continuam os do processamento
             for key in ("pii_summary", "pii_found", "policy_profile", "timings"):
@@ -150,6 +164,7 @@ class SentryApp:
     def run(self, progress_callback=None, manual_redactions=None, native_mode=False):
         """Executa o pipeline completo com suporte a notificações de progresso."""
         self.progress_callback = progress_callback
+        ratelimit.clear()  # vários documentos no mesmo processo (linha de comando): cada um começa sem limite visto
         
         self.manual_mode = manual_redactions is not None  # finalização: não sobrescreve resumo/tempos do processamento
         if native_mode and manual_redactions is not None:
@@ -176,12 +191,14 @@ class SentryApp:
                 (self.run_phase_1, "OCR Scanning", 20),
                 (self.run_phase_2, "Busca de CPFs", 30),
                 (self.run_policy_phase, "Outros dados pessoais (perfil)", 35),
+                (self.run_template_phase, "Modelo de documento", 37),
                 (self.run_phase_3, "Busca Visual (YOLO)", 40),
                 (self.run_phase_4, "Micro-Auditoria", 50),
                 (self.run_address_discovery, "Análise Semântica (IA)", 65),
                 (self.run_phase_6, "Tarjamento Cirúrgico", 75),
                 (self.run_signature_audit, "Auditoria de Assinaturas (IA)", 85),
                 (self.run_second_look, "Segundo olhar (IA)", 90),
+                (self.run_template_inspection, "Inspeção do modelo", 92),
                 (self.run_phase_5, "Finalização e Exportação", 95),
                 (self.run_verification, "Verificação pós-tarja...", 98)
             ]
@@ -190,6 +207,9 @@ class SentryApp:
             self.update_progress(status, pct)
             started = time.time()
             func()
+            if not self.manual_mode and ratelimit.should_pend():
+                # limite de uso da IA + AI_LIMIT_ACTION=pendente: para aqui, sem PDF; o serviço refaz depois
+                raise LimitPending("Limite de uso do provedor de IA: documento pendente (nenhum PDF gerado).")
             self.timings[status] = round(time.time() - started, 1)  # chave = nome legível da etapa
             self.logger.info(f"[TEMPO] {status}: {self.timings[status]} s")
             
@@ -487,12 +507,12 @@ class SentryApp:
         if not second_look.enabled():
             return
         _, profile = pii_detect.get_profile(self.policy_profile)
-        types = [t for t in profile["acoes"] if t in second_look.TYPE_NAMES]
+        types = [t for t in profile["acoes"] if t in second_look.TYPE_NAMES and t != "endereco_residencial"]
         if not types:
             return
         pages = [p for p in range(1, len(self.grounding_maps) + 1)
                  if second_look.scope() == "todas" or self.review_pages.get(p)]
-        self.logger.info(f"--- SEGUNDO OLHAR: {len(pages)} página(s), modelo {os.getenv('SECOND_LOOK_MODEL', 'gemma4:e4b')} ---")
+        self.logger.info(f"--- SEGUNDO OLHAR: {len(pages)} página(s), modelo {second_look.model()} ---")
         stats = {"acrescentadas": 0, "ja_cobertas": 0, "nao_localizadas": 0, "falhas": 0}
         for page_num in pages:
             i = page_num - 1
@@ -507,40 +527,171 @@ class SentryApp:
                 self.logger.error(f"[-] Segundo olhar falhou na pág {page_num}: {info.get('erro')}")
                 self.add_review(page_num, "Segundo olhar (IA) falhou nesta página. Revisar manualmente.")
                 continue
-            existing = self.global_redactions[page_num]
-            for label, value in items:
-                type_id = second_look.type_id_for(label)
-                if type_id not in types:
-                    continue
-                value = second_look.core_value(type_id, value)
-                context = next((ln for ln in page_text.splitlines() if value[:6] in ln), "")
-                if not second_look.plausible(type_id, value, context):
-                    stats["implausiveis"] = stats.get("implausiveis", 0) + 1
-                    continue
-                commands = second_look.locate(value, words)
-                if not commands:
-                    stats["nao_localizadas"] += 1
-                    continue
-                boxes = self.session.get_redaction_boxes(words, commands)
-                new = [b for b in boxes if not any(
-                    e["x"] <= b["x"] + b["w"] / 2 <= e["x"] + e["w"] and e["y"] <= b["y"] + b["h"] / 2 <= e["y"] + e["h"]
-                    for e in existing)]
-                if not new:
-                    stats["ja_cobertas"] += 1
-                    continue
-                name = pii_detect.catalog.get(type_id).nome
-                stats["acrescentadas"] += 1
-                if profile["acoes"][type_id] == pii_detect.TARJAR:
-                    for b in new:
-                        existing.append(b)
-                        self.box_labels[page_num][f"{b['x']}_{b['y']}_{b['w']}_{b['h']}"] = name
-                    self.add_review(page_num, f"Segundo olhar (IA) acrescentou tarja: {name}. Conferir.",
-                                    self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in new]))
-                else:
-                    self.add_review(page_num, f"Segundo olhar (IA): possível {name}. Revisar.",
-                                    self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in new]))
+            self._add_agent_findings(page_num, words, words, page_text, items, types, profile, stats,
+                                     "Segundo olhar (IA)")
         self.logger.info(f"[+] Segundo olhar: {stats}")
         self.second_look_stats = stats
+
+    def _add_agent_findings(self, page_num, words, locate_words, page_text, items, types, profile, stats, who):
+        """Achados de um agente: só valem se plausíveis e LOCALIZADOS nas palavras (locate_words); só acrescentam."""
+        existing = self.global_redactions[page_num]
+        for label, value in items:
+            type_id = second_look.type_id_for(label)
+            if type_id not in types:
+                continue
+            value = second_look.core_value(type_id, value)
+            context = next((ln for ln in page_text.splitlines() if value[:6] in ln), "")
+            if not second_look.plausible(type_id, value, context):
+                stats["implausiveis"] = stats.get("implausiveis", 0) + 1
+                continue
+            commands = second_look.locate(value, locate_words)
+            if not commands:
+                stats["nao_localizadas"] += 1
+                continue
+            boxes = self.session.get_redaction_boxes(words, commands)
+            new = [b for b in boxes if not any(
+                e["x"] <= b["x"] + b["w"] / 2 <= e["x"] + e["w"] and e["y"] <= b["y"] + b["h"] / 2 <= e["y"] + e["h"]
+                for e in existing)]
+            if not new:
+                stats["ja_cobertas"] += 1
+                continue
+            name = (pii_detect.catalog.BY_ID[type_id].nome if type_id in pii_detect.catalog.BY_ID else type_id)
+            stats["acrescentadas"] += 1
+            if profile["acoes"].get(type_id, pii_detect.TARJAR) == pii_detect.TARJAR:
+                for b in new:
+                    existing.append(b)
+                    self.box_labels[page_num][f"{b['x']}_{b['y']}_{b['w']}_{b['h']}"] = name
+                self.add_review(page_num, f"{who} acrescentou tarja: {name}. Conferir.",
+                                self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in new]))
+            else:
+                self.add_review(page_num, f"{who}: possível {name}. Revisar.",
+                                self._relative_boxes(page_num, [[b["x"], b["y"], b["w"], b["h"]] for b in new]))
+
+    def _page_words(self, i):
+        """Texto digital da página; se ele for ralo perto do OCR (digitalizado com uma camada de texto pequena,
+        ex.: só o carimbo), o OCR, que tem a página inteira."""
+        native = self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else []
+        ocr = self.grounding_maps[i] if i < len(self.grounding_maps) else []
+        if native and len(native) >= max(5, 0.5 * len(ocr)):
+            return native
+        return ocr or native
+
+    def run_template_phase(self):
+        """
+        Modelos de documento (utils/doc_templates): reconhece o documento pelas frases fixas e tarja os campos
+        ancorados em rótulos, sem IA (zero token). Dois modelos quase empatados: nenhum é aplicado (revisão).
+        Modelo APROVADO com "dispensa_ia" e todos os campos obrigatórios achados dispensa a IA de visão de
+        endereços nas páginas dele; a inspeção depois (run_template_inspection) procura o que ficou de fora.
+        Nada aqui aprova o documento.
+        """
+        if not doc_templates.enabled():
+            return
+        templates, errors = template_schema.load_all()
+        for err in errors:
+            self.logger.warning(f"[modelos] arquivo ignorado: {err}")
+        if not templates:
+            return
+        pages = [self._page_words(i) for i in range(len(self.image_paths))]
+        found = template_engine.match(templates, pages)
+        if found["ambiguos"]:
+            self.add_document_review(f"Modelos de documento parecidos ({', '.join(found['ambiguos'])}): nenhum foi "
+                                     "aplicado. Ajuste as âncoras dos modelos e revise o documento.")
+            return
+        template = found["modelo"]
+        if template is None:
+            self.logger.info(f"[modelos] nenhum modelo reconhecido (candidatos: {found['candidatos']})")
+            return
+        self.doc_template = {"id": template["id"], "nome": template["nome"], "versao": template["versao"],
+                             "status": template["status"], "pontuacao": found["pontuacao"]}
+        self.logger.info(f"--- MODELO DE DOCUMENTO: '{template['id']}' v{template['versao']} "
+                         f"({template['status']}, pontuação {found['pontuacao']}) ---")
+        result, missing = template_engine.apply(template, pages)
+        types = {f["rotulo"]: f["tipo"] for f in template["campos"]}
+        added = 0
+        for page, slot in sorted(result.items()):
+            words = pages[page - 1]
+            for label, occurrences in slot["campos"].items():
+                if any(o["truncado"] for o in occurrences):
+                    self.add_review(page, f"Modelo '{template['nome']}': o valor de '{label}' passa do limite de "
+                                          "palavras do campo. Conferir se tudo foi tarjado.")
+            if not slot["comandos"]:
+                continue
+            labels_by_word = {}
+            for field in template["campos"]:
+                cmds, _ = template_engine.extract(words, field, list(types))
+                for wid in cmds:
+                    labels_by_word.setdefault(wid, field)
+            for wid, chars in slot["comandos"].items():
+                for b in self.session.get_redaction_boxes(words, {wid: chars}):
+                    self.global_redactions[page].append(b)
+                    field = labels_by_word.get(wid)
+                    t = pii_detect.catalog.BY_ID.get(field["tipo"]) if field else None
+                    self.box_labels[page][f"{b['x']}_{b['y']}_{b['w']}_{b['h']}"] = (
+                        t.nome if t else (field["rotulo"] if field else "Modelo"))
+                    added += 1
+        for page, label in missing:
+            reason = f"Modelo '{template['nome']}': campo obrigatório '{label}' não encontrado. Revisar."
+            if page:
+                self.add_review(page, reason)
+            else:
+                self.add_document_review(reason)
+        self.template_pages = set(range(1, len(pages) + 1))
+        if template["status"] == "aprovado" and template["dispensa_ia"] and not any(p == 0 for p, _ in missing):
+            # Só a página em que o modelo de fato ACHOU valor de campo: anexo, página só de imagem ou página em que
+            # nenhum campo apareceu continua com a IA de visão (I-03)
+            located = {p for p, slot in result.items()
+                       if any(o["palavras"] for occ in slot["campos"].values() for o in occ)}
+            self.template_skip_pages = {p for p in located if not any(mp == p for mp, _ in missing)}
+        self.doc_template["tarjas"] = added
+        self.doc_template["paginas_sem_ia"] = len(self.template_skip_pages)
+        self.logger.info(f"[modelos] {added} tarja(s) pelo modelo; IA de visão dispensada em "
+                         f"{len(self.template_skip_pages)} página(s).")
+
+    def run_template_inspection(self):
+        """
+        Inspeção depois das tarjas, nas páginas do documento reconhecido por um modelo:
+          * regras (zero token): rótulo típico de dado pessoal ("Fone:", "CPF:") com valor sem tarja -> revisão;
+          * agente (DOC_TEMPLATE_INSPECTION=agente): o agente lê o texto com as tarjas já trocadas por █ e aponta o
+            que ficou de fora; achado localizado nas palavras SEM tarja vira tarja + revisão. Falha = revisão.
+        Página em que a IA de visão foi dispensada e a inspeção é só por regras: sempre revisão (ninguém procurou
+        endereço fora dos campos).
+        """
+        if not self.template_pages:
+            return
+        mode = doc_templates.inspection_mode()
+        _, profile = pii_detect.get_profile(self.policy_profile)
+        types = [t for t in profile["acoes"] if t in second_look.TYPE_NAMES]
+        if "endereco_residencial" not in types:
+            types.append("endereco_residencial")
+        stats = {"rotulos_sem_tarja": 0, "acrescentadas": 0, "ja_cobertas": 0, "nao_localizadas": 0, "falhas": 0}
+        for page in sorted(self.template_pages):
+            words = self._page_words(page - 1)
+            if not words:
+                continue
+            covered = template_engine.covered_ids(words, self.global_redactions[page])
+            for label, ids in template_engine.inspect_labels(words, covered):
+                stats["rotulos_sem_tarja"] += 1
+                boxes = [[words[i]["box"]["x"], words[i]["box"]["y"], words[i]["box"]["w"], words[i]["box"]["h"]]
+                         for i in ids]
+                self.add_review(page, f"Inspeção do modelo: '{label}' tem valor sem tarja. Conferir.",
+                                self._relative_boxes(page, boxes))
+            if mode != "agente":
+                if page in self.template_skip_pages:
+                    self.add_review(page, "Modelo aplicado sem IA (zero token): dados fora dos campos do modelo "
+                                          "não foram procurados por IA. Conferir a página.")
+                continue
+            text = template_engine.masked_text(words, covered)
+            items, info = second_look.run_agent(text, types)
+            if items is None:
+                stats["falhas"] += 1
+                self.logger.error(f"[-] Inspeção (agente) falhou na pág {page}: {info.get('erro')}")
+                self.add_review(page, "Inspeção do modelo (agente) falhou nesta página. Revisar manualmente.")
+                continue
+            visible = [dict(w, text="█") if i in covered else w for i, w in enumerate(words)]  # só o que está sem tarja
+            self._add_agent_findings(page, words, visible, text, items, types, profile, stats, "Inspeção do modelo (agente)")
+        self.logger.info(f"[+] Inspeção do modelo ({mode}): {stats}")
+        if self.doc_template is not None:
+            self.doc_template["inspecao"] = dict(stats, modo=mode)
 
     def run_phase_3(self):
         """Fase 3: Mapeador Visual YOLO (02_DISCOVERY & CROPPING)"""
@@ -600,7 +751,7 @@ class SentryApp:
             native = self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else []
             words = native or (self.grounding_maps[i] if i < len(self.grounding_maps) else [])
             texts.append(" ".join(str(w.get("text", "")) for w in words))
-        self.address_redactor.run_discovery(self.image_paths, page_texts=texts)
+        self.address_redactor.run_discovery(self.image_paths, page_texts=texts, skip_pages=self.template_skip_pages)
         for page_num, reason in self.address_redactor.failed_pages.items():
             self.add_review(page_num, f"IA não analisou endereços ({reason[:120]}). Revisar manualmente.")
         for page_num, reason in getattr(self.address_redactor, "review_notes", {}).items():
@@ -1077,6 +1228,8 @@ def cli(argv=None):
     """Executa o pipeline em lote. Código de saída: 0 = tudo concluído; 1 = erro/entrada vazia;
     3 = ao menos um documento 'Requer revisão' (revisão humana obrigatória)."""
     args = build_arg_parser().parse_args(argv)
+    from utils import settings
+    settings.apply()  # mesma configuração do portal (tela Administração), salvo pelo .env/ambiente
     pdf_files = collect_pdfs(args.input)
     if not pdf_files:
         print(f"[ERRO] Nenhum PDF encontrado em: {args.input}", file=sys.stderr)

@@ -34,6 +34,9 @@ _ENV_TO_CLEAR = (
     "OCR_EXTRA_ENGINE", "NER_ENGINE", "ADDRESS_PROMPT", "MAX_PARALLEL_TASKS",
     "MAX_PAGE_MEGAPIXELS", "SECOND_LOOK", "SECOND_LOOK_SCOPE", "SECOND_LOOK_MODEL", "SECOND_LOOK_BASE_URL",
     "SECOND_LOOK_API_KEY", "SECOND_LOOK_TIMEOUT", "SECOND_LOOK_MAX_TURNS",
+    "AI_ALLOW_EXTERNAL", "POLICY_PROFILE", "TESSERACT_LANG", "PORTAL_ENABLED", "ADMIN_ENABLED",
+    "PRIVIO_SETTINGS_FILE", "DOC_TEMPLATES", "DOC_TEMPLATE_INSPECTION", "PRIVIO_DOC_TEMPLATES_DIR",
+    "AI_LIMIT_ACTION", "AI_LIMIT_RETRY_MINUTES", "AI_LIMIT_MAX_RETRIES", "AI_REQUESTS_PER_MINUTE",
 )
 
 
@@ -53,6 +56,11 @@ def isolated_environment(request, tmp_path, monkeypatch):
     # O decisor local guarda uma instância por processo: cada teste parte do zero (desligado por padrão)
     from utils.decisions import reset_engine
     reset_engine()
+    from utils import ratelimit
+    ratelimit.clear()  # limite de uso visto por um teste não deixa o documento de outro pendente
+    ratelimit.allow_pending(False)
+    ratelimit.lock = __import__("threading").Lock()
+    ratelimit._slots.clear()
     (tmp_path / "state").mkdir(exist_ok=True)
     monkeypatch.setenv("PRIVIO_TASKS_FILE", str(tmp_path / "state" / "tasks.json"))
     monkeypatch.setenv("PRIVIO_INPUT_DIR", str(tmp_path / "state" / "in"))
@@ -62,8 +70,16 @@ def isolated_environment(request, tmp_path, monkeypatch):
     monkeypatch.setenv("TESSERACT_SPARSE_PSM", "")
     # Estado do disjuntor da IA (utils/ai_client.py) por teste: nunca compartilhado com outro teste nem com o app
     monkeypatch.setenv("PRIVIO_RUNTIME_DIR", str(tmp_path / "state" / "runtime"))
+    # Configuração da tela Admin: arquivo temporário (nunca o privio_settings.json real)
+    monkeypatch.setenv("PRIVIO_SETTINGS_FILE", str(tmp_path / "state" / "privio_settings.json"))
+    # Modelos de documento: pasta temporária (nunca a modelos_documento/ real)
+    monkeypatch.setenv("PRIVIO_DOC_TEMPLATES_DIR", str(tmp_path / "state" / "modelos_documento"))
     monkeypatch.chdir(tmp_path)
     yield
+    # O que um teste salvou pelo Admin foi escrito direto no ambiente: volta ao original
+    from utils import settings
+    monkeypatch.setenv("PRIVIO_SETTINGS_FILE", str(tmp_path / "state" / "nenhum.json"))
+    settings.apply()
 
 
 @pytest.fixture(scope="session")

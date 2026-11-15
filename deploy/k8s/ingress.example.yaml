@@ -1,0 +1,26 @@
+# Exemplo (fora do kustomization): acesso pela rede com HTTPS. Sem TLS e sem API_TOKEN, quem alcançar o endereço lê
+# os documentos. Ajuste o host, a classe e o certificado; acrescente o host em ALLOWED_HOSTS se não usar token.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: privio-sentry
+  namespace: privio-sentry
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"   # MAX_UPLOAD_MB
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: ["sentry.exemplo.intranet"]
+      secretName: privio-sentry-tls
+  rules:
+    - host: sentry.exemplo.intranet
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: privio-sentry
+                port:
+                  name: http

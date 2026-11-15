@@ -36,3 +36,6 @@ learning
 *.jsonl
 features_cache.json
 state
+privio_settings.json
+modelos_documento/
+deploy/k8s/secrets.env

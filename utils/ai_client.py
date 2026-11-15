@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Cliente de IA LOCAL com qualquer servidor: Ollama ou compatível com a API da OpenAI (LM Studio, vLLM, llama.cpp,
+"""Cliente de IA com qualquer servidor pela API: Ollama ou compatível com a API da OpenAI (LM Studio, vLLM, llama.cpp,
 LocalAI, servidor de IA da organização), com IA reserva, disjuntor e verificação cruzada.
 
 Configuração (docs/configuration.md):
@@ -14,6 +14,8 @@ Configuração (docs/configuration.md):
     AI_BREAKER_COOLDOWN    segundos desligado antes de testar de novo (padrão 120)
     AI_RESET_EVERY         a cada N chamadas, pede ao servidor para descarregar o modelo (0 = nunca; só Ollama)
     AI_CROSS_CHECK=1       a reserva também analisa cada página e os resultados se somam (utils/address_redactor.py)
+    AI_ALLOW_EXTERNAL=1    libera servidor FORA da rede local (provedor na nuvem por chave de API); sem isso a chamada
+                           é bloqueada e a página vai para revisão (utils/egress.py)
 
 Disjuntor: cada tentativa que falha (sem conexão, tempo esgotado, erro 5xx, resposta sem JSON) conta; com
 AI_BREAKER_FAILURES falhas seguidas o servidor fica desligado por AI_BREAKER_COOLDOWN segundos (as chamadas nem
@@ -34,6 +36,8 @@ from io import BytesIO
 
 import requests
 from PIL import Image
+
+from utils import egress, ratelimit
 
 # Trava global: um modelo local por vez (o app troca por um multiprocessing.Lock compartilhado entre tarefas)
 ollama_lock = threading.Lock()
@@ -187,7 +191,8 @@ class Backend:
     def describe(self):
         """Sem a chave."""
         return {"papel": self.role, "tipo": self.kind, "endereco": self.base_url, "modelo_texto": self.model,
-                "modelo_visao": self.vision_model, "com_chave": bool(self.api_key)}
+                "modelo_visao": self.vision_model, "com_chave": bool(self.api_key),
+                "externo": egress.is_external(self.base_url)}
 
     def reset(self):
         """Pede ao servidor, pela API, para descarregar o modelo (quando suportado). Nunca levanta exceção."""
@@ -228,6 +233,8 @@ class OllamaBackend(Backend):
         return data, metrics, raw_text, False
 
     def reset(self):
+        if egress.is_external(self.base_url):
+            return
         for model in {self.model, self.vision_model}:
             try:
                 requests.post(self.base_url + "/api/generate", json={"model": model, "keep_alive": 0}, timeout=15)
@@ -260,12 +267,22 @@ class OpenAICompatBackend(Backend):
                    "max_tokens": int(os.getenv("AI_MAX_TOKENS", "4096")),
                    "messages": [{"role": "system", "content": system},
                                 {"role": "user", "content": content if image_b64 else prompt}]}
-        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         t0 = time.time()
-        response = requests.post(self.base_url + "/chat/completions", json=payload, headers=headers, timeout=timeout)
+        response = requests.post(self.base_url + "/chat/completions", json=payload, headers=self._headers(),
+                                 timeout=timeout)
+        if response.status_code == 400 and re.search(r"max_completion_tokens|temperature", response.text or ""):
+            # modelos de raciocínio da OpenAI recusam max_tokens/temperature: repete uma vez no formato novo
+            payload["max_completion_tokens"] = payload.pop("max_tokens")
+            payload.pop("temperature", None)
+            response = requests.post(self.base_url + "/chat/completions", json=payload, headers=self._headers(),
+                                     timeout=timeout)
         _raise_for_server_error(response)
         if response.status_code in (401, 403):
             raise RuntimeError(f"HTTP {response.status_code}: servidor de IA recusou a chave (AI_API_KEY)")
+        if response.status_code == 429:  # limite de uso do provedor: _run espera (curto) ou desiste (cota esgotada)
+            raise ratelimit.RateLimited(*ratelimit.parse(response))
+        if response.status_code >= 400:
+            raise RuntimeError(f"HTTP {response.status_code} do servidor de IA")
         raw_text = response.text
         data = clean_json_response(raw_text)
         usage = data.get("usage") or {} if isinstance(data, dict) else {}
@@ -280,7 +297,12 @@ class OpenAICompatBackend(Backend):
         return data, metrics, raw_text, False
 
     def _headers(self):
-        return {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        if not self.api_key:
+            return {}
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        if egress.host_of(self.base_url).endswith("anthropic.com"):  # a lista de modelos da Anthropic exige estes
+            headers.update({"x-api-key": self.api_key, "anthropic-version": "2023-06-01"})
+        return headers
 
     def probe(self, vision=True, timeout=10):
         """GET {base}/models: padrão da API da OpenAI, presente em LM Studio, vLLM, llama.cpp e afins."""
@@ -294,12 +316,15 @@ class OpenAICompatBackend(Backend):
         except Exception as e:
             return False, f"{type(e).__name__}: {str(e)[:120]}"
         model = self.vision_model if vision else self.model
-        if ids and model not in ids:
+        # provedores na nuvem aceitam apelidos que não aparecem na lista: lá só a conexão e a chave são testadas
+        if ids and model not in ids and not egress.is_external(self.base_url):
             return False, f"modelo '{model}' não existe no servidor"
         return True, "ok"
 
     def reset(self):
         """Descarrega pela API REST do LM Studio (/api/v1/models/unload), quando existir; outros servidores: nada."""
+        if egress.is_external(self.base_url):
+            return
         root = re.sub(r"/v1/?$", "", self.base_url)
         try:
             r = requests.get(root + "/api/v1/models", headers=self._headers(), timeout=10)
@@ -374,22 +399,38 @@ class AIClient:
         """Até 3 tentativas num servidor, respeitando o disjuntor. Devolve (resultado, img_bytes, métricas)."""
         key = backend.key(vision)
         last_error = None
+        try:
+            external = egress.check(backend.base_url, f"Servidor de IA '{backend.role}'")
+        except egress.ExternalBlocked as e:  # nada sai; a página vai para revisão (falha fechado)
+            return {"error": str(e), "_backend_failed": backend.role, "egress_blocked": True}, None, {}
         if self.breaker.half_open(key):
             ok, why = backend.probe(vision)
             if not ok:
                 self.breaker.failure(key, f"teste de saúde: {why}")
                 return {"error": f"IA '{backend.role}' continua fora do ar ({why})", "breaker_open": True}, None, {}
         for attempt in range(3):
+            if ratelimit.should_pend():  # o documento vai ficar pendente e ser refeito: não gasta mais pedidos
+                return {"error": "limite de uso do provedor de IA: documento pendente", "rate_limited": True,
+                        "_backend_failed": backend.role}, None, {}
             if not self.breaker.allow(key):
                 st = self.breaker.state(key)
                 return {"error": f"IA '{backend.role}' desligada pelo disjuntor (falhas seguidas: "
                                  f"{st.get('last_error', '')[:120]})", "breaker_open": True}, None, {}
             try:
+                if external:
+                    egress.record(backend.base_url)
+                ratelimit.pace(backend.base_url)
                 with ollama_lock:
                     out = attempt_fn(backend, attempt)
                 self.breaker.success(key)
                 self._maybe_reset(backend)
                 return out
+            except ratelimit.RateLimited as e:  # limite de uso não é servidor fora do ar: não conta no disjuntor
+                last_error = str(e)
+                if e.long or attempt == 2:
+                    return {"error": f"{fail_message}: {last_error}", "_backend_failed": backend.role,
+                            "rate_limited": True}, None, {}
+                time.sleep(e.wait)
             except Exception as e:
                 last_error = str(e)
                 if self.breaker.failure(key, e):
@@ -401,21 +442,26 @@ class AIClient:
         """Principal; se falhar (ou estiver desligada), a reserva. only="reserva" consulta só a reserva."""
         backends = [b for b in self.backends if only is None or b.role == only]
         result = ({"error": "nenhuma IA configurada"}, None, {})
+        limited = False
         for i, backend in enumerate(backends):
             result = self._run(backend, vision, attempt_fn, fail_message)
             response = result[0]
+            limited = limited or bool(isinstance(response, dict) and response.get("rate_limited"))
             if not (isinstance(response, dict) and "error" in response):
                 if i > 0 and isinstance(response, dict):
                     response.setdefault("_backend", backend.role)  # o pipeline registra que a reserva respondeu
                 return result
             if isinstance(response, dict) and response.get("model_output_invalid") and i + 1 < len(backends):
                 continue  # resposta da principal sem formato: a reserva confere (vigia)
+        if limited:  # nem a reserva respondeu: limite longo (página para revisão, ou documento pendente)
+            ratelimit.note()
         return result
 
-    def analyze_text(self, prompt, system_prompt=SYSTEM_TEXT, only=None):
+    def analyze_text(self, prompt, system_prompt=SYSTEM_TEXT, only=None, vision_model=False):
+        """vision_model=True: usa o modelo de VISÃO (o configurado de fato; o de texto, OLLAMA_MODEL, é legado)."""
         def attempt(backend, _n):
-            content, metrics, raw, is_chat = backend.chat(system_prompt, prompt, None, backend.timeout(False),
-                                                          vision=False)
+            content, metrics, raw, is_chat = backend.chat(system_prompt, prompt, None, backend.timeout(vision_model),
+                                                          vision=vision_model)
             if not is_chat:
                 if not isinstance(content, dict) or "error" in content:
                     raise RuntimeError(f"resposta inesperada do servidor: {str(raw)[:120]}")
@@ -425,7 +471,7 @@ class AIClient:
                 parsed["model_output_invalid"] = True
             return parsed, metrics
 
-        result = self._call(False, lambda b, n: attempt(b, n), "Falha após 3 tentativas", only)
+        result = self._call(vision_model, lambda b, n: attempt(b, n), "Falha após 3 tentativas", only)
         if len(result) == 3 and result[1] is None and isinstance(result[0], dict) and "error" in result[0]:
             return result[0], result[2]
         return result
@@ -458,6 +504,22 @@ class AIClient:
             return parsed, img_bytes, metrics
 
         return self._call(True, attempt, "Falha crítica na API em 3 tentativas", only)
+
+
+def list_models(backend, timeout=15):
+    """(True, [nomes]) dos modelos que o servidor oferece, ou (False, motivo). Só os nomes, nunca o corpo."""
+    try:
+        if backend.kind == "ollama":
+            r = requests.get(backend.base_url + "/api/tags", timeout=timeout)
+            items, field = (r.json().get("models") if r.status_code == 200 else None), "name"
+        else:
+            r = requests.get(backend.base_url + "/models", headers=backend._headers(), timeout=timeout)
+            items, field = (r.json().get("data") if r.status_code == 200 else None), "id"
+    except Exception as e:
+        return False, f"{type(e).__name__}: {str(e)[:120]}"
+    if items is None:
+        return False, f"HTTP {r.status_code}"
+    return True, sorted({str(m.get(field))[:120] for m in items if isinstance(m, dict) and m.get(field)})[:300]
 
 
 def backend_fingerprint():

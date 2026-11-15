@@ -82,3 +82,12 @@ INFORMATION_BASE/
 
 # Automelhoramento do decisor local: exemplos rotulados e perfis (contêm texto de endereços)
 learning/
+
+# Configuração salva pela tela Admin (pode conter chaves de API)
+privio_settings.json
+
+# Modelos de documento feitos a partir de documentos reais (podem conter texto deles)
+modelos_documento/
+
+# Segredos do Kubernetes (deploy/k8s/secrets.env.example é o modelo)
+deploy/k8s/secrets.env

@@ -12,7 +12,7 @@
 
 > The Portuguese README is the primary one; this English version is kept in sync. Most technical documents under [docs/](docs/) are written in Portuguese (Brazil).
 
-PRIVIO SENTRY is a local-first project for detecting and protecting personal, sensitive and confidential information in documents. Its first and only released capability, **SENTRY Redact**, is a pipeline that finds **CPF numbers** and **personal (residential) addresses** in PDF files and prepares redactions for a person to review. OCR, detection and the language/vision models run on your machine; the application does not send document content to third-party clouds.
+PRIVIO SENTRY is a local-first project for detecting and protecting personal, sensitive and confidential information in documents. Its first and only released capability, **SENTRY Redact**, is a pipeline that finds **CPF numbers** and **personal (residential) addresses** in PDF files and prepares redactions for a person to review. OCR, detection and the language/vision models run on your machine by default. Document content goes to a third-party AI provider only if an administrator explicitly allows it (`AI_ALLOW_EXTERNAL=1`, off by default).
 
 > A **personal, independent** project by Joberth Firmino Gambati ([@Yiuky](https://github.com/Yiuky)): it is not an official product of any institution and does not speak for one.
 
@@ -112,6 +112,22 @@ docker compose up --build        # app on http://127.0.0.1:8001 ; Ollama must ru
 See the licensing caveat about distributing images in [docs/licensing.md](docs/licensing.md).
 
 ## Configuration
+
+The easiest way is the **Administration** screen (`/admin`, button in the editor sidebar): AI servers (local or a
+cloud provider by API key, with a connection test), detection, OCR, queue and retention. A cloud provider is
+**blocked by default**; once allowed, page images and text go to it, each task records where, and the badge
+changes to **EXTERNAL AI**. What the provider does with that data depends on your organization's contract.
+
+**Document templates** ([docs/modelos-documento.md](docs/modelos-documento.md)): documents with a known layout
+(licenses, forms) are recognized by fixed phrases and redacted by their labels with **no AI (zero tokens)**; an
+inspection afterwards (rules, plus an agent reading the already-redacted text) looks for anything left out.
+Templates are created in the template manager from a reviewed document, optionally with AI help on masked text.
+**Modular deployment** ([docs/deploy.md](docs/deploy.md)): the app, AI servers and data can live on separate
+machines or pods; Kubernetes manifests in `deploy/k8s` (network closed by default, single app replica).
+
+The same service is also an **API** ([docs/api.md](docs/api.md), `PORTAL_ENABLED=0` for API only) and ships a
+**local MCP server** for AI agents (`python sentry_mcp.py`, [docs/mcp.md](docs/mcp.md)). Agents upload and follow
+documents; only a human reviewer approves, and the PDF is released to them only after approval.
 
 Copy `.env.example` to `.env`. All variables are documented in [docs/configuration.md](docs/configuration.md). The most relevant ones: `TESSERACT_PATH`, `OLLAMA_API_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `YOLO_MODEL_PATH`, `BASE_DPI`, `APP_HOST`, `API_TOKEN`, `VERIFY_OCR`.
 

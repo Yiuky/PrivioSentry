@@ -20,10 +20,10 @@ leia o [AGENTS.md](AGENTS.md): invariantes, arquitetura e como rodar os testes.
 | Prioridade | Abertos | Foco |
 |---|---|---|
 | 🔴 P0 | 0 | Proteger o serviço local contra outros sites no mesmo navegador e o token de acesso |
-| 🟠 P1 | 13 | Falhar fechado em mais situações (OCR, respostas da IA, tarjas manuais, rotação) |
-| 🟡 P2 | 10 | Robustez dos processos, limites de recursos, Docker e editor |
+| 🟠 P1 | 12 | Falhar fechado em mais situações (OCR, respostas da IA, tarjas manuais, rotação) |
+| 🟡 P2 | 9 | Robustez dos processos, limites de recursos, Docker e editor |
 | 🔵 P3 | 5 | Limpeza de código, lint e marca |
-| 🧠 Roteiro | 16 | Detecção configurável (nomes, telefones, RG...), GLiNER, decisor Laya que aprende, IAs de OCR e agentes (B-71 a B-87) |
+| 🧠 Roteiro | 21 | Detecção configurável (nomes, telefones, RG...), GLiNER, decisor Laya que aprende, IAs de OCR, agentes e perfis de acesso (B-71 a B-92) |
 | 🔭 Visão | 5 | Auditoria, políticas e novos módulos SENTRY |
 
 ---
@@ -52,7 +52,7 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 
 | ID | Prioridade | Item | Depende de |
 |---|---|---|---|
-| B-71 | P1 | **Política configurável — partes 1 e 2 concluídas:** catálogo com enquadramento legal, 5 perfis, rótulo do tipo em cada tarja, resumo por documento, API `/policy/*` e (não publicado) **perfil, nomes e baixa qualidade escolhidos por documento na interface**. **Falta:** tela de configurações (servidores de IA, padrões, fila) e registrar a política aplicada num relatório exportável | — |
+| B-71 | P1 | **Política configurável — partes 1 e 2 concluídas:** catálogo com enquadramento legal, 5 perfis, rótulo do tipo em cada tarja, resumo por documento, API `/policy/*` e (não publicado) **perfil, nomes e baixa qualidade escolhidos por documento na interface**. (não publicado) **tela Administração** (servidores de IA locais ou na nuvem, padrões, fila, retenção; `tests/test_admin_api.py`, `tests/ui/test_ui_admin.py`). **Falta:** registrar a política aplicada num relatório exportável | — |
 | B-72 | P1 | **Concluído (5.4.0):** RG, CNH, título de eleitor, PIS/NIS, CNS, passaporte, CTPS, telefone, e-mail, IP, cartão (Luhn), conta bancária, chave Pix, data de nascimento e placa, com dígito verificador, formato ou contexto (`tests/test_detect.py`). Revocação e precisão por tipo medidas no corpus fictício, com e sem OCR (`benchmarks/pii_eval.py`, portão em `tests/test_pii_corpus_gate.py`). **Falta:** estender a verificação pós-tarja a esses tipos | B-71 |
 | B-73 | P1 | **Nomes com GLiNER — parte 1 concluída (não publicado):** nome de pessoa e filiação com modelo local opcional (`NER_ENGINE=gliner`, commit fixado), confiança alta → tarja sugerida, média → revisão, falha → revisão. **Falta:** rótulos livres escritos pelo usuário ("número de processo"), medir nomes no corpus (com nomes de servidores e de lugares como iscas) e ligar/desligar na interface | B-71 |
 | B-74 | P2 | **Exceções decididas pelo Laya**: "nome a proteger" × "servidor/signatário público" (LAI), com perguntas próprias, treino e portão | B-73, B-70 |
@@ -66,6 +66,10 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 | B-84 | P2 | **Retorno por detector só existe depois de "Aplicar proteção":** nenhum dos 7 documentos testados foi finalizado, então nada foi contado. Mostrar isso na interface e contar também as tarjas removidas/acrescentadas ao salvar no editor | B-82 |
 | B-85 | P2 | **Segunda leitura por IA de OCR só onde o Tesseract tiver baixa confiança:** DeepSeek-OCR 2 e glm-ocr leram 100% no corpus até em imagem péssima e acharam o telefone/e-mail que o Tesseract perdeu, mas custam 5-17 s por página na GPU e o DeepSeek-OCR 2 **inventou 32 CPFs** numa página (não determinístico). Usar só como segunda opinião: valor lido pela IA precisa ser localizado nas palavras do OCR; senão, revisão | B-81 |
 | B-86 | P2 | **Segundo olhar — parte 1 concluída (não publicado):** agente pela API com ferramentas de leitura, só acrescenta, valor não localizado é descartado (`SECOND_LOOK=1`). **Falta:** ferramenta de reler a região com outro OCR/IA de visão e contagem do retorno do revisor sobre as tarjas que ele acrescenta | B-85 |
+| B-89 | P2 | **Perfis de acesso:** separar quem revisa de quem administra (hoje um único `API_TOKEN` dá acesso total, inclusive à Administração e ao destino da IA) | B-88 |
+| B-90 | P2 | **Chave de API cifrada no disco** (DPAPI no Windows, keyring no Linux) em vez de texto no `privio_settings.json` | B-88 |
+| B-91 | P2 | **Várias réplicas do app:** fila e estado externos (tarefas, sessões, trava da IA) e workers como pods próprios; hoje o app roda com 1 réplica | B-92 |
+| B-92 | P3 | **Modelos de documento para digitalizados:** comparação aproximada das frases no OCR (hoje exata depois de normalizar) e medir num conjunto fictício de formulários escaneados | — |
 | B-87 | P3 | **Agendar o uso da GPU entre servidores de IA:** dois servidores com modelos grandes não cabem juntos em 11 GB (medido: verificador de 35B ficou lento e deu HTTP 500); descarregar pela API antes de trocar de servidor | — |
 | B-82 | P2 | **Painel do retorno por detector na interface** (precisão observada por tipo e sugestões, só contagens), junto do painel de aprendizado | B-77 |
 | B-79 | P3 | **Instalação offline e mais rápida**: modelo em pasta local / `HF_HUB_OFFLINE`, versão ONNX na CPU (`laya.onnx_agent`), cache compartilhado | B-70 |
@@ -99,12 +103,11 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 | B-53 | **Detectar a morte do worker e permitir cancelar tarefas.** Worker morto (OOM, *kill*) deixa a tarefa parada para sempre; não há rota de cancelamento nem encerramento dos workers no desligamento. Direção: monitorar `exitcode`, `POST /cancel/{id}` e *lifespan* | `app_service.py:96-105`, `app_service.py:205-264` |
 | B-54 | **Limitar recursos por documento e fechar *handles*.** `Image.MAX_IMAGE_PIXELS = None` desliga a proteção contra bombas de descompressão; não há limite de páginas nem de pixels; documentos `fitz` e *FileHandlers* da CLI não são fechados em exceção | `utils/session.py:12`, `utils/transform_pdf_to_img.py:21-61`, `main.py:647-662` |
 | B-55 | **Tirar o I/O bloqueante do upload do *event loop* e fazer o proxy repassar o corpo em *streaming*.** Uploads grandes bloqueiam o loop (inclusive o `/internal/update` dos workers) e falham pelo gatekeeper (corpo inteiro em memória, *timeout* de 30 s) | `app_service.py:302-329`, `gatekeeper.py:210-222` |
-| B-56 | **Corrigir o `HEALTHCHECK` do Docker e fixar a versão do torch.** O *healthcheck* acessa `/`, que devolve 401 com `API_TOKEN`; `torch`/`torchvision` sem versão fixa. Direção: rota `/healthz` sem token, versões fixas e *build* da imagem no CI | `Dockerfile:24`, `Dockerfile:40-41` |
+| B-56 | **Fixar a versão do torch no Docker e fazer o *build* da imagem no CI.** (Não publicado: o `HEALTHCHECK` já usa `/healthz`, sem token.) `torch`/`torchvision` continuam sem versão fixa | `Dockerfile:24`, `Dockerfile:40-41` |
 | B-57 | **Editor: desfazer, exclusão segura, teclado/toque e aviso de edições não salvas.** O "×" apaga a tarja sem confirmação nem desfazer (risco de tarja a menos); desenhar/mover só com mouse; sem `beforeunload`. Direção: Ctrl+Z, Del com foco, *pointer events*, *autosave* ou aviso | `templates/index.html:902-1006` |
 | B-64 | **"Recarregar sugestões da IA" também apaga as edições salvas** (`manual_redactions.json`), não só as não salvas como diz a confirmação. Direção: ajustar o texto ou arquivar a versão anterior | `templates/index.html`, `app_service.py` |
 | B-65 | **Expor na interface a remoção das imagens originais** (`POST /purge/{id}`), hoje só pela API | `app_service.py:420-429` |
 | B-10 | Tarja nativa: remover ou sinalizar metadados, anexos, anotações, campos de formulário e camadas ocultas que sobrevivem à tarja | [docs/limitations.md](docs/limitations.md) (Saída) |
-| B-11 | Aviso na interface quando `OLLAMA_API_URL` não aponta para `localhost` | [docs/limitations.md](docs/limitations.md) (Plataforma) |
 | B-59 | Publicar a imagem Docker (GHCR) na Release, respeitando a ressalva de licenciamento | [docs/licensing.md](docs/licensing.md), `.github/workflows/release.yml` |
 
 ## 🔵 P3 · Refatoração e manutenção
@@ -133,6 +136,9 @@ Arquitetura: `detectar (regras + GLiNER + LLM) → decidir (Laya) → revisão �
 
 | ID | Item | Versão | Teste |
 |---|---|---|---|
+| B-11 | Servidor de IA fora desta rede bloqueado sem `AI_ALLOW_EXTERNAL=1` (página vai para revisão); liberado, selo **EXTERNAL AI**, aviso na Administração e destinos registrados por tarefa | não publicado | `tests/test_egress.py`, `tests/ui/test_ui_admin.py` |
+| B-88 | Administração na interface, API documentada (`GET /tasks/{id}`, `/api/info`, `/healthz`, `?final=true`, modo só-API) e servidor MCP local para agentes, sem aprovação pelo agente | não publicado | `tests/test_admin_api.py`, `tests/test_mcp_server.py` |
+| B-93 | **Modelos de documento:** reconhecimento por frases fixas, tarja por rótulo sem IA, IA de visão dispensada por página só com modelo aprovado, inspeção depois (regras + agente sobre texto já tarjado), gerenciador com rascunho a partir de documento revisado (IA opcional sobre texto mascarado), teste, aprovação, importar/exportar; implantação modular (compose com Ollama, Kubernetes) | não publicado | `tests/test_doc_templates*.py`, `tests/test_deploy.py`, `tests/ui/test_ui_doc_templates.py` |
 | B-12 | Desempenho: `BASE_DPI` 300 (medido: melhor revocação e mais rápido), OCR das páginas em paralelo nas duas passadas e na verificação, pré-carga do Laya, PNG leve. Documento real de 10 páginas: ~14 min → ~3 min | 5.4.0 | `tests/test_performance.py`, `docs/benchmarks.md` |
 | B-67 | Regiões a revisar desenhadas na página (alerta com posição) e documento aberto que se atualiza ao terminar o processamento | 5.4.0 | `tests/test_review_marks.py`, `tests/ui/test_ui_review_marks.py` |
 | B-41 | Token na URL só abre a sessão (redireciona sem o token); cookie de sessão aleatório (`HttpOnly`, `SameSite=Strict`, `Secure` com HTTPS) no lugar do token cru; `token=` mascarado nos registros (`utils/auth.py`) | 5.3.0 | `tests/test_auth.py`, `tests/test_service_endpoints.py` |

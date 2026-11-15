@@ -22,7 +22,11 @@ import os
 import re
 import unicodedata
 
+import time
+
 import requests
+
+from utils import egress, ratelimit
 
 logger = logging.getLogger("second_look")
 
@@ -34,10 +38,13 @@ TYPE_NAMES = {
     "data_nascimento": ["data de nascimento", "data_nascimento", "nascimento"],
     "placa_veiculo": ["placa", "placa de veículo", "placa_veiculo"],
     "nome_pessoa": ["nome", "nome de pessoa", "nome_pessoa", "pessoa"], "filiacao": ["filiação", "filiacao", "mãe", "pai"],
+    # só na inspeção dos modelos de documento (o segundo olhar comum deixa endereço para a fase de visão)
+    "endereco_residencial": ["endereço", "endereco", "endereço residencial", "endereco_residencial", "residência"],
 }
 LABEL = {"cpf": "CPF", "rg": "RG", "cnh": "CNH", "cns": "CNS (cartão SUS)", "pis_nis": "PIS/NIS",
          "telefone": "telefone", "email": "e-mail", "data_nascimento": "data de nascimento",
-         "placa_veiculo": "placa de veículo", "nome_pessoa": "nome de pessoa", "filiacao": "filiação (nome da mãe/pai)"}
+         "placa_veiculo": "placa de veículo", "nome_pessoa": "nome de pessoa", "filiacao": "filiação (nome da mãe/pai)",
+         "endereco_residencial": "endereço residencial de pessoa"}
 
 SYSTEM = ("Você revisa páginas de documentos lidas por OCR. Use a ferramenta ler_pagina para ler a página (e buscar, se "
           "precisar). Copie os valores EXATAMENTE como aparecem no texto. Não invente. Responda só com o JSON pedido.")
@@ -76,11 +83,31 @@ def _endpoint():
     return base.rstrip("/") + "/chat/completions"
 
 
+def model():
+    """SECOND_LOOK_MODEL; sem ele, o modelo da IA principal (mesmo servidor), e só então o padrão antigo."""
+    if os.getenv("SECOND_LOOK_MODEL"):
+        return os.getenv("SECOND_LOOK_MODEL")
+    if not os.getenv("SECOND_LOOK_BASE_URL"):
+        main = os.getenv("AI_VISION_MODEL") or os.getenv("OLLAMA_VISION_MODEL")
+        if main:
+            return main
+    return "gemma4:e4b"
+
+
 def _task(types):
-    names = ", ".join(LABEL[t] for t in types if t in LABEL)
+    # Medido com um provedor na nuvem (benchmarks/provider_check.py): mostrar só "cpf" como exemplo de tipo fazia o
+    # modelo devolver o nome por extenso ou nada para endereço no texto corrido; com os identificadores, o texto
+    # corrido pedido e o "█ já protegido", acertou em todas as repetições.
+    names = "; ".join(f"{t} ({LABEL[t]})" for t in types if t in LABEL)
     return ("Leia a página com a ferramenta ler_pagina e liste TODOS os dados pessoais destes tipos: " + names + ". "
-            "Copie cada valor EXATAMENTE como aparece no texto. Não invente. Responda APENAS com JSON no formato "
-            '{"achados": [{"tipo": "cpf", "texto": "..."}]}')
+            "Procure também no texto corrido, não só em campos com rótulo. Trechos com █ já estão protegidos: "
+            "ignore-os. Copie cada valor EXATAMENTE como aparece no texto. Não invente. Responda APENAS com JSON "
+            'no formato {"achados": [{"tipo": "<um dos tipos acima>", "texto": "..."}]}; sem achados: {"achados": []}')
+
+
+def _retry_wait(response):
+    """Segundos pedidos pelo provedor num 429 (cabeçalho Retry-After ou "retryDelay": "33s" do Gemini), até 60."""
+    return ratelimit.parse(response)[0]
 
 
 def _run_tool(name, args, lines):
@@ -99,17 +126,39 @@ def run_agent(page_text, types, post=None):
     """Ciclo curto de agente. Devolve (itens [(tipo, texto)] ou None, info {passos, tokens, erro})."""
     post = post or requests.post
     lines = page_text.splitlines() or [page_text]
-    model = os.getenv("SECOND_LOOK_MODEL", "gemma4:e4b")
-    headers = {"Authorization": f"Bearer {os.getenv('SECOND_LOOK_API_KEY')}"} if os.getenv("SECOND_LOOK_API_KEY") else {}
+    model_name = model()
+    # sem servidor próprio, o segundo olhar usa o servidor principal e a chave dele
+    key = os.getenv("SECOND_LOOK_API_KEY") or ("" if os.getenv("SECOND_LOOK_BASE_URL") else os.getenv("AI_API_KEY", ""))
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
     timeout = float(os.getenv("SECOND_LOOK_TIMEOUT", "120") or 120)
     max_turns = int(os.getenv("SECOND_LOOK_MAX_TURNS", "6") or 6)
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": _task(types)}]
     info = {"passos": 0, "tokens": 0, "erro": None}
+    if ratelimit.should_pend():  # o documento vai ficar pendente e ser refeito: não gasta mais pedidos
+        info["erro"] = "limite de uso do provedor de IA: documento pendente"
+        return None, info
+    try:  # o texto da página só sai da rede local com AI_ALLOW_EXTERNAL=1 (utils/egress.py)
+        external = egress.check(_endpoint(), "Segundo olhar: servidor")
+    except egress.ExternalBlocked as e:
+        info["erro"] = str(e)
+        return None, info
+    if external:
+        egress.record(_endpoint())
     for _ in range(max_turns):
         info["passos"] += 1
         try:
-            r = post(_endpoint(), headers=headers, timeout=timeout,
-                     json={"model": model, "messages": messages, "tools": TOOLS, "temperature": 0, "stream": False})
+            payload = {"model": model_name, "messages": messages, "tools": TOOLS, "temperature": 0, "stream": False}
+            ratelimit.pace(_endpoint())
+            r = post(_endpoint(), headers=headers, timeout=timeout, json=payload)
+            for _ in range(2):  # limite por minuto: espera o que o provedor pede e tenta de novo
+                wait, long = ratelimit.parse(r) if r.status_code == 429 else (0, True)
+                if long:  # sem 429, ou cota esgotada (esperar aqui não adianta)
+                    break
+                time.sleep(wait)
+                r = post(_endpoint(), headers=headers, timeout=timeout, json=payload)
+            if r.status_code == 429:
+                ratelimit.note()
+                raise RuntimeError("HTTP 429: limite de uso do provedor de IA")
             if r.status_code >= 400:
                 raise RuntimeError(f"HTTP {r.status_code}: {str(r.text)[:120]}")
             data = r.json()
@@ -148,7 +197,8 @@ def run_agent(page_text, types, post=None):
 def type_id_for(label):
     key = _strip(label).strip()
     for type_id, names in TYPE_NAMES.items():
-        if key == type_id or key in (_strip(n) for n in names):
+        # o modelo costuma devolver o nome que o pedido mostrou ("endereço residencial de pessoa"): vale também
+        if key == type_id or key in (_strip(n) for n in names) or key == _strip(LABEL.get(type_id, "")):
             return type_id
     return None
 
@@ -208,6 +258,8 @@ def plausible(type_id, value, context=""):
         return all(re.search(r"[aeiouáéíóúâêôãõ]", t.lower()) and not re.search(r"(.)\1\1", t.lower()) for t in big)
     if type_id in ("rg", "cnh"):
         return 5 <= len(digits) <= 14
+    if type_id == "endereco_residencial":  # ao menos 3 partes ("Rua X, 10"): uma palavra solta não é endereço
+        return len([t for t in re.split(r"[\s,;]+", value.strip()) if t]) >= 3
     return True
 
 
