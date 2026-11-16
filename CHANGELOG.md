@@ -3,10 +3,12 @@
 Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as versões seguem o [SemVer](https://semver.org/lang/pt-BR/).
 
-## [Não publicado]
+## [5.7.0] - 2026-11-16
 
 Fácil de configurar e pronto para agentes: tela **Administração**, IA na nuvem por chave de API **só com
-liberação explícita**, o serviço também como **API** documentada e um **servidor MCP local**.
+liberação explícita**, o serviço também como **API** documentada e um **servidor MCP local**, modelos de documento
+e limite de uso do provedor de IA. Inclui uma varredura de bugs: os casos em que dado pessoal podia ficar visível
+num documento "Concluído" agora tarjam ou pedem revisão. Leia **Atenção ao atualizar** antes de trocar de versão.
 
 ### Adicionado
 - **Administração** (`/admin`, botão na barra lateral): IA principal e reserva com atalhos de provedor (Ollama, LM Studio, OpenAI, Anthropic, Gemini, OpenRouter, Mistral), teste de conexão (pedido curto, sem documento) e lista de modelos; detecção e política; OCR e verificação; fila, tamanho e retenção; guia de API e MCP. O salvo fica em `privio_settings.json` (`PRIVIO_SETTINGS_FILE`, fora do git e da imagem Docker), vale sobre o `.env` e "restaurar padrão" volta a ele. Chaves de API nunca voltam pela API. `API_TOKEN`, `APP_HOST`, `ALLOWED_HOSTS` e pastas continuam só no `.env`. `ADMIN_ENABLED=0` desliga a tela.

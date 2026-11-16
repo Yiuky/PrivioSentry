@@ -10,7 +10,7 @@ Browser ─► gatekeeper.py (:8000, optional) ──proxy──► app_service.
                                                          └─ multiprocessing.Process per task ─► main.SentryApp
                                                                   ├─ utils/ocr_engine.py     (Tesseract, word-level "grounding map")
                                                                   ├─ utils/yolo_engine.py    (signature detector, Ultralytics)
-                                                                  ├─ utils/ai_client.py      (Ollama /api/chat, vision + text)
+                                                                  ├─ utils/ai_client.py      (IA pela API: Ollama ou padrão OpenAI; reserva e disjuntor)
                                                                   ├─ utils/address_redactor.py (address discovery + matching)
                                                                   ├─ utils/session.py       (folders, logging, PDF reconstruction/native redaction)
                                                                   └─ utils/verifier.py      (post-redaction verification)
@@ -70,6 +70,8 @@ implantação modular: [deploy.md](deploy.md).
 * **Trava de saída** (`utils/egress.py`): toda chamada de IA (`AIClient._run` e o segundo olhar) passa por `egress.check`. Destino fora da rede local sem `AI_ALLOW_EXTERNAL=1` vira erro antes de sair (a página vai para revisão). Destinos externos efetivamente chamados vão para `ia_externa` no estado final da tarefa.
 * **API**: as mesmas rotas do portal, mais `GET /tasks/{id}`, `GET /api/info`, `GET /healthz` e `GET /download/{id}?final=true` (só o PDF aprovado: `finalizado` e sem `needs_review`). `PORTAL_ENABLED=0` desliga a interface. Guia: [api.md](api.md).
 * **MCP** (`sentry_mcp.py`): servidor stdio que usa a API; detalhes em [mcp.md](mcp.md).
+* **Limite de uso** (`utils/ratelimit.py`): limitador de pedidos por minuto por servidor, com estado em arquivo compartilhado entre os workers (`AI_REQUESTS_PER_MINUTE`); recusa por cota esgotada vira revisão ou, com `AI_LIMIT_ACTION=pendente`, tarefa **Pendente** refeita pela fila depois de `AI_LIMIT_RETRY_MINUTES`.
+* **Robustez da fila**: a trava da IA tem prazo (`AI_LOCK_TIMEOUT`), e o despachante marca como erro a tarefa cujo worker morreu sem avisar.
 
 ## API HTTP (app_service)
 
