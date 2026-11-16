@@ -93,3 +93,16 @@ def test_install_log_masking_is_idempotent_and_covers_propagated_records():
                                  "529 982 247 25", "52998224725", "529.982.247-25"])
 def test_unusual_cpf_separators_are_masked(raw):
     assert "529" not in mask_text(f"resposta: {raw} fim")
+
+
+@pytest.mark.parametrize("raw", ["529.982.247 - 25", "529.982.247–25", "529.982.247—25",
+                                 "529 . 982 . 247-25", "529_982_247_25", "5 2 9 9 8 2 2 4 7 2 5",
+                                 "5 2 9 . 9 8 2 . 2 4 7 - 2 5", "1 2 3 5 2 9 9 8 2 2 4 7 2 5"])
+def test_wider_cpf_separators_and_comb_boxes_are_masked(raw):
+    digits = "".join(ch for ch in mask_text(f"resposta: {raw} fim") if ch.isdigit())
+    assert "529982" not in digits
+
+
+def test_comb_box_digits_that_are_not_a_cpf_stay():
+    text = "caixas 1 2 3 4 5 6 7 8 9 0 1 e processo 7001840.2026"
+    assert mask_text(text) == text

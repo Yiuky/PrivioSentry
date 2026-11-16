@@ -40,6 +40,7 @@ NOT_PII = [
     "conforme a prestação de contas de 2024 aprovada em assembleia",
     "artigo 5º, incisos I e II, parágrafo único",
     "edital 001/2024, item 3.2.1",
+    "protocolo 12.2024-0001 arquivado",
 ]
 
 
@@ -59,6 +60,14 @@ SHOULD_FIND = [
     ("data_nascimento", "nascida em 03 de março de 1985"),
     ("conta_bancaria", "Ag. 1234-5 C/C 98765-4"),
     ("placa_veiculo", "veículo de placa ABC-1234"),
+    # varredura de bugs (cobertura caractere a caractere em tests/test_detect_regressions.py)
+    ("titulo_eleitor", "Título de eleitor 2022 1573 6819 0604"),
+    ("conta_bancaria", "Agência/Conta: 1234/98765-4"),
+    ("telefone", "Telefones: (65) 3321-1234 / 99876-5432"),
+    ("rg", "RG/CPF: 1234567 / 529.982.247-25"),
+    ("cartao_pagamento", "Cartão Amex: 3782 822463 10005"),
+    ("conta_bancaria", "— Conta: 98765-4 ﬁm"),
+    ("cns", "CNS: 190.0754.0091.7145"),
 ]
 
 

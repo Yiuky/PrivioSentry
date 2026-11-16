@@ -503,8 +503,10 @@ Use **Reprocessar** quando mudar a configuração (por exemplo, `BASE_DPI` ou o 
 corrigir uma falha. O pipeline completo roda de novo e os alertas são recalculados.
 
 > [!TIP]
-> Se você já tinha **salvo** caixas no editor, o editor continua mostrando esse rascunho mesmo após reprocessar.
-> Para ver as novas sugestões da IA, use **Recarregar sugestões da IA**.
+> Se você já tinha **salvo** caixas no editor, o rascunho continua valendo depois de reprocessar, e as
+> sugestões novas que não estavam nele são somadas a ele. Nesse caso o documento vai para **Requer revisão**:
+> confira, porque uma caixa que você tinha removido de propósito pode ter voltado. Para recomeçar só com as
+> sugestões da IA, use **Recarregar sugestões da IA**.
 
 ### 4.12 Administração
 

@@ -179,7 +179,8 @@ PROMPT = ("Abaixo está o texto de um documento-modelo. Trechos com dados pessoa
 def masked_document(pages_words, page_boxes):
     parts = []
     for page, words in enumerate(pages_words[:3], start=1):
-        covered = engine.covered_ids(words, page_boxes.get(page, []))
+        boxes = page_boxes.get(page, [])
+        covered = engine.covered_ids(words, boxes) | engine.touched_ids(words, boxes)
         parts.append(re.sub(r"\d", "#", engine.masked_text(words, covered)))
     return "\n\n".join(parts)[:12000]
 

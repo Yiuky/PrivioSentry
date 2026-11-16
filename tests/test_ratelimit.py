@@ -87,7 +87,7 @@ def test_limiter_still_limits_when_the_state_file_cannot_be_written(cloud, monke
 
 
 def test_worker_lock_shared_by_ai_and_limiter_does_not_deadlock(cloud, monkeypatch):
-    """No worker, ratelimit.lock e ai_client.ollama_lock são a MESMA trava (AI_LOCK), sem reentrada."""
+    """Mesmo que ratelimit.lock e ai_client.ollama_lock fossem a mesma trava (sem reentrada), nada fica preso."""
     import threading
     from utils import ai_client, second_look
     shared = threading.Lock()
@@ -337,7 +337,9 @@ def test_ceiling_runs_the_last_resume_without_pending(monkeypatch):
     mod.start_worker(tid)
     mod.tasks[tid]["pendente_tentativas"] = 2
     mod.start_worker(tid)
-    assert created == [{"no_pending": False}, {"no_pending": True}]
+    assert [{k: v for k, v in c.items() if k != "rate_lock"} for c in created] == [{"no_pending": False},
+                                                                                   {"no_pending": True}]
+    assert all(c["rate_lock"] is mod.RATE_LOCK and c["rate_lock"] is not mod.AI_LOCK for c in created)
 
 
 def test_worker_reports_pending_and_respects_the_ceiling(svc, monkeypatch):

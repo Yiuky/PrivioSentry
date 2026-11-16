@@ -25,8 +25,8 @@ from utils import egress
 MAX_WAIT = 60.0
 EXTERNAL_DEFAULT = 12  # pedidos por minuto num provedor externo sem valor configurado (abaixo dos 15 do Gemini grátis)
 _hit = []          # limites longos vistos NESTE processo (um processo por documento)
-# Trava da reserva de vez. No serviço, o worker troca pela trava entre processos (AI_LOCK), a mesma da IA.
-# Nunca chame pace() segurando ai_client.ollama_lock: no worker as duas são a mesma trava (sem reentrada).
+# Trava da reserva de vez. No serviço, o worker troca pela trava entre processos RATE_LOCK (app_service.py),
+# separada da trava da IA: reservar a vez não espera uma chamada longa de outro documento terminar.
 lock = threading.Lock()
 _slots = {}  # host -> próxima vez livre vista por ESTE processo (vale mesmo sem o arquivo compartilhado)
 _pending = [False]  # este processo pode deixar o documento pendente? (só o worker de uma tarefa do serviço)
@@ -124,7 +124,14 @@ def _write(data):
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f)
-        os.replace(tmp, path)
+        for attempt in range(5):  # no Windows, outro processo lendo o arquivo faz o replace falhar por instantes
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:
+                time.sleep(0.01 * (attempt + 1))
+        else:
+            os.remove(tmp)
     except OSError:
         pass  # sem disco para o estado: o limite continua neste processo (_slots), só deixa de ser compartilhado
 
@@ -139,7 +146,9 @@ def pace(url, sleep=time.sleep, clock=time.time):
     host = egress.host_of(url) or str(url)
     # shortcut: chamadas do próprio serviço (rascunho de modelo) usam uma trava local; colidir com um worker no
     # mesmo instante só gasta uma vaga a mais. Se pesar, passar o AI_LOCK também ao processo principal.
-    with lock:
+    # prazo na trava: se o dono morreu segurando, segue só com o limite deste processo (_slots)
+    got = lock.acquire(timeout=60)
+    try:
         now = clock()
         data = _read()
         slot = max(float(data.get(host) or 0), _slots.get(host, 0.0))
@@ -147,7 +156,10 @@ def pace(url, sleep=time.sleep, clock=time.time):
             slot = 0.0
         slot = max(now, slot)
         data[host] = _slots[host] = slot + interval
-        _write(data)
+        _write(data)  # gravação atômica; sem a trava (dono morto), no máximo duas reservas na mesma vaga
+    finally:
+        if got:
+            lock.release()
     wait = slot - now
     if wait > 0:
         sleep(wait)

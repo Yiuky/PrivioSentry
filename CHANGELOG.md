@@ -33,10 +33,46 @@ liberação explícita**, o serviço também como **API** documentada e um **ser
 - Na IA principal, recusa por limite de uso contava como falha no disjuntor: três seguidas desligavam o servidor por 120 s e as páginas seguintes iam direto para revisão. Agora não conta.
 - Cota esgotada (limite diário, conta sem crédito, sem indicação de espera) não é mais esperada à toa: a chamada desiste na hora.
 
+### Corrigido (varredura de bugs)
+Casos em que dado pessoal podia ficar visível com o documento "Concluído":
+- Tarja final em página girada (`/Rotate`) caía em outro lugar; agora fica onde o revisor desenhou (testado em 0, 90, 180 e 270 graus).
+- Valor de campo de formulário do PDF continuava extraível sob a tarja; o campo é removido.
+- Caixa do editor redimensionada para cima/esquerda (coordenadas invertidas) era ignorada; agora é normalizada no editor e no servidor. Tarja que não pode ser aplicada manda para revisão, e `/update-redactions` recusa coordenadas inválidas (422).
+- Busca de CPF (detecção e as duas verificações finais): CPF quebrado no fim da linha ("529.982.247-" / "25"), com letra no lugar de dígito pelo OCR (O/0, l/1, S/5, B/8) e CPF digitado com espaços ao lado de outro número (o filtro de CNPJ/CNS o descartava).
+- Endereço localizado só em parte (palavras de outra coluna ou campo no meio) agora pede revisão.
+- Auditoria de assinaturas aceitava resposta da IA fora do formato como "nenhum CPF visível"; agora tarja o recorte e pede revisão. CPF visto pela IA também pede revisão. Respostas da IA que não são objeto JSON contam como inválidas (a reserva confere).
+- Reprocessar com rascunho salvo no editor deixava as sugestões novas fora do PDF aprovado; agora elas entram no rascunho e o documento vai para revisão.
+- Nomes, segundo olhar e texto dos endereços liam só a camada de texto quando ela era rala (carimbo de assinatura digital numa digitalização); agora usam o OCR da página.
+- Com `VERIFY_OCR=0`, página com imagem e um pouco de texto passava sem verificação; agora fica "não verificada" (revisão).
+- Decisor local que devolve menos vereditos que endereços pede revisão.
+- Detecção por regra (`utils/detect`): um número rejeitado pelo dígito verificador "engolia" o valor verdadeiro que começava dentro dele (título de eleitor e cartão depois de um ano); conta bancária com agência, pontos ou dígito separado era tarjada pela metade e rótulos como "Conta-corrente" não eram reconhecidos; rótulo de telefone no plural ("Telefones:") e o segundo número de uma lista; RG em rótulo combinado ("RG/CPF:") ou com espaços; cartões Amex e Diners; CNS com pontos, PIS com " - ", placa com "l", passaporte em minúsculas, e-mail partido pelo OCR; contexto desalinhado por travessão ou ligadura antes do valor; detector de nomes cortando um nome que começa como cargo ("Senhorinha") ou termina com uma palavra de cargo. Revocação do corpus fictício continua 100% em todos os tipos.
+- Máscara de CPF nos logs e nos arquivos de pedido à IA: separador " - ", travessão, sublinhado e dígitos em caixinhas ("5 2 9 ...").
+- Decisor local: probabilidade inválida (NaN, fora de 0 a 1) agora pede revisão. Retorno do revisor reescala as caixas do editor para a largura da página antes de virar exemplo.
+- Modelos de documento: campo obrigatório com rótulo e sem valor contava como achado (e dispensava a IA de visão); um modelo genérico podia vencer um específico (agora, mais de um reconhecido = nenhum aplicado); outro rótulo sem dois-pontos dentro do valor cortava a tarja; campo restrito a página inexistente não era dado como faltando; palavra colada ao rótulo ia sem máscara para a IA.
+
+Segurança e robustez:
+- Servidor MCP: `task_id` só no formato UUID, antes de qualquer pedido ao serviço; o download confere que a resposta é um PDF; entrada malformada vira erro da ferramenta em vez de derrubar o servidor.
+- Trava de saída: o host conferido é o mesmo a que o cliente HTTP se conecta; pedidos com conteúdo não seguem redirecionamento. A Administração recusa URL com usuário/senha, espaço ou barra invertida, e usuário/senha numa URL nunca aparecem em `/health/ai`.
+- Trocar o servidor principal apaga também a chave do segundo olhar quando ele usa o mesmo servidor.
+- Com `API_TOKEN`, escritas vindas de outra origem do mesmo host (outra porta) são recusadas.
+- Administração aceitava fração em itens inteiros (`MAX_PARALLEL_TASKS=2.5`), o que impedia o serviço de subir; agora recusa, e um valor ruim já salvo cai no padrão.
+- Gatekeeper: `/api/info` chega ao app (o selo mostrava `LOCAL PROCESSING` com IA externa); prazo do repasse de 30 s para 300 s; clientes da API recebem erro 502/503 em vez de uma página HTML com 200.
+- Worker que morre sem avisar deixa a tarefa como erro (antes ficava "processando" para sempre); início de worker, fila e `/tasks` sob a mesma trava; reprocessar ou finalizar uma tarefa na fila dá 409 sem apagar o estado.
+- Trava da IA com prazo (`AI_LOCK_TIMEOUT`, padrão 3600 s): um worker morto não prende os outros; o limitador de pedidos tem trava própria.
+- Agente: resposta fora do formato falha só a página; um valor achado é tarjado em todas as ocorrências.
+- Nome de arquivo longo no Windows: o nome no disco fica curto (o mostrado continua inteiro). `doc_out_dir` não sai mais em `/tasks`.
+- Linha de comando: pega `.PDF` em maiúsculas.
+
 ### Atenção ao atualizar
 - **Servidor de IA em endereço público agora é bloqueado** até a liberação (`AI_ALLOW_EXTERNAL=1` ou a caixa na Administração). Um servidor da organização que o DNS resolve para IP privado continua funcionando sem mudança; se ele tiver IP público, as páginas passam a ir para revisão com a mensagem "externo bloqueado" até a liberação.
 - `/download/{id}?final=true` (novo) só entrega o PDF de documentos aprovados **depois** desta versão: para os antigos, aplique a proteção de novo no editor. O download do portal não muda.
 - Na Administração, trocar o endereço de um servidor por outro host apaga a chave salva dele e desliga a liberação de IA externa (a chave de um provedor nunca segue para outro; destino novo pede nova confirmação).
+- Servidor de IA que responde com redirecionamento (3xx) passa a dar erro (a página vai para revisão): aponte para o endereço final.
+- Modelos de documento: se mais de um modelo for reconhecido no mesmo documento, nenhum é aplicado (antes, o de maior pontuação ganhava quando a diferença passava de 10 pontos). Confira modelos com frases parecidas.
+- Com `VERIFY_OCR=0`, toda página com imagem vai para revisão (antes, só as páginas sem nenhum texto).
+- A Administração recusa fração em itens inteiros e URL com usuário/senha, espaço ou barra invertida. Com `API_TOKEN`, o navegador só grava a partir da mesma origem.
+- Pelo gatekeeper, clientes da API recebem 502/503 (JSON) quando o app está fora, em vez da página do painel.
+- Reprocessar um documento com rascunho salvo soma as sugestões novas ao rascunho e manda para revisão.
 
 ### Alterado
 - `/tasks` não devolve mais o caminho do arquivo no servidor (`input_path`).

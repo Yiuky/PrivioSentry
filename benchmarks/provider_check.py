@@ -57,7 +57,7 @@ def configure(preset=None, key_env=None, model=None):
         os.environ["AI_TEXT_MODEL"] = model
         os.environ["SECOND_LOOK_MODEL"] = model
     os.environ.setdefault("PRIVIO_RUNTIME_DIR", tempfile.mkdtemp(prefix="privio_check_"))  # disjuntor isolado
-    for k in ("AI_SECONDARY_PROVIDER", "SECOND_LOOK_BASE_URL"):
+    for k in ("AI_SECONDARY_PROVIDER", "SECOND_LOOK_BASE_URL", "SECOND_LOOK_API_KEY"):  # chave de outro provedor
         os.environ.pop(k, None)
     from utils.ai_client import configured_backends
     return configured_backends()[0].describe()

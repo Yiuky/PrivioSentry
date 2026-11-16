@@ -31,7 +31,12 @@ def combine_address_decision(llm_is_personal: bool, p_personal: Optional[float],
     """
     if mode != "assist":
         return llm_is_personal, None
-    if p_personal is None:
+    try:
+        p_personal = float(p_personal)
+    except (TypeError, ValueError):
+        p_personal = None
+    # NaN falha em toda comparação (cairia em "não pessoal, sem revisão"): fora de [0, 1] = decisor sem resposta
+    if p_personal is None or not 0.0 <= p_personal <= 1.0:
         # Modo assist pedido, mas o decisor falhou: segue o LLM e pede revisão (falha fechado).
         return llm_is_personal, "decisor local indisponível"
     if llm_is_personal:

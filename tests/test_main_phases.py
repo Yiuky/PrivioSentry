@@ -266,11 +266,28 @@ def test_signature_audit_ai_error_redacts_whole_crop_and_requires_review(app, tm
     assert any("Pânico (Assinaturas)" in a for a in app.alerts)
 
 
-def test_signature_audit_non_dict_response_is_ignored_safely(app, tmp_path, monkeypatch):
+@pytest.mark.parametrize("response", [["529.982.247-25"], None, {"unredacted_cpfs": "529.982.247-25"},
+                                      {"cpfs_visiveis": ["529.982.247-25"]}])
+def test_signature_audit_response_out_of_format_fails_closed(app, tmp_path, monkeypatch, response):
+    # antes, resposta fora do formato contava como "nenhum CPF visível": sem tarja e sem revisão
     app.all_crops_metadata = [make_crop(app, tmp_path)]
-    set_ai(app, monkeypatch, ["lista", "inesperada"])
+    set_ai(app, monkeypatch, response)
     app.run_signature_audit()
-    assert not app.global_redactions[1]
+    assert app.global_redactions[1] and app.needs_review
+
+
+def test_signature_audit_cpf_seen_by_ai_asks_for_review(app, tmp_path, monkeypatch):
+    app.all_crops_metadata = [make_crop(app, tmp_path)]
+    set_ai(app, monkeypatch, {"unredacted_cpfs": ["529.982.247-25"]})
+    app.run_signature_audit()
+    assert app.global_redactions[1] and app.needs_review
+
+
+def test_signature_audit_clean_answer_adds_nothing(app, tmp_path, monkeypatch):
+    app.all_crops_metadata = [make_crop(app, tmp_path)]  # contra-teste
+    set_ai(app, monkeypatch, {"unredacted_cpfs": []})
+    app.run_signature_audit()
+    assert not app.global_redactions[1] and not app.needs_review
 
 
 def test_signature_audit_skips_unreadable_crop(app, tmp_path, monkeypatch):
@@ -279,7 +296,7 @@ def test_signature_audit_skips_unreadable_crop(app, tmp_path, monkeypatch):
     app.all_crops_metadata = [{"path": str(bad), "page_num": 1, "origin_bbox": (0, 0, 10, 10)}]
     prompts = set_ai(app, monkeypatch, {"unredacted_cpfs": []})
     app.run_signature_audit()
-    assert prompts == []
+    assert prompts == [] and app.needs_review   # recorte ilegível: assinatura sem auditoria vai para revisão
 
 
 # --- metadados / modos de execucao -------------------------------------------------------------
@@ -300,8 +317,8 @@ def test_load_metadata_orders_images_and_maps_redaction_types(app):
         {"page": 1, "type": "pii", "coords": [200, 20, 260, 40], "source": "AI_Engine", "label": "Telefone"},
         {"page": "2", "type": "signature", "coords": [0, 0, 5, 5]},
         {"page": 1, "type": "outro", "coords": [1, 1, 2, 2]},
-        {"page": 1, "type": "pii", "coords": [1, 2, 3]},          # coords invalidas: ignorada
-        {"page": "x", "type": "pii", "coords": [1, 1, 2, 2]},     # pagina invalida: erro tratado
+        {"page": 1, "type": "pii", "coords": [1, 2, 3]},          # coords invalidas: não aplicada -> revisão
+        {"page": "x", "type": "pii", "coords": [1, 1, 2, 2]},     # pagina invalida: erro tratado -> revisão
     ]
     app._load_metadata_safely(reds)
     assert [os.path.basename(p) for p in app.image_paths] == ["doc_page_1.png", "doc_page_2.png", "doc_page_10.png"]
@@ -310,6 +327,7 @@ def test_load_metadata_orders_images_and_maps_redaction_types(app):
     assert app.box_labels[1]["200_20_60_20"] == "Telefone"
     assert app.cpf_redactions[2] == [{"x": 0, "y": 0, "w": 5, "h": 5}]
     assert len(app.global_redactions[1]) == 3 and len(app.global_redactions[2]) == 1
+    assert app.needs_review                                   # tarja que não pôde ser aplicada nunca some calada
 
 
 def test_load_metadata_without_original_images_dir(app):

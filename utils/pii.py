@@ -8,15 +8,29 @@ import logging
 import re
 import traceback
 
-# CPF formatado (000.000.000-00), com separadores variados (ponto, espaço, vírgula, hífen, barra, até 2 seguidos)
+from utils.validators import is_valid_cpf
+
+# CPF formatado (000.000.000-00), com separadores variados (ponto, espaço, vírgula, hífen, barra, sublinhado,
+# traços Unicode; até 3 seguidos, como em " - ")
 # ou 11 dígitos corridos. Nos logs, mascarar a mais é aceitável; deixar passar um CPF, não.
 # O lookbehind/lookahead evita mascarar pedaço de um número maior (ex.: CNPJ de 14 dígitos).
-_SEP = r"[\s.,\-/]{0,2}"
+_SEP_CHARS = r"\s.,\-/_‐-―−"  # inclui sublinhado e os traços Unicode (– — −)
+_SEP = rf"[{_SEP_CHARS}]{{0,3}}"
 CPF_PATTERN = re.compile(rf"(?<!\d)(\d{{3}}){_SEP}(\d{{3}}){_SEP}(\d{{3}}){_SEP}(\d{{2}})(?!\d)")
+# Dígitos soltos com separador entre cada um (formulário em caixinhas: "5 2 9 9 8 ..."): a sequência inteira é
+# mascarada se alguma janela de 11 dígitos for um CPF válido (só válidos: senão mascararia qualquer lista de números)
+_DIGIT_RUN = re.compile(rf"(?<!\d)\d(?:[{_SEP_CHARS}]{{1,3}}\d){{10,}}(?!\d)")
 
 
 def _mask_match(match):
     return f"***.***.{match.group(3)}-{match.group(4)}"
+
+
+def _mask_digit_run(match):
+    digits = "".join(ch for ch in match.group(0) if ch.isdigit())
+    if any(is_valid_cpf(digits[i:i + 11]) for i in range(len(digits) - 10)):
+        return "***.***.***-**"
+    return match.group(0)
 
 
 def mask_cpf(value):
@@ -42,7 +56,7 @@ def mask_text(text):
     """Substitui todo CPF encontrado no texto pela versão mascarada."""
     if not text:
         return text
-    return CPF_PATTERN.sub(_mask_match, str(text))
+    return _DIGIT_RUN.sub(_mask_digit_run, CPF_PATTERN.sub(_mask_match, str(text)))
 
 
 class CpfMaskingFilter(logging.Filter):

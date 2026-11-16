@@ -6,6 +6,7 @@ import uuid
 import secrets
 import multiprocessing
 import json
+import math
 import logging
 import shutil
 import threading
@@ -74,7 +75,15 @@ API_TOKEN = os.getenv("API_TOKEN", "")  # Se definido, exigido em todas as rotas
 if API_TOKEN.startswith("troque-por"):  # o valor de exemplo de deploy/k8s/secrets.env.example é público
     raise SystemExit("API_TOKEN ainda é o valor de exemplo: gere um token (python -c \"import secrets; "
                      "print(secrets.token_urlsafe(32))\") e troque no secrets.env/.env.")
-MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "500")) * 1024 * 1024
+def _env_int(name, default):
+    """Valor inteiro do ambiente; inválido ("2.5", "abc") cai no padrão em vez de impedir o serviço de subir."""
+    try:
+        return int(float(os.getenv(name) or default))
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+MAX_UPLOAD_BYTES = _env_int("MAX_UPLOAD_MB", 500) * 1024 * 1024
 
 
 def _env_days(name):
@@ -102,6 +111,7 @@ INTERNAL_SECRET = secrets.token_hex(16)
 
 # Lock de IA compartilhado entre PROCESSOS (threading.Lock não cruza processos).
 AI_LOCK = multiprocessing.Lock()
+RATE_LOCK = multiprocessing.Lock()  # limitador de pedidos por minuto (utils/ratelimit.py), separada da IA
 
 # Processos de worker ativos, por task_id
 procs = {}
@@ -259,7 +269,7 @@ def require_input(task):
 
 # Fila: no máximo MAX_PARALLEL_TASKS documentos processando ao mesmo tempo. Sem limite, cada upload abria um
 # processo com OCR em paralelo + modelos (nomes, decisor): vários uploads de uma vez esgotavam memória e CPU.
-MAX_PARALLEL_TASKS = max(1, int(os.getenv("MAX_PARALLEL_TASKS", "2") or 2))
+MAX_PARALLEL_TASKS = max(1, _env_int("MAX_PARALLEL_TASKS", 2))
 task_queue = []  # [(task_id, manual_redactions, native_mode)], na ordem de chegada
 queue_lock = threading.RLock()
 _dispatcher = None
@@ -292,16 +302,39 @@ def _spawn(task_id, manual_redactions, native_mode):
         args=(task_id, task["input_path"], manual_redactions, native_mode, APP_PORT, INTERNAL_SECRET, AI_LOCK,
               task.get("options")),
         # teto de retomadas: a última roda como hoje (página sem IA vai para revisão), nunca fica pendente para sempre
-        kwargs={"no_pending": int(task.get("pendente_tentativas") or 0) >= ratelimit.max_resumes()},
+        kwargs={"no_pending": int(task.get("pendente_tentativas") or 0) >= ratelimit.max_resumes(),
+                "rate_lock": RATE_LOCK},
     )
     p.start()
     procs[task_id] = p
+    _ensure_dispatcher()  # também vigia este worker: se morrer sem avisar, a tarefa vira erro (reap_dead_workers)
+
+
+def reap_dead_workers():
+    """Worker que terminou sem mandar o estado final (falta de memória, falha em biblioteca nativa, erro ao
+    importar) deixava a tarefa "processando" para sempre. Vira erro visível. Devolve quantas marcou."""
+    marked = 0
+    with tasks_lock:
+        for tid, p in list(procs.items()):
+            if p.is_alive() or getattr(p, "exitcode", None) is None:
+                continue
+            procs.pop(tid, None)
+            task = tasks.get(tid)
+            if (task is None or task.get("completed") or task.get("error") or task.get("pendente")
+                    or task.get("queued")):
+                continue
+            task.update(status=f"Erro: o processamento parou inesperadamente (código {p.exitcode}). Reprocesse.",
+                        error=True)
+            marked += 1
+        if marked:
+            save_tasks()
+    return marked
 
 
 def dispatch_queue():
     """Inicia as próximas tarefas da fila enquanto houver vaga. Devolve quantas iniciou."""
     started = 0
-    with queue_lock:
+    with tasks_lock, queue_lock:  # ordem fixa: tarefas, depois fila (nunca o contrário)
         while task_queue and running_count() < MAX_PARALLEL_TASKS:
             task_id, manual_redactions, native_mode = task_queue.pop(0)
             task = tasks.get(task_id)
@@ -329,6 +362,7 @@ def _ensure_dispatcher():
             try:
                 dispatch_queue()
                 resume_pending()
+                reap_dead_workers()
             except Exception as e:  # a fila nunca pode morrer em silêncio
                 app_logger.error(f"Fila de tarefas: {e}")
     _dispatcher = threading.Thread(target=loop, name="fila-tarefas", daemon=True)
@@ -347,28 +381,29 @@ def resume_pending(now=None):
     """Refaz do início os documentos pendentes cujo prazo chegou. Devolve quantos retomou."""
     now = time.time() if now is None else now
     count = 0
-    for tid, task in list(tasks.items()):
-        if (task.get("pendente") and not task.get("completed") and now >= float(task.get("pendente_ate") or 0)
-                and not is_running(tid) and not is_queued(tid)):
-            reset_task_state(task, "Retomando...")
-            try:
-                start_worker(tid)
-                count += 1
-            except HTTPException as e:  # ex.: PDF de entrada removido
-                task.update(status=f"Erro: {e.detail}", error=True)
-    if count:
-        save_tasks()
+    with tasks_lock:
+        for tid, task in list(tasks.items()):
+            if (task.get("pendente") and not task.get("completed") and now >= float(task.get("pendente_ate") or 0)
+                    and not is_running(tid) and not is_queued(tid)):
+                reset_task_state(task, "Retomando...")
+                try:
+                    start_worker(tid)
+                    count += 1
+                except HTTPException as e:  # ex.: PDF de entrada removido
+                    task.update(status=f"Erro: {e.detail}", error=True)
+        if count:
+            save_tasks()
     return count
 
 
 def start_worker(task_id, manual_redactions=None, native_mode=False):
     """Inicia o worker da tarefa (ou a põe na fila se já houver MAX_PARALLEL_TASKS rodando); 409 se já estiver
     rodando ou na fila."""
-    if is_running(task_id) or is_queued(task_id):
-        raise HTTPException(status_code=409, detail="Tarefa já está em execução ou na fila.")
-    task = tasks[task_id]
-    require_input(task)
-    with queue_lock:
+    with tasks_lock, queue_lock:  # a checagem e o início juntos: dois pedidos não abrem dois workers
+        if is_running(task_id) or is_queued(task_id):
+            raise HTTPException(status_code=409, detail="Tarefa já está em execução ou na fila.")
+        task = tasks[task_id]
+        require_input(task)
         if running_count() >= MAX_PARALLEL_TASKS:
             task_queue.append((task_id, manual_redactions, native_mode))
             task["queued"] = True
@@ -407,7 +442,8 @@ async def token_guard(request: Request, call_next):
     return await call_next(request)
 
 def redaction_worker(task_id: str, file_path: str, manual_redactions=None, native_mode=False,
-                     api_port=8001, internal_secret="", ai_lock=None, options=None, no_pending=False):
+                     api_port=8001, internal_secret="", ai_lock=None, options=None, no_pending=False,
+                     rate_lock=None):
     """
     Motor do SENTRY Redact executado em um PROCESSO SEPARADO (Multi-Core).
     options: escolhas da interface para ESTE documento (utils/task_options.py), aplicadas só neste processo.
@@ -418,7 +454,8 @@ def redaction_worker(task_id: str, file_path: str, manual_redactions=None, nativ
     if ai_lock is not None:
         import utils.ai_client as ai_client
         ai_client.ollama_lock = ai_lock
-        ratelimit.lock = ai_lock  # a vez de cada pedido é reservada com a mesma trava entre processos
+    if rate_lock is not None:
+        ratelimit.lock = rate_lock  # a vez de cada pedido é reservada com uma trava entre processos, só dela
 
     def progress_callback(data):
         try:
@@ -547,7 +584,8 @@ async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File
     file.file.seek(0)
 
     task_id = str(uuid.uuid4())
-    file_path = os.path.join(INPUT_DIR, f"{task_id}_{clean_name}")
+    stem, ext = os.path.splitext(clean_name)  # nome mostrado continua inteiro ("file"); no disco, curto
+    file_path = os.path.join(INPUT_DIR, f"{task_id}_{stem[:40].rstrip(' .') or 'documento'}{ext}")
 
     written = 0
     try:
@@ -585,7 +623,7 @@ async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File
 
     return {"status": "started", "task_id": task_id}
 
-PRIVATE_TASK_FIELDS = ("input_path",)  # caminho no disco do servidor: não interessa a clientes da API
+PRIVATE_TASK_FIELDS = ("input_path", "doc_out_dir")  # caminho no disco do servidor: não interessa a clientes da API
 
 
 def public_task(task):
@@ -594,7 +632,8 @@ def public_task(task):
 
 @app.get("/tasks")
 async def get_tasks():
-    return {tid: public_task(t) for tid, t in tasks.items()}
+    with tasks_lock:
+        return {tid: public_task(t) for tid, t in tasks.items()}
 
 
 @app.get("/tasks/{task_id}")
@@ -620,8 +659,8 @@ def reset_task_state(task, status):
 @app.post("/reprocess/{task_id}")
 async def reprocess_task(task_id: str):
     task = get_task(task_id)
-    if is_running(task_id):
-        raise HTTPException(status_code=409, detail="Tarefa já está em execução.")
+    if is_running(task_id) or is_queued(task_id):
+        raise HTTPException(status_code=409, detail="Tarefa já está em execução ou na fila.")
     require_input(task)  # antes de alterar o estado (evita tarefa presa em "Reiniciando...")
     reset_task_state(task, "Reiniciando...")
     task.pop("pendente_tentativas", None)  # pedido de uma pessoa: a contagem de retomadas recomeça
@@ -712,6 +751,13 @@ def get_metadata(task_id: str):
 @app.post("/update-redactions/{task_id}")
 async def update_redactions(task_id: str, redactions: list = Body(...)):
     task = get_task(task_id)
+    for i, r in enumerate(redactions):
+        coords = r.get("coords") if isinstance(r, dict) else None
+        ok = (isinstance(coords, list) and len(coords) == 4
+              and all(isinstance(c, (int, float)) and not isinstance(c, bool) and math.isfinite(c) for c in coords)
+              and coords[0] != coords[2] and coords[1] != coords[3])
+        if not ok or not str(r.get("page", "")).isdigit():
+            raise HTTPException(status_code=422, detail=f"Tarja {i + 1}: página ou coordenadas inválidas.")
     metadata_path = os.path.join(OUTPUT_DIR, task_base(task), "manual_redactions.json")
     try:
         with open(metadata_path, 'w', encoding='utf-8') as f:
@@ -730,8 +776,8 @@ async def reset_to_ai_metadata(task_id: str):
 
 def finalize(task_id: str, native_mode: bool):
     task = get_task(task_id)
-    if is_running(task_id):
-        raise HTTPException(status_code=409, detail="Tarefa já está em execução.")
+    if is_running(task_id) or is_queued(task_id):
+        raise HTTPException(status_code=409, detail="Tarefa já está em execução ou na fila.")
     if task.get("pendente"):  # a análise parou no meio: não há o que aprovar
         raise HTTPException(status_code=409, detail="Documento pendente (limite de uso da IA): aguarde a nova "
                                                     "tentativa ou use Reprocessar.")

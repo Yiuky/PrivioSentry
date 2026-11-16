@@ -12,7 +12,8 @@ import tempfile
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
+# o id vira nome de arquivo: nomes reservados do Windows ("con.json", "nul.json") travam a leitura/gravação
+ID_RE = re.compile(r"^(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])\Z)[a-z0-9][a-z0-9_-]{1,63}\Z")
 STATUS = ("rascunho", "aprovado")
 DIRECTIONS = ("direita", "abaixo")
 
@@ -49,6 +50,15 @@ def slug(text):
     s = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode("ascii").lower()
     s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")[:60]
     return s if ID_RE.match(s or "") else "modelo"
+
+
+def free_id(tid):
+    """'tid' se ainda não há modelo com ele; senão 'tid-2', 'tid-3'... (rascunho nunca troca um modelo salvo)."""
+    for n in range(1, 1000):
+        cand = tid if n == 1 else f"{tid[:60]}-{n}"
+        if ID_RE.match(cand) and not os.path.exists(_path(cand)):
+            return cand
+    raise TemplateError("Modelos demais com o mesmo nome")
 
 
 def validate(data):

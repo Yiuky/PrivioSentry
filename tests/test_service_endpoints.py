@@ -171,7 +171,10 @@ def test_metadata_prefers_manual_over_ai_and_survives_corruption(svc):
     os.makedirs(d)
     open(os.path.join(d, "redactions_metadata.json"), "w").write(json.dumps([{"page": 1, "src": "ai"}]))
     assert c.get(f"/metadata/{tid}").json()["redactions"][0]["src"] == "ai"
-    manual = [{"page": 1, "src": "manual"}]
+    manual = [{"page": 1, "src": "manual", "coords": [10, 10, 50, 30]}]
+    for bad in ([{"page": 1}], [{"page": 1, "coords": ["a", 1, 2, 3]}], [{"page": "x", "coords": [1, 1, 5, 5]}],
+                [{"page": 1, "coords": [5, 5, 5, 9]}], ["texto"]):
+        assert c.post(f"/update-redactions/{tid}", json=bad).status_code == 422   # tarja inaplicável não é gravada
     assert c.post(f"/update-redactions/{tid}", json=manual).json() == {"status": "success"}
     assert c.get(f"/metadata/{tid}").json()["redactions"] == manual
     open(os.path.join(d, "manual_redactions.json"), "w").write("{quebrado")

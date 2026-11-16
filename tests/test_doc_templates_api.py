@@ -130,3 +130,18 @@ def test_draft_refuses_unreviewed_ai_suggestions(svc, tmp_path):
     os.replace(os.path.join(out, "manual_redactions.json"), os.path.join(out, "redactions_metadata.json"))
     r = c.post("/doc-templates/rascunho", json={"task_id": tid})
     assert r.status_code == 409 and "Salvar" in r.json()["detail"]
+
+
+def test_draft_never_takes_the_id_of_an_existing_template(svc, tmp_path):
+    """Rascunho com o mesmo nome de um modelo aprovado: id novo; salvar não troca o aprovado."""
+    c, mod = svc
+    tid = reviewed_task(c, mod, tmp_path)
+    first = c.post("/doc-templates/rascunho", json={"task_id": tid, "nome": "Licenca ficticia"}).json()["modelo"]
+    saved = c.post("/doc-templates", json=first).json()
+    assert c.post(f"/doc-templates/{saved['id']}/aprovar").json()["status"] == "aprovado"
+    again = c.post("/doc-templates/rascunho", json={"task_id": tid, "nome": "Licenca ficticia"}).json()["modelo"]
+    assert again["id"] == f"{saved['id']}-2"
+    c.post("/doc-templates", json=again)
+    assert c.get(f"/doc-templates/{saved['id']}").json()["status"] == "aprovado"
+    assert c.post("/doc-templates/rascunho", json={"task_id": tid, "nome": "Licenca ficticia"}).json()["modelo"]["id"] \
+        == f"{saved['id']}-3"

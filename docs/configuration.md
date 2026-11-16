@@ -77,6 +77,7 @@ os servidores (sem chaves), o disjuntor e o teste de saúde de cada um.
 | `AI_SECONDARY_PROVIDER`, `AI_SECONDARY_BASE_URL`, `AI_SECONDARY_API_KEY`, `AI_SECONDARY_TEXT_MODEL`, `AI_SECONDARY_VISION_MODEL`, `AI_SECONDARY_TEXT_TIMEOUT`, `AI_SECONDARY_VISION_TIMEOUT` | *(sem reserva)* | O mesmo para a **IA reserva**. Cada servidor tem o próprio tempo limite (medido: com o mesmo limite, a reserva mais lenta também era desligada). |
 | `AI_BREAKER_FAILURES` | `3` | Falhas seguidas (sem conexão, tempo esgotado, erro 5xx, resposta sem JSON) que desligam um servidor. |
 | `AI_BREAKER_COOLDOWN` | `120` | Segundos desligado antes do teste de saúde pela API. Medido: com a principal travada, a primeira página paga as tentativas e as seguintes vão direto para a reserva (~12 s por página em vez de até 30 min). |
+| `AI_LOCK_TIMEOUT` | `3600` | Segundos que uma chamada de IA espera a vez (os documentos usam a IA um de cada vez). Passou disso, a página vai para revisão: um processo morto segurando a vez não prende os outros para sempre. |
 | `AI_REQUESTS_PER_MINUTE` | *(automático)* | Limitador: no máximo N pedidos de IA por minuto **por servidor**, somando todos os documentos em processamento (a vez de cada pedido é reservada num estado compartilhado entre os processos). Vazio = automático: `12` num provedor externo (abaixo dos 15 por minuto medidos no plano gratuito do Gemini Flash-Lite) e sem limite nesta rede. `0` = sem limite. O pedido espera a vez: o processamento fica mais lento, mas não é recusado. Com um plano pago de limite maior, aumente. |
 | `AI_LIMIT_ACTION` | `revisao` | O que fazer quando o provedor recusa por limite de uso (HTTP 429) e a espera curta não resolve. `revisao`: a página sem IA vai para revisão. `pendente`: o documento inteiro fica **Pendente**, sem PDF, e o serviço o processa de novo sozinho depois (as páginas já lidas são enviadas outra vez). Só no portal/API; na linha de comando (`main.py`) o documento termina com erro. |
 | `AI_LIMIT_RETRY_MINUTES` | `60` | Com `pendente`: minutos até a nova tentativa. |
@@ -160,7 +161,7 @@ Variáveis antigas, ainda aceitas (valem como padrão do servidor principal):
 
 | Variável | Padrão | Descrição |
 |---|---|---|
-| `VERIFY_OCR` | `1` | `1` = faz OCR das páginas do PDF final sem texto nativo e a verificação cruzada com o original; `0` desativa a parte de OCR (não recomendado: apenas a verificação do texto nativo). |
+| `VERIFY_OCR` | `1` | `1` = faz OCR das páginas do PDF final sem texto nativo e a verificação cruzada com o original; `0` desativa a parte de OCR (não recomendado: apenas a verificação do texto nativo; páginas com imagem ficam sem verificar e vão para revisão). |
 | `VERIFY_DPI` | `300` | DPI do OCR de verificação. Mais alto é mais sensível, porém mais lento. |
 
 ## Qualidade da saída e retenção de dados

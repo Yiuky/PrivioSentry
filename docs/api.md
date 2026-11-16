@@ -44,7 +44,7 @@ curl -H "X-API-Token: $SENTRY_TOKEN" -o protegido.pdf "http://127.0.0.1:8001/dow
 | `GET /tasks` · `GET /tasks/{id}` | Situação, progresso, `needs_review`, alertas, `pii_summary` (só contagens), `finalizado` (aprovado pelo revisor), `ia_externa` (destinos externos usados) e, quando o provedor de IA recusou por limite de uso com `AI_LIMIT_ACTION=pendente`, `pendente`, `pendente_ate` (hora da nova tentativa, em segundos Unix) e `pendente_tentativas`. Documento pendente recusa `/finalize` com 409. O caminho do arquivo no servidor não é devolvido. |
 | `GET /download/{id}?final=true` | PDF aprovado. Sem `final`, entrega o que existir no disco, inclusive o PDF **preliminar** do processamento automático (comportamento do portal). |
 | `POST /reprocess/{id}` · `DELETE /task/{id}` · `POST /purge/{id}` | Reprocessar, apagar tudo e remover as imagens sem tarja. |
-| `GET /metadata/{id}` · `POST /update-redactions/{id}` · `POST /finalize-native/{id}` | Usadas pelo editor (tarjas e aprovação). |
+| `GET /metadata/{id}` · `POST /update-redactions/{id}` · `POST /finalize-native/{id}` | Usadas pelo editor (tarjas e aprovação). `/update-redactions` recusa (422) tarja sem página numérica ou sem 4 coordenadas numéricas com área. Reprocessar ou finalizar uma tarefa que está na fila dá 409. |
 | `GET /options` · `GET /policy/catalog` · `GET /policy/profiles` | Opções de envio, catálogo de tipos e perfis. |
 | `GET /health/ai` | Servidores de IA (sem chaves), disjuntor e teste de saúde de cada um. |
 | `GET /admin/settings` · `POST /admin/settings` | Configuração da tela Admin. Chaves de API nunca voltam. |

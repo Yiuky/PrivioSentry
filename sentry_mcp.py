@@ -22,6 +22,7 @@ import time
 import httpx
 
 SUPPORTED_VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25")
+UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 INSTRUCTIONS = ("PRIVIO SENTRY protege dados pessoais em PDFs. Fluxo: sentry_submit_pdf -> sentry_wait -> peça ao "
                 "humano para revisar no link 'revisar_em' e clicar em 'Aplicar proteção' -> sentry_download_final. "
                 "A detecção é probabilística: nunca diga que o documento está anonimizado sem a revisão humana.")
@@ -79,7 +80,7 @@ class Sentry:
     def _req(self, method, path, **kw):
         try:
             r = self.http.request(method, path, **kw)
-        except httpx.HTTPError as e:
+        except (httpx.HTTPError, httpx.InvalidURL) as e:
             raise ToolError(f"Serviço PRIVIO SENTRY fora do ar em {self.base} ({type(e).__name__}). "
                             "Inicie o app_service.py ou ajuste PRIVIO_URL.")
         if r.status_code >= 400:
@@ -149,7 +150,11 @@ class Sentry:
         return self.summary(task_id, self._req("GET", f"/tasks/{task_id}").json())
 
     def sentry_wait(self, task_id, timeout_s=300, interval=2.0):
-        deadline = self.clock() + max(5, min(int(timeout_s or 300), 1800))
+        try:
+            timeout_s = int(timeout_s or 300)
+        except (TypeError, ValueError):
+            raise ToolError("timeout_s: número inteiro de segundos")
+        deadline = self.clock() + max(5, min(timeout_s, 1800))
         while True:
             info = self.sentry_document(task_id)
             if info["concluido"] or info["erro"] or info["pendente"]:  # pendente pode levar horas: não espera
@@ -174,11 +179,18 @@ class Sentry:
             if "409" in str(e):
                 raise ToolError(f"{e}. Peça ao revisor: {self.base}/?task={task_id}")
             raise
-        os.makedirs(os.path.dirname(target), exist_ok=True)
+        if not r.content.startswith(b"%PDF-"):  # ex.: página de erro do gatekeeper com 200
+            raise ToolError("O serviço não devolveu um PDF; nada foi gravado.")
         tmp = target + ".part"
-        with open(tmp, "wb") as fh:
-            fh.write(r.content)
-        os.replace(tmp, target)
+        try:
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(tmp, "wb") as fh:
+                fh.write(r.content)
+            os.replace(tmp, target)
+        except OSError as e:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise ToolError(f"Não foi possível gravar em {target} ({type(e).__name__}).")
         return {"arquivo": target, "bytes": len(r.content),
                 "aviso": "Detecção probabilística: o resultado foi aprovado por um revisor, não é anonimização "
                          "comprovada."}
@@ -186,7 +198,13 @@ class Sentry:
     def call(self, name, args):
         if name not in {t["name"] for t in TOOLS}:
             raise ToolError(f"Ferramenta desconhecida: {name}")
-        return getattr(self, name)(**(args or {}))
+        args = {} if args is None else args
+        if not isinstance(args, dict):
+            raise ToolError("Argumentos inválidos: 'arguments' precisa ser um objeto")
+        # o task_id vai no caminho da URL: '../previews/<id>/1' chegaria à imagem ORIGINAL da página (I-11)
+        if "task_id" in args and not (isinstance(args["task_id"], str) and UUID_RE.fullmatch(args["task_id"])):
+            raise ToolError("task_id inválido: use o task_id devolvido por sentry_submit_pdf")
+        return getattr(self, name)(**args)
 
 
 # ------------------------------------------------------------------ protocolo
@@ -194,9 +212,12 @@ def handle(sentry, msg):
     """Uma mensagem JSON-RPC -> resposta (ou None para notificações)."""
     if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
         return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Requisição inválida"}}
-    method, mid, params = msg.get("method"), msg.get("id"), msg.get("params") or {}
+    method, mid, params = msg.get("method"), msg.get("id"), msg.get("params")
     if mid is None:
         return None  # notificação (ex.: notifications/initialized)
+    params = {} if params is None else params
+    if not isinstance(params, dict):
+        return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32602, "message": "params precisa ser um objeto"}}
 
     def ok(result):
         return {"jsonrpc": "2.0", "id": mid, "result": result}
@@ -220,6 +241,9 @@ def handle(sentry, msg):
             return ok({"content": [{"type": "text", "text": str(e)}], "isError": True})
         except TypeError as e:
             return ok({"content": [{"type": "text", "text": f"Argumentos inválidos: {e}"}], "isError": True})
+        except Exception as e:  # nunca derruba o servidor; só o tipo: a mensagem pode trazer a resposta (I-11)
+            return ok({"content": [{"type": "text", "text": f"Falha na ferramenta ({type(e).__name__})"}],
+                       "isError": True})
     return {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"Método desconhecido: {method}"}}
 
 
@@ -247,7 +271,11 @@ def serve(stdin=None, stdout=None, sentry=None):
         except ValueError:
             reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "JSON inválido"}}
         else:
-            reply = handle(sentry, msg)
+            try:
+                reply = handle(sentry, msg)
+            except Exception as e:
+                reply = {"jsonrpc": "2.0", "id": None,
+                         "error": {"code": -32603, "message": f"Erro interno ({type(e).__name__})"}}
         if reply is not None:
             stdout.write(json.dumps(reply, ensure_ascii=True) + "\n")
             stdout.flush()

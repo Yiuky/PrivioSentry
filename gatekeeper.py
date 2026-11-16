@@ -45,7 +45,8 @@ app = FastAPI(title="Gatekeeper Service")
 
 # Rotas do próprio painel. Com API_TOKEN definido, exigem o token (cabeçalho X-API-Token ou sessão
 # aberta com ?token=, ver utils/auth.py). As demais rotas são repassadas ao app, que cobra o token dele.
-PANEL_PATHS = ("/gatekeeper", "/manage", "/api/")
+# Só estas rotas /api/ são do painel; as demais (/api/info do app, que diz se a IA é externa) vão para o app.
+PANEL_PATHS = ("/gatekeeper", "/manage", "/api/status", "/api/toggle")
 GK_AUTH = TokenAuth("privio_gk_session")
 
 
@@ -251,6 +252,8 @@ async def toggle_service(request: Request):
 
 async def proxy_handler(request: Request):
     if not state.app_running:
+        if "text/html" not in request.headers.get("accept", ""):
+            return JSONResponse({"detail": "Serviço desligado (painel do gatekeeper)."}, status_code=503)
         return safe_template_response(request, "gatekeeper.html")
 
     url = httpx.URL(str(request.url))
@@ -271,7 +274,7 @@ async def proxy_handler(request: Request):
                 url=target_url,
                 headers=headers,
                 content=content,
-                timeout=30.0
+                timeout=300.0  # o teste de IA da Administração e uploads grandes passam de 30 s
             )
             # aiter_bytes() entrega o corpo JÁ descompactado: repassar content-encoding/length/
             # transfer-encoding do upstream corromperia a resposta no cliente.
@@ -284,7 +287,11 @@ async def proxy_handler(request: Request):
             )
         except Exception as e:
             logger.error(f"Erro no Proxy para {target_url}: {e}")
-            state.app_running = False
+            if not isinstance(e, httpx.TimeoutException):  # lento não é desligado
+                state.app_running = False
+            if "text/html" not in request.headers.get("accept", ""):
+                # cliente da API/agente: erro de verdade, nunca uma página HTML com 200 (seria salva como PDF)
+                return JSONResponse({"detail": "Serviço indisponível no momento."}, status_code=502)
             return safe_template_response(request, "gatekeeper.html")
 
 @app.get("/gatekeeper", response_class=HTMLResponse)
@@ -313,7 +320,7 @@ async def root(request: Request):
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def catch_all(request: Request, path: str):
     # Ignora chamadas para a própria API do gatekeeper
-    if path.startswith("api/") or path == "gatekeeper" or path == "manage":
+    if "/" + path in PANEL_PATHS:
         return PlainTextResponse("Not Found", status_code=404)
         
     if await check_app_alive():
@@ -321,7 +328,7 @@ async def catch_all(request: Request, path: str):
         return await proxy_handler(request)
     else:
         state.app_running = False
-        return safe_template_response(request, "gatekeeper.html")
+        return await proxy_handler(request)  # desligado: página do painel (navegador) ou 503 (API)
 
 def run_gatekeeper(port):
     try:
