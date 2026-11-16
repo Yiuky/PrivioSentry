@@ -27,80 +27,101 @@ PROFILES = ("cpf_endereco", "lgpd_publicacao", "lgpd_interno", "gdpr", "saude_hi
 
 
 def _f(key, group, label, kind="text", help="", choices=None, restart=False, minimum=None, maximum=None,
-       placeholder=""):
+       placeholder="", labels=None, section="", advanced=False):
     return {"key": key, "group": group, "label": label, "kind": kind, "help": help, "choices": list(choices or []),
-            "restart": restart, "min": minimum, "max": maximum, "placeholder": placeholder}
+            "restart": restart, "min": minimum, "max": maximum, "placeholder": placeholder,
+            "labels": dict(labels or {}), "section": section, "advanced": advanced}
 
 
 GROUPS = [
-    {"id": "ia", "titulo": "IA principal", "descricao": "Servidor que lê as páginas (endereços e auditoria de "
-                                                        "assinaturas). Local por padrão; provedor na nuvem só com a "
-                                                        "liberação abaixo."},
-    {"id": "ia_reserva", "titulo": "IA reserva", "descricao": "Assume quando a principal falha; com a verificação "
-                                                              "cruzada, também confere cada página."},
-    {"id": "deteccao", "titulo": "Detecção e política", "descricao": "O que procurar por padrão (cada envio ainda "
-                                                                     "pode escolher na barra lateral)."},
+    {"id": "ia", "titulo": "IA principal", "descricao": "O servidor que lê as páginas (endereços e auditoria de "
+                                                        "assinaturas). Nesta máquina por padrão; um provedor na "
+                                                        "nuvem só recebe conteúdo com a liberação abaixo."},
+    {"id": "ia_reserva", "titulo": "IA reserva", "descricao": "Opcional. Assume quando a principal falha; com a "
+                                                              "verificação cruzada, também confere cada página."},
+    {"id": "deteccao", "titulo": "Detecção e política", "descricao": "O que procurar por padrão. Cada envio ainda "
+                                                                     "pode escolher o perfil na barra lateral do "
+                                                                     "editor."},
     {"id": "ocr", "titulo": "OCR e verificação", "descricao": "Leitura das páginas (Tesseract) e conferência do PDF "
                                                               "final."},
-    {"id": "operacao", "titulo": "Operação", "descricao": "Fila, limites e retenção dos arquivos."},
+    {"id": "operacao", "titulo": "Operação", "descricao": "Fila, tamanho dos arquivos e por quanto tempo eles ficam "
+                                                          "guardados."},
 ]
 
+PROVIDER_LABELS = {"ollama": "Ollama", "openai": "Padrão OpenAI (LM Studio, vLLM, servidor da organização, nuvem)"}
 FIELDS = [
-    _f("AI_PROVIDER", "ia", "Tipo de API", "choice", "ollama = API do Ollama; openai = padrão OpenAI (LM Studio, "
-       "vLLM, servidor da organização e provedores na nuvem)", ["ollama", "openai"]),
-    _f("AI_BASE_URL", "ia", "Endereço da API", "url", "Ex.: http://localhost:11434 (Ollama) ou "
-       "https://api.openai.com/v1", placeholder="http://localhost:11434"),
-    _f("AI_API_KEY", "ia", "Chave de API", "secret", "Guardada só nesta máquina; nunca é mostrada de volta."),
-    _f("AI_VISION_MODEL", "ia", "Modelo (visão)", "text", "Precisa aceitar imagens.", placeholder="gemma4:e4b"),
-    _f("AI_VISION_TIMEOUT", "ia", "Tempo limite por página (s)", "number", "", minimum=10, maximum=3600),
-    _f("AI_ALLOW_EXTERNAL", "ia", "Permitir IA fora desta rede", "bool", "Com isso ligado, imagens das páginas e "
-       "o texto lido delas são enviados ao provedor configurado. Sem isso, a chamada é bloqueada e a página vai "
-       "para revisão."),
-    _f("AI_REQUESTS_PER_MINUTE", "ia", "Pedidos por minuto (ritmo)", "number", "Padrão (restaurar padrão) = automático: 12 por minuto "
-       "num provedor externo, sem limite nesta rede. 0 = sem limite. Conta todos os documentos em processamento "
-       "juntos, por servidor. Ponha abaixo do limite do seu plano: mais lento, mas sem recusas.", minimum=0,
-       maximum=10000),
-    _f("AI_LIMIT_ACTION", "ia", "Se o provedor recusar por limite de uso", "choice", "revisao = as páginas sem "
-       "IA vão para revisão. pendente = o documento fica pendente, sem PDF, e é refeito sozinho depois (as "
-       "páginas são enviadas de novo).", ["revisao", "pendente"]),
-    _f("AI_LIMIT_RETRY_MINUTES", "ia", "Pendente: tentar de novo a cada (min)", "number", "Depois de 24 "
-       "retomadas (AI_LIMIT_MAX_RETRIES), o documento segue para revisão.", minimum=1, maximum=1440),
-    _f("AI_SECONDARY_PROVIDER", "ia_reserva", "Tipo de API", "choice", "Vazio = sem reserva.", ["", "ollama",
-                                                                                                "openai"]),
-    _f("AI_SECONDARY_BASE_URL", "ia_reserva", "Endereço da API", "url", "", placeholder="http://localhost:1234/v1"),
-    _f("AI_SECONDARY_API_KEY", "ia_reserva", "Chave de API", "secret", "Guardada só nesta máquina."),
-    _f("AI_SECONDARY_VISION_MODEL", "ia_reserva", "Modelo (visão)", "text", ""),
-    _f("AI_CROSS_CHECK", "ia_reserva", "Verificação cruzada", "bool", "A reserva também lê cada página; os achados "
-       "se somam (nunca reduz a proteção). Dobra o tempo de IA."),
-    _f("POLICY_PROFILE", "deteccao", "Perfil padrão", "choice", "Catálogo em docs/catalogo-pii.md.", PROFILES),
-    _f("NER_ENGINE", "deteccao", "Detector de nomes", "choice", "gliner exige pip install -e \".[nomes]\".",
-       ["", "gliner"]),
-    _f("OCR_EXTRA_ENGINE", "deteccao", "Leitura extra de OCR", "choice", "rapidocr exige pip install -e "
-       "\".[ocr-extra]\".", ["", "rapidocr"]),
-    _f("SECOND_LOOK", "deteccao", "Segundo olhar (IA)", "bool", "Um agente revê as páginas em dúvida e só "
-       "acrescenta tarjas. Usa o servidor principal, salvo endereço próprio."),
+    _f("AI_PROVIDER", "ia", "Tipo de servidor", "choice", "Os atalhos acima preenchem este campo e o endereço.",
+       ["ollama", "openai"], labels=PROVIDER_LABELS, section="Servidor"),
+    _f("AI_BASE_URL", "ia", "Endereço", "url", "Ex.: http://localhost:11434 (Ollama) ou https://api.openai.com/v1",
+       section="Servidor"),
+    _f("AI_API_KEY", "ia", "Chave de API", "secret", "Só para provedores que pedem chave. Guardada só nesta máquina; "
+       "nunca é mostrada de volta.", section="Servidor"),
+    _f("AI_VISION_MODEL", "ia", "Modelo", "text", "Precisa aceitar imagens. \"Listar modelos\" mostra os que o "
+       "servidor oferece.", section="Servidor"),
+    _f("AI_VISION_TIMEOUT", "ia", "Tempo limite por página (s)", "number", "Aumente se o servidor for lento e as "
+       "páginas estiverem indo para revisão por tempo esgotado.", minimum=10, maximum=3600, section="Servidor",
+       advanced=True),
+    _f("AI_ALLOW_EXTERNAL", "ia", "Permitir IA fora desta rede", "bool", "Ligado, imagens das páginas e o texto lido "
+       "delas são enviados ao provedor configurado. Desligado, a chamada é bloqueada antes de sair e a página vai "
+       "para revisão.", section="Envio para fora desta rede"),
+    _f("AI_REQUESTS_PER_MINUTE", "ia", "Pedidos por minuto", "number", "Vazio = automático (12 num provedor "
+       "externo, sem limite nesta rede); 0 = sem limite. Vale para todos os documentos juntos. Fique abaixo do "
+       "limite do seu plano: fica mais lento, mas sem recusas.", minimum=0, maximum=10000,
+       section="Limite de uso do provedor"),
+    _f("AI_LIMIT_ACTION", "ia", "Quando a cota do provedor acabar", "choice", "Pendente: o documento fica sem PDF "
+       "e é processado de novo sozinho mais tarde (as páginas são enviadas outra vez).", ["revisao", "pendente"],
+       labels={"revisao": "Mandar as páginas para revisão", "pendente": "Deixar pendente e tentar de novo"},
+       section="Limite de uso do provedor"),
+    _f("AI_LIMIT_RETRY_MINUTES", "ia", "Pendente: tentar de novo a cada (min)", "number", "Depois de 24 tentativas, "
+       "o documento segue para revisão.", minimum=1, maximum=1440, section="Limite de uso do provedor",
+       advanced=True),
+    _f("AI_SECONDARY_PROVIDER", "ia_reserva", "Tipo de servidor", "choice", "", ["", "ollama", "openai"],
+       labels=dict(PROVIDER_LABELS, **{"": "Sem reserva"}), section="Servidor reserva"),
+    _f("AI_SECONDARY_BASE_URL", "ia_reserva", "Endereço", "url", "", placeholder="http://localhost:1234/v1",
+       section="Servidor reserva"),
+    _f("AI_SECONDARY_API_KEY", "ia_reserva", "Chave de API", "secret", "Guardada só nesta máquina.",
+       section="Servidor reserva"),
+    _f("AI_SECONDARY_VISION_MODEL", "ia_reserva", "Modelo", "text", "", section="Servidor reserva"),
+    _f("AI_CROSS_CHECK", "ia_reserva", "Verificação cruzada", "bool", "A reserva também lê cada página e os achados "
+       "se somam (nunca reduz a proteção). Dobra o tempo de IA.", section="Servidor reserva"),
+    _f("POLICY_PROFILE", "deteccao", "Perfil padrão", "choice", "O que é tarjado e o que só gera alerta "
+       "(docs/catalogo-pii.md).", PROFILES, section="O que procurar"),
+    _f("NER_ENGINE", "deteccao", "Detector de nomes", "choice", "Precisa do pacote opcional: pip install -e "
+       "\".[nomes]\".", ["", "gliner"], labels={"": "Desligado", "gliner": "GLiNER (local)"},
+       section="O que procurar"),
+    _f("OCR_EXTRA_ENGINE", "deteccao", "Leitura extra de OCR", "choice", "Uma terceira leitura somada às duas do "
+       "Tesseract. Precisa de pip install -e \".[ocr-extra]\".", ["", "rapidocr"],
+       labels={"": "Desligada", "rapidocr": "RapidOCR (local)"}, section="O que procurar"),
+    _f("SECOND_LOOK", "deteccao", "Segundo olhar", "bool", "Um agente revê as páginas em dúvida e só acrescenta "
+       "tarjas. Usa o servidor da IA principal, salvo endereço próprio.", section="Segundo olhar"),
     _f("SECOND_LOOK_MODEL", "deteccao", "Modelo do segundo olhar", "text", "Precisa aceitar ferramentas (tools).",
-       placeholder="gemma4:e4b"),
-    _f("SECOND_LOOK_BASE_URL", "deteccao", "Endereço próprio do segundo olhar", "url", "Vazio = o da IA principal."),
-    _f("SECOND_LOOK_API_KEY", "deteccao", "Chave do segundo olhar", "secret", "Vazio = a da IA principal."),
-    _f("DOC_TEMPLATES", "deteccao", "Modelos de documento", "bool", "Reconhece documentos de layout conhecido e "
-       "tarja os campos do modelo sem IA (Administração > Modelos de documento)."),
-    _f("DOC_TEMPLATE_INSPECTION", "deteccao", "Inspeção depois do modelo", "choice", "agente = um agente lê o texto "
-       "já tarjado e aponta o que ficou de fora (gasta poucos tokens, só texto); regras = zero token, mas página "
-       "sem IA de visão vai sempre para revisão.", ["agente", "regras"]),
-    _f("TESSERACT_PATH", "ocr", "Executável do Tesseract", "text", "Vazio = o do PATH."),
-    _f("TESSERACT_LANG", "ocr", "Idioma do OCR", "text", "Ex.: por, por+eng.", placeholder="por"),
-    _f("BASE_DPI", "ocr", "DPI de leitura", "number", "300 é o medido como melhor; acima disso a revocação de CPF "
-       "cai (docs/benchmarks.md).", minimum=72, maximum=1200),
-    _f("VERIFY_OCR", "ocr", "OCR na verificação final", "bool", "Recomendado. Desligado, páginas com imagem não "
-       "são verificadas e vão para revisão."),
-    _f("VERIFY_DPI", "ocr", "DPI da verificação", "number", "", minimum=72, maximum=1200),
-    _f("MAX_PARALLEL_TASKS", "operacao", "Documentos ao mesmo tempo", "number", "", restart=True, minimum=1,
-       maximum=32),
+       section="Segundo olhar"),
+    _f("SECOND_LOOK_BASE_URL", "deteccao", "Endereço próprio", "url", "Vazio = o da IA principal.",
+       section="Segundo olhar", advanced=True),
+    _f("SECOND_LOOK_API_KEY", "deteccao", "Chave própria", "secret", "Vazio = a da IA principal.",
+       section="Segundo olhar", advanced=True),
+    _f("DOC_TEMPLATES", "deteccao", "Usar modelos de documento", "bool", "Reconhece documentos de layout conhecido "
+       "e tarja os campos sem IA (seção Modelos de documento).", section="Modelos de documento"),
+    _f("DOC_TEMPLATE_INSPECTION", "deteccao", "Inspeção depois do modelo", "choice", "Agente: lê o texto já "
+       "tarjado e aponta o que ficou de fora (poucos tokens). Só regras: zero token, mas a página sem IA de visão "
+       "vai para revisão.", ["agente", "regras"], labels={"agente": "Agente", "regras": "Só regras"},
+       section="Modelos de documento"),
+    _f("TESSERACT_PATH", "ocr", "Executável do Tesseract", "text", "Vazio = o que estiver no PATH.",
+       section="Leitura"),
+    _f("TESSERACT_LANG", "ocr", "Idioma do OCR", "text", "Ex.: por, por+eng.", section="Leitura", advanced=True),
+    _f("BASE_DPI", "ocr", "DPI de leitura", "number", "300 é o medido como melhor; acima disso a leitura de CPF "
+       "piora (docs/benchmarks.md).", minimum=72, maximum=1200, section="Leitura", advanced=True),
+    _f("VERIFY_OCR", "ocr", "Reler o PDF final com OCR", "bool", "Recomendado. Desligado, toda página com imagem "
+       "fica sem verificação e vai para revisão.", section="Verificação do PDF final"),
+    _f("VERIFY_DPI", "ocr", "DPI da verificação", "number", "", minimum=72, maximum=1200,
+       section="Verificação do PDF final", advanced=True),
+    _f("MAX_PARALLEL_TASKS", "operacao", "Documentos ao mesmo tempo", "number", "Os demais esperam na fila.",
+       restart=True, minimum=1, maximum=32, section="Fila e arquivos"),
     _f("MAX_UPLOAD_MB", "operacao", "Tamanho máximo do PDF (MB)", "number", "", restart=True, minimum=1,
-       maximum=10000),
-    _f("RETENTION_DAYS", "operacao", "Apagar tarefas após (dias)", "number", "0 = nunca. Aplicado na subida do "
-       "serviço.", restart=True, minimum=0, maximum=3650),
+       maximum=10000, section="Fila e arquivos"),
+    _f("RETENTION_DAYS", "operacao", "Apagar documentos após (dias)", "number", "0 = nunca. As pastas de cada "
+       "documento guardam imagens e texto das páginas: apague o que não precisa mais.", restart=True, minimum=0,
+       maximum=3650, section="Retenção"),
 ]
 BY_KEY = {f["key"]: f for f in FIELDS}
 DECIMAL_KEYS = {"AI_VISION_TIMEOUT", "AI_REQUESTS_PER_MINUTE", "AI_LIMIT_RETRY_MINUTES", "RETENTION_DAYS"}
@@ -258,22 +279,75 @@ def save(changes):
     return data
 
 
-def describe():
-    """Itens para a tela Admin. Chaves secretas: só se estão definidas, nunca o valor."""
+def _num(value):
+    value = float(value)
+    return str(int(value)) if value == int(value) else str(value)
+
+
+def effective(extra=None):
+    """Valor EM USO de cada item, lido pelas mesmas funções que o pipeline usa (não uma cópia dos padrões).
+    Itens lidos só na subida do serviço vêm em `extra` (o app_service sabe o valor com que subiu)."""
+    import shutil
+
+    from utils import ai_client, doc_templates, ocr_extra, ratelimit, second_look, session, verifier
+    from utils.detect import ner, profiles
+    out = {}
+    main_ai = ai_client._backend_from_env("AI_", "principal")
+    reserve = ai_client._backend_from_env("AI_SECONDARY_", "reserva")
+    out["AI_PROVIDER"] = "openai" if isinstance(main_ai, ai_client.OpenAICompatBackend) else "ollama"
+    out["AI_BASE_URL"] = egress.safe_url(main_ai.base_url)
+    out["AI_VISION_MODEL"] = main_ai.vision_model or ""
+    out["AI_VISION_TIMEOUT"] = _num(main_ai.timeout(True))
+    out["AI_ALLOW_EXTERNAL"] = "1" if egress.external_allowed() else "0"
+    out["AI_REQUESTS_PER_MINUTE"] = _num(ratelimit.per_minute(main_ai.base_url))
+    out["AI_LIMIT_ACTION"] = ("pendente" if (os.getenv("AI_LIMIT_ACTION") or "revisao").strip().lower() == "pendente"
+                              else "revisao")
+    out["AI_LIMIT_RETRY_MINUTES"] = _num(ratelimit.retry_minutes())
+    if reserve is None:
+        out.update(AI_SECONDARY_PROVIDER="", AI_SECONDARY_BASE_URL="", AI_SECONDARY_VISION_MODEL="")
+    else:
+        out["AI_SECONDARY_PROVIDER"] = "openai" if isinstance(reserve, ai_client.OpenAICompatBackend) else "ollama"
+        out["AI_SECONDARY_BASE_URL"] = egress.safe_url(reserve.base_url)
+        out["AI_SECONDARY_VISION_MODEL"] = reserve.vision_model or ""
+    out["AI_CROSS_CHECK"] = "1" if os.getenv("AI_CROSS_CHECK", "0").strip().lower() in ("1", "true", "sim") else "0"
+    out["POLICY_PROFILE"] = profiles.active_profile_id()
+    out["NER_ENGINE"] = "gliner" if ner.enabled() else ""
+    out["OCR_EXTRA_ENGINE"] = "rapidocr" if ocr_extra.enabled() else ""
+    out["SECOND_LOOK"] = "1" if second_look.enabled() else "0"
+    out["SECOND_LOOK_MODEL"] = second_look.model()
+    out["SECOND_LOOK_BASE_URL"] = egress.safe_url(second_look._endpoint().rsplit("/chat/completions", 1)[0])
+    out["DOC_TEMPLATES"] = "1" if doc_templates.enabled() else "0"
+    out["DOC_TEMPLATE_INSPECTION"] = doc_templates.inspection_mode()
+    out["TESSERACT_PATH"] = os.getenv("TESSERACT_PATH") or shutil.which("tesseract") or ""
+    out["TESSERACT_LANG"] = os.getenv("TESSERACT_LANG", "por")
+    out["BASE_DPI"] = str(session.render_dpi())
+    out["VERIFY_OCR"] = "1" if os.getenv("VERIFY_OCR", "1") == "1" else "0"
+    out["VERIFY_DPI"] = str(verifier.verify_dpi())
+    out.update(extra or {})
+    return out
+
+
+def describe(extra_effective=None):
+    """Itens para a tela Admin. Chaves secretas: só se estão definidas, nunca o valor. `efetivo` = valor em uso."""
+    from utils.detect.profiles import PROFILES as PROFILE_INFO
     saved = load()
+    in_use = effective(extra_effective)
     out = []
     for f in FIELDS:
         key = f["key"]
         current = os.environ.get(key)
         if key in saved["values"]:
             origin = "admin"
-        elif current is not None:
+        elif current not in (None, ""):  # "CHAVE=" vazio no .env vale como não definido
             origin = "env"
         else:
             origin = "padrao"
         item = dict(f, origem=origin, definido=bool(current))
         item["valor"] = None if f["kind"] == "secret" else (current or "")
         item["pendente_reinicio"] = bool(f["restart"]) and key in _startup and _startup[key] != current
+        item["efetivo"] = None if f["kind"] == "secret" else in_use.get(key, "")
+        if key == "POLICY_PROFILE":
+            item["labels"] = {pid: PROFILE_INFO[pid]["nome"] for pid in f["choices"] if pid in PROFILE_INFO}
         out.append(item)
     return {"grupos": GROUPS, "campos": out, "arquivo": os.path.basename(path()),
             "atualizado_em": saved.get("atualizado_em"), "externo_liberado_em": saved.get("externo_liberado_em")}

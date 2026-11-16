@@ -886,10 +886,17 @@ async def admin_page(request: Request):
     return templates.TemplateResponse(request=request, name="admin.html")
 
 
+def _startup_values():
+    """Itens lidos só na subida do serviço: o valor em uso é o desta execução, não o do ambiente atual."""
+    days = RETENTION_DAYS
+    return {"MAX_PARALLEL_TASKS": str(MAX_PARALLEL_TASKS), "MAX_UPLOAD_MB": str(MAX_UPLOAD_BYTES // (1024 * 1024)),
+            "RETENTION_DAYS": str(int(days)) if days == int(days) else str(days)}
+
+
 def _admin_state():
     from utils import egress
     from utils.ai_client import AIClient
-    data = admin_settings.describe()
+    data = admin_settings.describe(_startup_values())
     data["ia"] = AIClient().health(live=False)  # sem chaves
     data["ia"]["externo_permitido"] = egress.external_allowed()
     data["ia_externa"] = external_ai_now()
@@ -904,6 +911,21 @@ def _admin_state():
 def admin_get_settings():
     require_admin()
     return _admin_state()
+
+
+@app.get("/admin/status")
+def admin_status():
+    """Painel: componentes prontos ou não, fila por situação e espaço usado. Só fatos e contagens: nenhum nome de
+    arquivo, motivo de alerta, texto de documento ou chave."""
+    require_admin()
+    from utils import admin_status as status
+    state = _admin_state()
+    with tasks_lock:
+        counts = status.task_counts(tasks, is_running, is_queued)
+    return {"verificacoes": status.checks(state, state["ia"], state["ia_externa"]),
+            "fila": dict(counts, maximo=MAX_PARALLEL_TASKS),
+            "disco": status.disk([OUTPUT_DIR, FINAL_DIR, INPUT_DIR]),
+            "retencao_dias": RETENTION_DAYS, "versao": state["versao"]}
 
 
 @app.post("/admin/settings")

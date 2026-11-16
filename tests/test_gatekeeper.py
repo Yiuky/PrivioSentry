@@ -306,7 +306,11 @@ def client(gk):
     return TestClient(gk.app)    # sem 'with': nao dispara o startup (watchdog)
 
 
-def test_management_pages_and_unknown_api_are_served_locally(client):
+def test_management_pages_and_unknown_api_are_served_locally(client, gk, monkeypatch):
+    import socket
+    with socket.socket() as s:                      # porta livre e fechada: não depende de um app real na 8001
+        s.bind(("127.0.0.1", 0))
+        monkeypatch.setattr(gk.state, "app_port", s.getsockname()[1])
     for path in ("/gatekeeper", "/manage"):
         r = client.get(path)
         assert r.status_code == 200 and "html" in r.headers["content-type"]

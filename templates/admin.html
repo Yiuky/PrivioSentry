@@ -106,6 +106,66 @@
         #toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:var(--ink); color:var(--white); border-left:4px solid var(--danger); border-radius:var(--radius-control); padding:10px 18px; font-size:13px; z-index:100; display:none; max-width:90%; box-shadow:var(--shadow-md); }
         #toast.ok { border-left-color:var(--success); }
 
+        /* painel */
+        .hero { display:flex; flex-direction:column; gap:3px; border-radius:var(--radius-card); padding:16px 20px; border:1px solid var(--border); background:var(--white); }
+        .hero strong { font-size:17px; }
+        .hero span { color:var(--slate-strong); line-height:1.5; }
+        .hero.ok { background:var(--success-tint); border-color:#A6F4C5; }
+        .hero.warn { background:var(--warning-tint); border-color:#FEC84B; }
+        .hero.bad { background:var(--danger-tint); border-color:#FDA29B; }
+        .checks { display:flex; flex-direction:column; }
+        .stat.check { display:flex; align-items:flex-start; gap:12px; border:none; border-bottom:1px solid var(--surface-2); border-radius:0; padding:12px 4px; background:none; }
+        .stat.check:last-child { border-bottom:none; }
+        .stat.check .dot { margin-top:5px; flex:none; }
+        .check-body { flex:1; min-width:0; }
+        .stat.check .v { font-size:14px; margin:0; }
+        .stat.check .s { font-size:13px; word-break:normal; line-height:1.45; }
+        .fix { font-weight:600; color:var(--primary-strong); white-space:nowrap; font-size:13px; }
+        .queue { display:grid; grid-template-columns:repeat(auto-fit, minmax(128px, 1fr)); gap:10px; }
+        .tile { border:1px solid var(--border); border-radius:var(--radius-card); padding:12px 14px; background:var(--white); }
+        .tile .n { font-size:22px; font-weight:700; }
+        .tile .k { font-size:12px; color:var(--slate-strong); font-weight:600; margin-top:2px; }
+        .tile .s { font-size:11.5px; color:var(--slate); margin-top:2px; }
+        .tile.warn { background:var(--warning-tint); border-color:#FEC84B; }
+        .tile.bad { background:var(--danger-tint); border-color:#FDA29B; }
+        .tile.ok { background:var(--success-tint); border-color:#A6F4C5; }
+        .tile.info { background:var(--primary-tint); border-color:#B2CCFF; }
+        .storage { margin-top:12px; font-size:13px; color:var(--slate-strong); }
+        .about { font-size:12px; color:var(--slate); }
+        .nav-links a.alert::after { content:""; width:8px; height:8px; border-radius:50%; background:var(--warning); margin-left:auto; }
+
+        /* formulários */
+        .card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+        .unsaved { display:none; align-items:center; gap:6px; white-space:nowrap; font-size:12px; font-weight:700; color:var(--warning-strong); background:var(--warning-tint); border:1px solid #FEC84B; border-radius:var(--radius-pill); padding:3px 10px; }
+        .card.dirty { border-color:var(--warning); }
+        .card.dirty .unsaved { display:inline-flex; }
+        h3.sec { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--slate); font-weight:700; margin:18px 0 10px; padding-top:14px; border-top:1px solid var(--surface-2); }
+        .preset-box + h3.sec, .card-head + h3.sec { border-top:none; padding-top:0; margin-top:10px; }
+        .toggle-line { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .storage a { font-weight:600; color:var(--primary-strong); }
+        .f.changed input:not([type=checkbox]), .f.changed select { border-color:var(--warning); box-shadow:0 0 0 3px #FEF0C7; }
+        .chip { display:inline-block; font-size:11px; font-weight:600; padding:1px 8px; border-radius:var(--radius-pill); background:var(--surface-2); color:var(--slate-strong); }
+        .chip.changed { background:var(--primary-tint); color:var(--primary-strong); }
+        .chip.warn { background:var(--warning-tint); color:var(--warning-strong); }
+        code.envkey { font-size:10.5px; color:var(--slate); background:none; padding:0; white-space:nowrap; }
+        .toggle-row { gap:6px; }
+        .toggle-row .switch { font-size:14px; }
+        .switch input[role=switch] { appearance:none; -webkit-appearance:none; width:38px; height:22px; border-radius:var(--radius-pill); background:#D0D5DD; position:relative; cursor:pointer; flex:none; transition:background .15s; margin:0; }
+        .switch input[role=switch]::before { content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:var(--white); box-shadow:0 1px 2px rgba(16,24,40,.25); transition:left .15s; }
+        .switch input[role=switch]:checked { background:var(--primary); }
+        .switch input[role=switch]:checked::before { left:19px; }
+        .switch-text { font-weight:600; }
+        .f.changed .switch input[role=switch] { box-shadow:0 0 0 3px #FEF0C7; }
+        details.adv { margin-top:18px; border:1px dashed var(--border); border-radius:var(--radius-card); padding:2px 14px 10px; }
+        details.adv summary { cursor:pointer; font-weight:600; color:var(--slate-strong); padding:10px 0; }
+        details.adv h3.sec:first-of-type { border-top:none; padding-top:0; margin-top:6px; }
+        .preset-box { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-card); padding:12px 14px; margin:4px 0 4px; }
+        .sec-title { font-size:12px; font-weight:700; color:var(--slate); text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
+        #preset-hint { margin-top:8px; }
+        .btn.ghost { box-shadow:none; }
+        .discard { display:none; }
+        .card.dirty .discard { display:inline-flex; }
+
         @media (max-width: 860px) {
             body { flex-direction:column; }
             .nav { width:100%; height:auto; position:static; }
@@ -157,25 +217,32 @@
         <main class="content">
             <!-- ---------------------------------------------------------------- Visão geral -->
             <section class="view" id="view-visao" data-testid="view-visao">
-                <p class="lead" data-i18n="overview.lead">Configure o SENTRY Redact sem editar arquivos. As mudanças valem para os próximos documentos; itens marcados com "reiniciar" valem depois de reiniciar o serviço.</p>
+                <div class="hero" id="hero" role="status" data-testid="hero"></div>
                 <div id="egress-banner"></div>
-                <div class="grid" id="stats"></div>
+                <div class="card">
+                    <h2 data-i18n="overview.checks">Componentes</h2>
+                    <p class="desc" data-i18n="overview.checksDesc">Conferido nesta máquina agora; atualiza sozinho.</p>
+                    <div class="checks" id="stats"></div>
+                </div>
+                <div class="card">
+                    <div class="card-head"><div><h2 data-i18n="overview.docs">Documentos</h2>
+                        <p class="desc" data-i18n="overview.docsDesc">Situação dos documentos no serviço (só contagens).</p></div>
+                        <a class="btn" href="./" data-i18n="overview.openEditor">Abrir o editor</a></div>
+                    <div class="queue" id="queue" data-testid="queue"></div>
+                    <p class="storage" id="storage" data-testid="storage"></p>
+                </div>
                 <div class="card">
                     <h2 data-i18n="overview.servers">Servidores de IA</h2>
                     <p class="desc" data-i18n="overview.serversDesc">Testa a conexão, a chave e o modelo com um pedido curto, sem nenhum conteúdo de documento.</p>
-                    <table><thead><tr><th data-i18n="th.role">Papel</th><th data-i18n="th.server">Servidor</th><th data-i18n="th.model">Modelo</th><th data-i18n="th.status">Situação</th><th></th></tr></thead>
-                        <tbody id="servers-body"></tbody></table>
+                    <div style="overflow-x:auto"><table><thead><tr><th data-i18n="th.role">Papel</th><th data-i18n="th.server">Servidor</th><th data-i18n="th.model">Modelo</th><th data-i18n="th.status">Situação</th><th></th></tr></thead>
+                        <tbody id="servers-body"></tbody></table></div>
                 </div>
+                <p class="about" id="about"></p>
             </section>
 
             <!-- ---------------------------------------------------------------- IA -->
             <section class="view" id="view-ia" data-testid="view-ia">
                 <p class="lead" data-i18n="ai.lead">Escolha onde a fase de IA roda. Servidores nesta máquina ou na rede da organização são usados direto. Um provedor na nuvem, com a sua chave de API, só recebe conteúdo depois da liberação explícita abaixo.</p>
-                <div class="card">
-                    <h2 data-i18n="ai.presets">Atalhos de provedor</h2>
-                    <p class="desc" data-i18n="ai.presetsDesc">Preenche o tipo de API e o endereço da IA principal. Depois informe a chave (se houver) e o modelo, salve e teste.</p>
-                    <div class="presets" id="presets"></div>
-                </div>
                 <div class="card" data-group="ia" data-testid="group-ia"></div>
                 <div class="card" data-group="ia_reserva" data-testid="group-ia_reserva"></div>
             </section>
@@ -256,6 +323,35 @@
     <script>
         const I18N = {
             'pt-BR': {
+                'overview.lead': 'Tudo o que o SENTRY Redact precisa para funcionar, num lugar só.',
+                'overview.checks': 'Componentes', 'overview.checksDesc': 'Conferido nesta máquina agora; atualiza sozinho.',
+                'overview.docs': 'Documentos', 'overview.docsDesc': 'Situação dos documentos no serviço (só contagens).', 'overview.openEditor': 'Abrir o editor',
+                'ph.default': 'padrão: {v}', 'ph.example': 'ex.: {v}', 'ph.auto': 'automático (agora: {v})', 'ph.noLimit': 'sem limite',
+                'chip.admin': 'alterado aqui', 'chip.env': 'do .env', 'chip.envTitle': 'Definido no arquivo .env. O que for salvo aqui vale por cima dele.', 'chip.restart': 'vale após reiniciar',
+                'help.restart': 'Vale depois de reiniciar o serviço.', 'envkey.title': 'Nome da variável no .env',
+                'opt.default': 'Padrão', 'opt.defaultIs': 'Padrão: {v}',
+                'unsaved': 'Alterações não salvas', 'btn.discard': 'Descartar', 'adv.title': 'Opções avançadas ({n})',
+                'tag.cloud': 'NUVEM', 'tag.external': 'externo',
+                'preset.hintLocal': '{n}: tipo e endereço preenchidos. Agora informe o modelo, salve e teste.',
+                'preset.hintCloud': '{n}: tipo e endereço preenchidos. Informe a chave e o modelo; para enviar páginas, ligue "Permitir IA fora desta rede". Depois salve e teste.',
+                'about': 'Versão {v} · configuração em {f}{d}', 'about.saved': ' · salva em {d}',
+                'hero.ok': 'Tudo pronto', 'hero.okSub': 'Os componentes foram encontrados e respondem. Cada documento continua passando pela revisão humana.',
+                'hero.attention': '{n} item(ns) pede(m) atenção', 'hero.attentionSub': 'Enquanto isso, as páginas afetadas vão para revisão em vez de sair como concluídas.',
+                'chk.loading': 'Conferindo...', 'chk.fix': 'Ajustar',
+                'chk.ocr': 'OCR (Tesseract)', 'chk.ocr.ok': 'Encontrado, versão {v}.', 'chk.ocr.bad': 'Não encontrado: sem ele as páginas não são lidas. Informe o executável em OCR e verificação.',
+                'chk.yolo': 'Detector de assinaturas (YOLO)', 'chk.yolo.ok': 'Pacote e modelo encontrados.',
+                'chk.yolo.noPkg': 'O pacote ultralytics não está instalado: as páginas vão para revisão. Instale com pip install -r requirements.txt.',
+                'chk.yolo.noModel': 'Arquivo do modelo não encontrado (models/signature_stamp_detector.pt).',
+                'chk.aiMain': 'IA principal', 'chk.aiReserve': 'IA reserva', 'chk.ai.ok': '{m} em {h}. "Testar" confere a resposta.',
+                'chk.ai.blocked': '{h} fica fora desta rede e a liberação está desligada: as páginas vão para revisão.',
+                'chk.ai.off': '{h} foi pausado pelo disjuntor depois de falhas seguidas; volta sozinho.',
+                'chk.out': 'Para onde vão as páginas', 'chk.out.local': 'Só para servidores nesta máquina ou na rede local.', 'chk.out.ext': 'Também para fora desta rede: {h}.',
+                'chk.names': 'Detector de nomes', 'chk.ocrExtra': 'Leitura extra de OCR', 'chk.pkg.ok': 'Ligado e instalado.', 'chk.pkg.missing': 'Ligado, mas o pacote {p} não está instalado.',
+                'chk.verify': 'Verificação do PDF final', 'chk.verify.on': 'Releitura por OCR ligada.', 'chk.verify.off': 'Releitura por OCR desligada: páginas com imagem vão para revisão.',
+                'chk.restart': 'Reinício pendente', 'chk.restart.items': 'Valem depois de reiniciar o serviço: {i}.',
+                'q.processando': 'Processando', 'q.na_fila': 'Na fila', 'q.pendente': 'Pendentes (limite da IA)', 'q.requer_revisao': 'Requer revisão',
+                'q.preliminar': 'Aguardando aplicar proteção', 'q.aprovado': 'Aprovados', 'q.erro': 'Com erro', 'q.max': 'até {n} ao mesmo tempo', 'q.next': 'próxima tentativa às {h}',
+                'disk': 'Arquivos guardados: {s} em {n} arquivo(s)', 'disk.keep': 'nada é apagado automaticamente', 'disk.retention': 'apagados após {d} dia(s)',
                 'nav.models': 'Modelos de documento', 'title.models': 'Modelos de documento',
                 'tpl.lead': 'Documentos de layout conhecido (licenças, formulários) são reconhecidos por frases fixas e tarjados pelos rótulos, sem IA. Depois, uma inspeção procura o que ficou de fora. A revisão humana continua obrigatória.',
                 'tpl.new': 'Novo modelo a partir de um documento', 'tpl.newDesc': 'Escolha um documento já processado e revisado no editor: as tarjas confirmadas viram campos, e as primeiras linhas fixas viram as frases de reconhecimento. Com a IA, ela recebe só o texto mascarado (tarjas e dígitos escondidos) e sugere nome, frases e rótulos.',
@@ -281,7 +377,6 @@
                 'nav.ops': 'Operação', 'nav.api': 'API e agentes (MCP)', 'nav.back': '← Voltar ao editor',
                 'title.overview': 'Visão geral', 'title.ai': 'IA e provedores', 'title.detect': 'Detecção e política',
                 'title.ocr': 'OCR e verificação', 'title.ops': 'Operação', 'title.api': 'API e agentes (MCP)',
-                'overview.lead': 'Configure o SENTRY Redact sem editar arquivos. As mudanças valem para os próximos documentos; itens marcados com "reiniciar" valem depois de reiniciar o serviço.',
                 'overview.servers': 'Servidores de IA', 'overview.serversDesc': 'Testa a conexão, a chave e o modelo com um pedido curto, sem nenhum conteúdo de documento.',
                 'th.role': 'Papel', 'th.server': 'Servidor', 'th.model': 'Modelo', 'th.status': 'Situação', 'th.route': 'Rota', 'th.what': 'O que faz',
                 'ai.lead': 'Escolha onde a fase de IA roda. Servidores nesta máquina ou na rede da organização são usados direto. Um provedor na nuvem, com a sua chave de API, só recebe conteúdo depois da liberação explícita abaixo.',
@@ -314,6 +409,35 @@
                 'role.principal': 'principal', 'role.reserva': 'reserva', 'models.found': '{n} modelo(s) disponível(is) na lista do campo Modelo.'
             },
             'en-US': {
+                'overview.lead': 'Everything SENTRY Redact needs to run, in one place.',
+                'overview.checks': 'Components', 'overview.checksDesc': 'Checked on this machine now; refreshes by itself.',
+                'overview.docs': 'Documents', 'overview.docsDesc': 'Status of the documents in the service (counts only).', 'overview.openEditor': 'Open the editor',
+                'ph.default': 'default: {v}', 'ph.example': 'e.g. {v}', 'ph.auto': 'automatic (now: {v})', 'ph.noLimit': 'no limit',
+                'chip.admin': 'changed here', 'chip.env': 'from .env', 'chip.envTitle': 'Set in the .env file. What you save here takes precedence.', 'chip.restart': 'applies after restart',
+                'help.restart': 'Applies after restarting the service.', 'envkey.title': 'Variable name in .env',
+                'opt.default': 'Default', 'opt.defaultIs': 'Default: {v}',
+                'unsaved': 'Unsaved changes', 'btn.discard': 'Discard', 'adv.title': 'Advanced options ({n})',
+                'tag.cloud': 'CLOUD', 'tag.external': 'external',
+                'preset.hintLocal': '{n}: type and address filled in. Now enter the model, save and test.',
+                'preset.hintCloud': '{n}: type and address filled in. Enter the key and the model; to send pages, turn on "Allow AI outside this network". Then save and test.',
+                'about': 'Version {v} · settings in {f}{d}', 'about.saved': ' · saved at {d}',
+                'hero.ok': 'All set', 'hero.okSub': 'The components were found and respond. Every document still goes through human review.',
+                'hero.attention': '{n} item(s) need attention', 'hero.attentionSub': 'Meanwhile the affected pages go to review instead of completing.',
+                'chk.loading': 'Checking...', 'chk.fix': 'Adjust',
+                'chk.ocr': 'OCR (Tesseract)', 'chk.ocr.ok': 'Found, version {v}.', 'chk.ocr.bad': 'Not found: without it pages are not read. Set the executable in OCR and verification.',
+                'chk.yolo': 'Signature detector (YOLO)', 'chk.yolo.ok': 'Package and model found.',
+                'chk.yolo.noPkg': 'The ultralytics package is not installed: pages go to review. Install it with pip install -r requirements.txt.',
+                'chk.yolo.noModel': 'Model file not found (models/signature_stamp_detector.pt).',
+                'chk.aiMain': 'Primary AI', 'chk.aiReserve': 'Backup AI', 'chk.ai.ok': '{m} at {h}. "Test" checks the answer.',
+                'chk.ai.blocked': '{h} is outside this network and the permission is off: pages go to review.',
+                'chk.ai.off': '{h} was paused by the circuit breaker after repeated failures; it comes back by itself.',
+                'chk.out': 'Where pages go', 'chk.out.local': 'Only to servers on this machine or the local network.', 'chk.out.ext': 'Also outside this network: {h}.',
+                'chk.names': 'Name detector', 'chk.ocrExtra': 'Extra OCR reading', 'chk.pkg.ok': 'On and installed.', 'chk.pkg.missing': 'On, but the {p} package is not installed.',
+                'chk.verify': 'Final PDF verification', 'chk.verify.on': 'OCR re-reading on.', 'chk.verify.off': 'OCR re-reading off: pages with images go to review.',
+                'chk.restart': 'Restart pending', 'chk.restart.items': 'Apply after restarting the service: {i}.',
+                'q.processando': 'Processing', 'q.na_fila': 'Queued', 'q.pendente': 'Pending (AI limit)', 'q.requer_revisao': 'Needs review',
+                'q.preliminar': 'Waiting for protection', 'q.aprovado': 'Approved', 'q.erro': 'With error', 'q.max': 'up to {n} at a time', 'q.next': 'next try at {h}',
+                'disk': 'Stored files: {s} in {n} file(s)', 'disk.keep': 'nothing is deleted automatically', 'disk.retention': 'deleted after {d} day(s)',
                 'nav.models': 'Document templates', 'title.models': 'Document templates',
                 'tpl.lead': 'Documents with a known layout (licenses, forms) are recognized by fixed phrases and redacted by their labels, without AI. Then an inspection looks for anything left out. Human review is still required.',
                 'tpl.new': 'New template from a document', 'tpl.newDesc': 'Pick a document already processed and reviewed in the editor: confirmed redactions become fields, and the first fixed lines become the recognition phrases. With AI, it only receives the masked text (redactions and digits hidden) and suggests a name, phrases and labels.',
@@ -339,7 +463,6 @@
                 'nav.ops': 'Operations', 'nav.api': 'API and agents (MCP)', 'nav.back': '← Back to the editor',
                 'title.overview': 'Overview', 'title.ai': 'AI and providers', 'title.detect': 'Detection and policy',
                 'title.ocr': 'OCR and verification', 'title.ops': 'Operations', 'title.api': 'API and agents (MCP)',
-                'overview.lead': 'Configure SENTRY Redact without editing files. Changes apply to the next documents; items marked "restart" apply after restarting the service.',
                 'overview.servers': 'AI servers', 'overview.serversDesc': 'Tests the connection, key and model with a short request, without any document content.',
                 'th.role': 'Role', 'th.server': 'Server', 'th.model': 'Model', 'th.status': 'Status', 'th.route': 'Route', 'th.what': 'What it does',
                 'ai.lead': 'Choose where the AI phase runs. Servers on this machine or on the organization network are used directly. A cloud provider, with your API key, receives content only after the explicit permission below.',
@@ -426,59 +549,138 @@
         window.addEventListener('hashchange', () => showView(currentView()));
 
         function fieldsOf(group) { return state.campos.filter(f => f.group === group); }
+        const fieldByKey = key => state.campos.find(f => f.key === key);
+        const optLabel = (f, v) => (f.labels && f.labels[v] != null) ? f.labels[v] : v;
 
-        // Valor em uso quando o campo está vazio (ex.: OLLAMA_VISION_MODEL antigo no .env): vira o texto de exemplo
-        function effectiveValue(key) {
-            const b = papel => (state.ia.servidores || []).find(x => x.papel === papel) || {};
-            const map = { AI_BASE_URL: b('principal').endereco, AI_VISION_MODEL: b('principal').modelo_visao,
-                          AI_SECONDARY_BASE_URL: b('reserva').endereco, AI_SECONDARY_VISION_MODEL: b('reserva').modelo_visao };
-            return map[key] || '';
+        // O que a tela mostra para um campo (o "antes" das alterações): valor salvo/do .env ou, sem ele, o valor em uso
+        function shownValue(f) {
+            if (f.kind === 'bool') return (f.valor ? f.valor === '1' : f.efetivo === '1') ? '1' : '0';
+            if (f.kind === 'secret') return '';
+            return f.valor || '';
+        }
+
+        function placeholderFor(f) {
+            if (f.valor || f.efetivo == null || f.efetivo === '') return f.placeholder ? t('ph.example', { v: f.placeholder }) : '';
+            if (f.key === 'AI_REQUESTS_PER_MINUTE') return t('ph.auto', { v: f.efetivo === '0' ? t('ph.noLimit') : f.efetivo + '/min' });
+            return t('ph.default', { v: f.efetivo });
+        }
+
+        function chipsFor(f) {
+            const out = [];
+            if (f.origem === 'admin') out.push(`<span class="chip changed">${esc(t('chip.admin'))}</span><button type="button" class="link-btn" onclick="resetField('${f.key}')">${esc(t('btn.reset'))}</button>`);
+            else if (f.origem === 'env') out.push(`<span class="chip env" title="${esc(t('chip.envTitle'))}">${esc(t('chip.env'))}</span>`);
+            if (f.pendente_reinicio) out.push(`<span class="chip warn">${esc(t('chip.restart'))}</span>`);
+            return out.join(' ');
         }
 
         function fieldHtml(f) {
             const id = 'f-' + f.key;
-            const badges = [`<span class="origin ${f.origem === 'admin' ? 'admin' : ''}">${esc(t('origin.' + f.origem))}</span>`];
-            if (f.pendente_reinicio || f.restart) badges.push(`<span class="origin ${f.pendente_reinicio ? 'restart' : ''}" title="${esc(t('origin.restart'))}">${esc(t('origin.restart'))}</span>`);
-            const reset = f.origem === 'admin' ? ` <button type="button" class="link-btn" onclick="resetField('${f.key}')">${esc(t('btn.reset'))}</button>` : '';
-            let input;
+            const base = esc(shownValue(f));
+            const help = [f.kind === 'secret' ? (f.definido ? t('secret.set') : t('secret.unset')) : '', f.help,
+                          f.restart ? t('help.restart') : ''].filter(Boolean).join(' ');
+            const foot = `<div class="help">${esc(help)} <code class="envkey" title="${esc(t('envkey.title'))}">${esc(f.key)}</code></div>`;
             if (f.kind === 'bool') {
-                input = `<label class="switch"><input type="checkbox" id="${id}" data-key="${f.key}" ${f.valor === '1' ? 'checked' : ''}> <span>${esc(f.label)}</span></label>`;
-                return `<div class="f ${f.key === 'AI_ALLOW_EXTERNAL' ? 'wide' : ''}">${input}<div>${badges.join(' ')}${reset}</div><div class="help">${esc(f.help)}</div></div>`;
+                const on = shownValue(f) === '1';
+                return `<div class="f wide toggle-row"><div class="toggle-line"><label class="switch" for="${id}"><input type="checkbox" role="switch" id="${id}" data-key="${f.key}" data-base="${base}" ${on ? 'checked' : ''}><span class="switch-text">${esc(f.label)}</span></label> ${chipsFor(f)}</div>${foot}</div>`;
             }
+            let input;
             if (f.kind === 'choice') {
-                const opts = f.choices.includes('') ? f.choices : [''].concat(f.choices);  // '' = padrão do .env/código
-                input = `<select id="${id}" data-key="${f.key}">` + opts.map(c => `<option value="${esc(c)}" ${c === (f.valor || '') ? 'selected' : ''}>${esc(c || '— ' + t('origin.padrao') + ' —')}</option>`).join('') + '</select>';
+                const opts = f.choices.includes('') ? f.choices.slice() : [''].concat(f.choices);
+                const label = c => c === '' && !f.choices.includes('')
+                    ? (f.valor ? t('opt.default') : t('opt.defaultIs', { v: optLabel(f, f.efetivo) }))
+                    : optLabel(f, c);
+                input = `<select id="${id}" data-key="${f.key}" data-base="${base}">` + opts.map(c => `<option value="${esc(c)}" ${c === (f.valor || '') ? 'selected' : ''}>${esc(label(c))}</option>`).join('') + '</select>';
             } else if (f.kind === 'secret') {
-                input = `<input type="password" id="${id}" data-key="${f.key}" autocomplete="new-password" placeholder="${esc(f.definido ? '••••••••' : '')}">`;
+                input = `<input type="password" id="${id}" data-key="${f.key}" data-base="" autocomplete="new-password" placeholder="${esc(f.definido ? '••••••••' : '')}">`;
             } else {
                 const list = f.key === 'AI_VISION_MODEL' ? 'list="models-principal"' : (f.key === 'AI_SECONDARY_VISION_MODEL' ? 'list="models-reserva"' : '');
-                input = `<input type="${f.kind === 'number' ? 'number' : 'text'}" id="${id}" data-key="${f.key}" value="${esc(f.valor)}" placeholder="${esc(effectiveValue(f.key) || f.placeholder)}" ${list} ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} spellcheck="false">`;
+                input = `<input type="${f.kind === 'number' ? 'number' : 'text'}" id="${id}" data-key="${f.key}" data-base="${base}" value="${esc(f.valor)}" placeholder="${esc(placeholderFor(f))}" ${list} ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} spellcheck="false">`;
             }
-            const help = f.kind === 'secret' ? (f.definido ? t('secret.set') : t('secret.unset')) + (f.help ? ' ' + f.help : '') : f.help;
-            return `<div class="f"><label for="${id}">${esc(f.label)} ${badges.join(' ')}${reset}</label>${input}<div class="help">${esc(help)}</div></div>`;
+            return `<div class="f"><label for="${id}">${esc(f.label)} ${chipsFor(f)}</label>${input}${foot}</div>`;
+        }
+
+        function sectionsHtml(fields) {
+            const order = [], by = {};
+            fields.forEach(f => { const s = f.section || ''; if (!by[s]) { by[s] = []; order.push(s); } by[s].push(f); });
+            return order.map(s => (s ? `<h3 class="sec">${esc(s)}</h3>` : '') + `<div class="fields">${by[s].map(fieldHtml).join('')}</div>`).join('');
         }
 
         function renderGroup(card) {
             const g = state.grupos.find(x => x.id === card.dataset.group);
-            const extra = (g.id === 'ia' || g.id === 'ia_reserva')
-                ? `<button type="button" class="btn" onclick="testAI('${g.id === 'ia' ? 'principal' : 'reserva'}', this)">${esc(t('btn.test'))}</button>
-                   <button type="button" class="btn" onclick="listModels('${g.id === 'ia' ? 'principal' : 'reserva'}')">${esc(t('btn.models'))}</button>
+            const all = fieldsOf(g.id);
+            const basic = all.filter(f => !f.advanced), adv = all.filter(f => f.advanced);
+            const advOpen = adv.some(f => f.origem !== 'padrao');
+            const papel = g.id === 'ia' ? 'principal' : 'reserva';
+            const aiTools = (g.id === 'ia' || g.id === 'ia_reserva')
+                ? `<button type="button" class="btn" onclick="testAI('${papel}', this)">${esc(t('btn.test'))}</button>
+                   <button type="button" class="btn" onclick="listModels('${papel}')">${esc(t('btn.models'))}</button>
                    <span class="result" id="result-${g.id}" role="status"></span>` : '';
-            card.innerHTML = `<h2>${esc(g.titulo)}</h2><p class="desc">${esc(g.descricao)}</p>
-                <div class="fields">${fieldsOf(g.id).map(fieldHtml).join('')}</div>
-                <div class="actions"><button type="button" class="btn primary" data-testid="save-${g.id}" onclick="saveGroup('${g.id}')">${esc(t('btn.save'))}</button>${extra}</div>`;
+            const presets = g.id === 'ia' ? `<div class="preset-box"><div class="sec-title">${esc(t('ai.presets'))}</div>
+                <div class="presets" id="presets">${PRESETS.map((p, i) => `<button type="button" class="preset" onclick="usePreset(${i})">${esc(p.nome)}<span class="tag ${p.local ? '' : 'cloud'}">${p.local ? 'LOCAL' : t('tag.cloud')}</span></button>`).join('')}</div>
+                <div class="help" id="preset-hint" role="status"></div></div>` : '';
+            card.innerHTML = `<div class="card-head"><div><h2>${esc(g.titulo)}</h2><p class="desc">${esc(g.descricao)}</p></div>
+                    <span class="unsaved" data-testid="unsaved-${g.id}">${esc(t('unsaved'))}</span></div>
+                ${presets}${sectionsHtml(basic)}
+                ${adv.length ? `<details class="adv" data-testid="adv-${g.id}" ${advOpen ? 'open' : ''}><summary>${esc(t('adv.title', { n: adv.length }))}</summary>${sectionsHtml(adv)}</details>` : ''}
+                <div class="actions"><button type="button" class="btn primary" data-testid="save-${g.id}" onclick="saveGroup('${g.id}')" disabled>${esc(t('btn.save'))}</button>
+                    <button type="button" class="btn ghost discard" onclick="discardGroup('${g.id}')">${esc(t('btn.discard'))}</button>${aiTools}</div>`;
+            card.oninput = card.onchange = () => markDirty(card);   // atribuição: redesenhar não acumula ouvintes
+        }
+
+        // ---- alterações não salvas: só o que o administrador mexeu é enviado
+        function currentOf(el) { return el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value.trim(); }
+        function dirtyFields(card) {
+            return [...card.querySelectorAll('[data-key]')].filter(el => currentOf(el) !== (el.dataset.base || ''));
+        }
+        function markDirty(card) {
+            const dirty = dirtyFields(card);
+            card.classList.toggle('dirty', dirty.length > 0);
+            card.querySelectorAll('.f').forEach(div => div.classList.remove('changed'));
+            dirty.forEach(el => el.closest('.f')?.classList.add('changed'));
+            const save = card.querySelector('[data-testid^="save-"]');
+            if (save) save.disabled = !dirty.length;
+        }
+        const anyDirty = () => [...document.querySelectorAll('[data-group]')].some(c => dirtyFields(c).length);
+        window.addEventListener('beforeunload', e => { if (state && anyDirty()) { e.preventDefault(); e.returnValue = ''; } });
+
+        function editsOf(card) {
+            const out = {};
+            dirtyFields(card).forEach(el => { out[el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value; });
+            return out;
+        }
+        function restoreEdits(card, edits) {
+            Object.entries(edits).forEach(([k, v]) => {
+                const el = document.getElementById('f-' + k);
+                if (!el) return;
+                if (el.type === 'checkbox') el.checked = v; else el.value = v;
+            });
+            markDirty(card);
+        }
+
+        // Redesenha os grupos sem perder o que foi digitado e não salvo (salvo o grupo que acabou de ser salvo)
+        function renderGroups(savedGroup) {
+            document.querySelectorAll('[data-group]').forEach(card => {
+                const edits = card.dataset.group === savedGroup ? {} : (card.innerHTML ? editsOf(card) : {});
+                renderGroup(card);
+                restoreEdits(card, edits);
+            });
+        }
+
+        function discardGroup(group) {
+            const card = document.querySelector(`[data-group="${group}"]`);
+            renderGroup(card); markDirty(card);
         }
 
         function backendRow(b) {
             const st = (state.ia.disjuntor || {});
             const off = Object.keys(st).some(k => k.indexOf(b.endereco) >= 0 && st[k].desligado);
             const dot = off ? 'bad' : (b.externo ? 'warn' : 'ok');
-            return `<tr><td>${esc(t('role.' + b.papel))}</td><td><code>${esc(b.endereco)}</code>${b.externo ? ' <span class="origin restart">externo</span>' : ''}</td>
+            return `<tr><td>${esc(t('role.' + b.papel))}</td><td><code>${esc(b.endereco)}</code>${b.externo ? ` <span class="chip warn">${esc(t('tag.external'))}</span>` : ''}</td>
                 <td>${esc(b.modelo_visao)}</td><td><span class="dot ${dot}"></span><span class="result" id="row-${b.papel}"></span></td>
                 <td><button class="btn" onclick="testAI('${b.papel}', this)">${esc(t('btn.test'))}</button></td></tr>`;
         }
 
-        function render() {
+        function renderBadge() {
             const ext = state.ia_externa || [];
             const extConfigured = (state.ia.servidores || []).filter(b => b.externo).map(b => b.endereco);
             const badge = document.getElementById('local-badge');
@@ -489,20 +691,15 @@
             if (ext.length) banner.innerHTML = `<div class="banner warn" data-testid="egress-banner">${t('egress.on', { hosts: esc(ext.join(', ')) })}</div>`;
             else if (extConfigured.length) banner.innerHTML = `<div class="banner info" data-testid="egress-banner">${t('egress.blocked', { hosts: esc(extConfigured.join(', ')) })}</div>`;
             else banner.innerHTML = `<div class="banner ok" data-testid="egress-banner">${t('egress.local')}</div>`;
+        }
 
-            const [p, r] = [state.ia.servidores.find(b => b.papel === 'principal'), state.ia.servidores.find(b => b.papel === 'reserva')];
-            const stat = (k, v, s) => `<div class="stat"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>${s ? `<div class="s">${esc(s)}</div>` : ''}</div>`;
-            document.getElementById('stats').innerHTML = [
-                stat(t('stat.version'), state.versao, state.arquivo + (state.atualizado_em ? ' · ' + state.atualizado_em : '')),
-                stat(t('stat.mode'), ext.length ? t('stat.external') : t('stat.local'), ext.join(', ')),
-                stat(t('stat.ai'), p ? p.modelo_visao : t('stat.none'), p ? p.endereco : ''),
-                stat(t('stat.reserve'), r ? r.modelo_visao : t('stat.none'), r ? r.endereco : ''),
-                stat(t('stat.token'), state.token_exigido ? t('stat.tokenOn') : t('stat.tokenOff'), '')
-            ].join('');
+        function render(savedGroup) {
+            renderBadge();
             document.getElementById('servers-body').innerHTML = state.ia.servidores.map(backendRow).join('');
-            document.querySelectorAll('[data-group]').forEach(renderGroup);
-            document.getElementById('presets').innerHTML = PRESETS.map((p, i) =>
-                `<button type="button" class="preset" onclick="usePreset(${i})">${esc(p.nome)}<span class="tag ${p.local ? '' : 'cloud'}">${p.local ? 'LOCAL' : 'NUVEM'}</span></button>`).join('');
+            document.getElementById('about').textContent = t('about', { v: state.versao, f: state.arquivo,
+                d: state.atualizado_em ? t('about.saved', { d: state.atualizado_em.replace('T', ' ') }) : '' });
+            renderGroups(savedGroup);
+            renderStatus();
 
             const origin = location.origin;
             const tokenHdr = state.token_exigido ? ' -H "X-API-Token: $SENTRY_TOKEN"' : '';
@@ -517,44 +714,107 @@
             document.getElementById('mcp-ex').textContent = JSON.stringify({ mcpServers: { 'privio-sentry': { command: mcp.comando || 'python', args: mcp.args || ['sentry_mcp.py'], env } } }, null, 2);
         }
 
-        function collect(group) {
-            const changes = {};
-            fieldsOf(group).forEach(f => {
-                const el = document.getElementById('f-' + f.key);
-                if (!el) return;
-                let v;
-                if (f.kind === 'bool') v = el.checked ? '1' : '0';
-                else v = el.value.trim();
-                if (f.kind === 'secret') { if (v) changes[f.key] = v; return; }
-                const before = f.kind === 'bool' ? (f.valor === '1' ? '1' : '0') : (f.valor || '');
-                if (v !== before) changes[f.key] = v === '' ? null : v;
-            });
-            return changes;
+        // ---- painel: o que está pronto, o que precisa de atenção e a fila
+        let status = null;
+        function checkText(c) {
+            const d = c.dados || {};
+            switch (c.id) {
+                case 'ocr': return d.encontrado ? [t('chk.ocr'), t('chk.ocr.ok', { v: d.versao })] : [t('chk.ocr'), t('chk.ocr.bad')];
+                case 'yolo': return [t('chk.yolo'), d.pacote && d.modelo ? t('chk.yolo.ok') : (!d.pacote ? t('chk.yolo.noPkg') : t('chk.yolo.noModel'))];
+                case 'ia_principal': case 'ia_reserva': {
+                    const title = t(c.id === 'ia_principal' ? 'chk.aiMain' : 'chk.aiReserve');
+                    if (d.bloqueado) return [title, t('chk.ai.blocked', { h: d.endereco })];
+                    if (d.desligado) return [title, t('chk.ai.off', { h: d.endereco })];
+                    return [title, t('chk.ai.ok', { m: d.modelo || '?', h: d.endereco })];
+                }
+                case 'saida': return [t('chk.out'), d.destinos.length ? t('chk.out.ext', { h: d.destinos.join(', ') }) : t('chk.out.local')];
+                case 'nomes': return [t('chk.names'), d.instalado ? t('chk.pkg.ok') : t('chk.pkg.missing', { p: 'gliner' })];
+                case 'ocr_extra': return [t('chk.ocrExtra'), d.instalado ? t('chk.pkg.ok') : t('chk.pkg.missing', { p: 'rapidocr' })];
+                case 'verificacao': return [t('chk.verify'), d.ligada ? t('chk.verify.on') : t('chk.verify.off')];
+                case 'reiniciar': return [t('chk.restart'), t('chk.restart.items', { i: d.itens.join(', ') })];
+            }
+            return [c.id, ''];
         }
 
+        function fmtBytes(n) {
+            const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0;
+            while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+            return (i ? n.toFixed(n < 10 ? 1 : 0) : n) + ' ' + u[i];
+        }
+
+        function renderStatus() {
+            const box = document.getElementById('stats');
+            if (!status) { box.innerHTML = `<div class="stat"><div class="v">${esc(t('chk.loading'))}</div></div>`; return; }
+            const checks = status.verificacoes;
+            const bad = checks.filter(c => c.nivel !== 'ok');
+            const hero = document.getElementById('hero');
+            hero.className = 'hero ' + (checks.some(c => c.nivel === 'erro') ? 'bad' : (bad.length ? 'warn' : 'ok'));
+            hero.innerHTML = `<strong>${esc(bad.length ? t('hero.attention', { n: bad.length }) : t('hero.ok'))}</strong><span>${esc(bad.length ? t('hero.attentionSub') : t('hero.okSub'))}</span>`;
+            box.innerHTML = checks.map(c => {
+                const [title, text] = checkText(c);
+                const fix = c.nivel !== 'ok' && c.secao ? `<a class="fix" href="#${c.secao}">${esc(t('chk.fix'))}</a>` : '';
+                return `<div class="stat check ${c.nivel}" data-testid="check-${c.id}"><span class="dot ${c.nivel === 'ok' ? 'ok' : (c.nivel === 'erro' ? 'bad' : 'warn')}" aria-hidden="true"></span>
+                    <div class="check-body"><div class="v">${esc(title)}</div><div class="s">${esc(text)}</div></div>${fix}</div>`;
+            }).join('');
+            document.querySelector('a[data-view="visao"]').classList.toggle('alert', bad.length > 0);
+
+            const q = status.fila;
+            const tile = (k, n, cls, sub) => `<div class="tile ${n && cls ? cls : ''}" data-testid="q-${k}"><div class="n">${n}</div><div class="k">${esc(t('q.' + k))}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ''}</div>`;
+            const nextRetry = q.proxima_tentativa ? t('q.next', { h: new Date(q.proxima_tentativa * 1000).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }) }) : '';
+            document.getElementById('queue').innerHTML = [
+                tile('processando', q.processando, '', t('q.max', { n: q.maximo })), tile('na_fila', q.na_fila, ''),
+                tile('pendente', q.pendente, 'warn', nextRetry), tile('requer_revisao', q.requer_revisao, 'warn'),
+                tile('preliminar', q.preliminar, 'info'), tile('aprovado', q.aprovado, 'ok'), tile('erro', q.erro, 'bad')
+            ].join('');
+            const d = status.disco, days = status.retencao_dias;
+            document.getElementById('storage').innerHTML = esc(t('disk', { s: fmtBytes(d.bytes) + (d.parcial ? '+' : ''), n: d.arquivos }))
+                + ' · ' + esc(days ? t('disk.retention', { d: days }) : t('disk.keep')) + ` <a href="#operacao">${esc(t('chk.fix'))}</a>`;
+        }
+
+        async function loadStatus() {
+            try { status = await api('/admin/status'); renderStatus(); } catch (e) { /* o painel tenta de novo no próximo ciclo */ }
+        }
+        setInterval(() => { if (state && currentView() === 'visao' && !document.hidden) loadStatus(); }, 15000);
+
         async function saveGroup(group, extra) {
-            const changes = Object.assign(collect(group), extra || {});
+            const card = document.querySelector(`[data-group="${group}"]`);
+            const changes = {};
+            dirtyFields(card).forEach(el => {
+                const f = fieldByKey(el.dataset.key);
+                const v = currentOf(el);
+                if (f.kind === 'secret') { if (v) changes[f.key] = v; return; }
+                changes[f.key] = (f.kind !== 'bool' && v === '') ? null : v;
+            });
+            Object.assign(changes, extra || {});
             if (changes.AI_ALLOW_EXTERNAL === '1') {
-                const url = (changes.AI_BASE_URL || document.getElementById('f-AI_BASE_URL').value || '').trim();
+                const url = (changes.AI_BASE_URL || document.getElementById('f-AI_BASE_URL').value || fieldByKey('AI_BASE_URL').efetivo || '').trim();
                 let host = url; try { host = new URL(url).host; } catch (e) {}
                 if (!confirm(t('consent.confirm', { hosts: host || '?' }))) return;
             }
-            if (!Object.keys(changes).length) { toast(t('ok.saved'), true); return; }
+            if (!Object.keys(changes).length) return;
             try {
                 state = await api('/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values: changes }) });
-                render(); toast(t('ok.saved'), true);
+                render(group); toast(t('ok.saved'), true); loadStatus();
             } catch (e) { toast(t('err.save') + ': ' + e.message); }
         }
 
+        // "restaurar padrão" de um item: envia só ele; o resto do que foi digitado no grupo continua na tela
         async function resetField(key) {
-            const f = state.campos.find(x => x.key === key);
-            await saveGroup(f.group, { [key]: null });
+            const f = fieldByKey(key);
+            const card = document.querySelector(`[data-group="${f.group}"]`);
+            const edits = editsOf(card); delete edits[key];
+            try {
+                state = await api('/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values: { [key]: null } }) });
+                render(f.group); restoreEdits(card, edits); toast(t('ok.saved'), true); loadStatus();
+            } catch (e) { toast(t('err.save') + ': ' + e.message); }
         }
 
         function usePreset(i) {
             const p = PRESETS[i];
             document.getElementById('f-AI_PROVIDER').value = p.provider;
             document.getElementById('f-AI_BASE_URL').value = p.url;
+            markDirty(document.querySelector('[data-group="ia"]'));
+            document.getElementById('preset-hint').textContent = t(p.local ? 'preset.hintLocal' : 'preset.hintCloud', { n: p.nome });
             document.getElementById('f-AI_VISION_MODEL').focus();
         }
 
@@ -751,7 +1011,7 @@
         }
 
         async function load() {
-            try { state = await api('/admin/settings'); render(); if (currentView() === 'modelos') loadTemplates(); }
+            try { state = await api('/admin/settings'); render(); loadStatus(); if (currentView() === 'modelos') loadTemplates(); }
             catch (e) { toast(t('err.load') + ': ' + e.message); }
         }
 

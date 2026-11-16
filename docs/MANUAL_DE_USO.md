@@ -514,9 +514,9 @@ O botão **Administração** (ou `/admin`) abre a configuração sem editar o `.
 
 | Seção | O que ajusta |
 |---|---|
-| Visão geral | Versão, onde a IA roda, servidores configurados e o botão **Testar** (pedido curto, sem nenhum conteúdo de documento) |
-| IA e provedores | Atalhos (Ollama, LM Studio, OpenAI, Anthropic, Gemini, OpenRouter, Mistral), endereço, chave de API, modelo, **Listar modelos**, IA reserva e verificação cruzada. Também o limitador de pedidos (**Pedidos por minuto**: 12 por padrão em provedor externo; mais lento, mas sem recusas) e o que fazer **se o provedor recusar por limite de uso** |
-| Detecção e política | Perfil padrão, detector de nomes, leitura extra de OCR e segundo olhar |
+| Visão geral | Painel: **Tudo pronto** ou quantos itens pedem atenção; a lista de componentes (OCR, detector de assinaturas, IA principal e reserva, para onde vão as páginas, verificação final, pacotes opcionais ligados e reinício pendente), cada um com **Ajustar** quando precisa; a contagem de documentos por situação (processando, na fila, pendentes com a próxima tentativa, requer revisão, aguardando aplicar proteção, aprovados, com erro) e o espaço usado pelos arquivos guardados; os servidores de IA com o botão **Testar** (pedido curto, sem nenhum conteúdo de documento). Atualiza sozinho e só mostra contagens, nunca nomes de arquivo |
+| IA e provedores | Atalhos (Ollama, LM Studio, OpenAI, Anthropic, Gemini, OpenRouter, Mistral) que preenchem tipo e endereço e dizem o próximo passo, chave de API, modelo, **Listar modelos**, IA reserva e verificação cruzada. Também o limitador de pedidos (**Pedidos por minuto**: 12 por padrão em provedor externo; mais lento, mas sem recusas) e o que fazer **quando a cota do provedor acabar** |
+| Detecção e política | Perfil padrão, detector de nomes, leitura extra de OCR, segundo olhar e modelos de documento |
 | OCR e verificação | Tesseract, idioma, DPI e verificação final |
 | Operação | Documentos ao mesmo tempo, tamanho máximo e retenção (valem depois de reiniciar o serviço) |
 | API e agentes (MCP) | Rotas, exemplo com `curl` e o trecho pronto para configurar o servidor MCP |
@@ -526,9 +526,17 @@ O botão **Administração** (ou `/admin`) abre a configuração sem editar o `.
 no horário indicado; para tentar antes, use **⋮ › Reprocessar**. Com a opção **revisao** (padrão), as páginas que
 ficaram sem IA vão para "Requer revisão".
 
+**Como os campos funcionam.**
+- Cada seção agrupa os itens por assunto; os que raramente mudam ficam em **Opções avançadas**, que abre sozinha
+  quando algum deles já foi alterado.
+- Campo vazio mostra o valor **em uso** ("padrão: 300"); os interruptores aparecem como estão valendo agora.
+- Cada item diz se foi **alterado aqui** (com **restaurar padrão**, que volta ao `.env`) ou se vem **do .env**. O
+  nome da variável fica em letra pequena, para quem também mexe no `.env`.
+- Ao mexer num item, o cartão mostra **Alterações não salvas**: **Salvar** grava só o que você mudou e
+  **Descartar** desfaz. Sair da página com alteração pendente pede confirmação.
+
 A chave de API é guardada só nesta máquina (`privio_settings.json`) e nunca é mostrada de volta: deixe o campo em
-branco para manter a atual. Cada item mostra de onde vem o valor (**admin**, **.env** ou **padrão**);
-**restaurar padrão** volta ao `.env`.
+branco para manter a atual.
 
 **IA na nuvem.** Para usar um provedor externo com a sua chave: escolha o atalho, informe a chave e o modelo (que
 precisa aceitar imagens), marque **Permitir IA fora desta rede**, confirme o aviso e salve; depois clique em

@@ -14,6 +14,15 @@ import fitz  # PyMuPDF
 from utils.ocr_engine import OCREngine, ocr_workers
 
 
+def verify_dpi():
+    """DPI da releitura do original na verificação (VERIFY_DPI, padrão 300; inválido = 300)."""
+    try:
+        return int(float(os.getenv("VERIFY_DPI") or 300))
+    except (TypeError, ValueError, OverflowError):
+        return 300
+
+
+
 def _words_to_grounding(words):
     """Converte palavras do PyMuPDF (x0, y0, x1, y1, texto, ...) para o formato de grounding map."""
     grounding = []

@@ -5,6 +5,25 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Alterado
+- **Administração mais natural e fácil de operar.**
+  - **Visão geral virou um painel:** diz "Tudo pronto" ou quantos itens pedem atenção e lista os componentes (OCR, detector de assinaturas, IA, para onde vão as páginas, verificação final, pacotes opcionais, reinício pendente) com o link **Ajustar**. Mostra também os documentos por situação, com a próxima tentativa dos pendentes, e o espaço usado pelos arquivos guardados. Atualiza sozinho. Nova rota `GET /admin/status`, só com fatos e contagens.
+  - **Formulários em linguagem simples:**
+    - itens agrupados por assunto;
+    - **Opções avançadas** recolhidas, que abrem sozinhas quando algum item já foi alterado;
+    - interruptores no lugar das caixas de seleção;
+    - nomes legíveis nas listas (perfis pelo nome, "Mandar as páginas para revisão" em vez de `revisao`);
+    - o valor em uso aparece no campo vazio ("padrão: 300");
+    - os atalhos de provedor ficam dentro do cartão da IA principal e dizem o próximo passo.
+  - **Alterações não salvas** ficam marcadas; **Salvar** grava só o que mudou, **Descartar** desfaz, e sair da página pede confirmação.
+
+### Corrigido
+- **Tela Administração:**
+  - interruptores ligados por padrão (**Modelos de documento**, **OCR na verificação final**) apareciam desligados quando nada estava salvo;
+  - o padrão mostrado para servidor, modelo e tempo limite ignorava as variáveis antigas `OLLAMA_*` do `.env`;
+  - `CHAVE=` vazio no `.env` aparecia como "do .env".
+- "Restaurar padrão" num item salvava junto o que estava sendo digitado nos outros itens do mesmo cartão.
+
 ### Documentação
 - README: selos do YOLO (assinaturas), da IA local (Ollama ou LM Studio) e do MCP; fluxos em diagrama (da chegada ao PDF aprovado, cada pedido à IA com trava de saída e limitador, modelos de documento e agentes pelo MCP); seção de telas com a Administração e o gerenciador de modelos.
 - Capturas de tela novas (editor com a assinatura achada pelo YOLO e tarefas em vários estados, Administração e modelos), geradas com dados fictícios por `python scripts/make_screenshots.py`.

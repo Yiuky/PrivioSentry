@@ -1242,10 +1242,8 @@ class SentryApp:
             raise RuntimeError(f"PDF final não encontrado para verificação: {final_pdf}")
 
         use_ocr = os.getenv("VERIFY_OCR", "1") == "1"
-        try:
-            verify_dpi = int(float(os.getenv("VERIFY_DPI") or 300))
-        except (TypeError, ValueError, OverflowError):
-            verify_dpi = 300
+        from utils.verifier import verify_dpi as _verify_dpi
+        verify_dpi = _verify_dpi()
         if self.dpi_reduced:  # página gigante: a verificação também respeita o teto de pixels (senão, 40 GB de RAM)
             verify_dpi = min(verify_dpi, self.base_dpi)
         found_at = {}

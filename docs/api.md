@@ -49,6 +49,7 @@ curl -H "X-API-Token: $SENTRY_TOKEN" -o protegido.pdf "http://127.0.0.1:8001/dow
 | `GET /health/ai` | Servidores de IA (sem chaves), disjuntor e teste de saúde de cada um. |
 | `GET /admin/settings` · `POST /admin/settings` | Configuração da tela Admin. Chaves de API nunca voltam. |
 | `POST /admin/ai/test?papel=principal` · `GET /admin/ai/models` | Testa a IA salva (pedido curto, sem documento) e lista modelos. |
+| `GET /admin/status` | Painel da Administração: componentes prontos ou não (OCR, YOLO, IA, saída, verificação), documentos por situação e espaço usado. Só fatos e contagens: nenhum nome de arquivo, alerta ou chave. |
 | `GET /doc-templates` · `GET/POST /doc-templates/{id}` · `POST /doc-templates/{id}/aprovar` · `DELETE /doc-templates/{id}` | Modelos de documento: listar, ler, salvar (sempre como rascunho), aprovar e apagar ([modelos-documento.md](modelos-documento.md)). Exigem a Administração ligada. |
 | `POST /doc-templates/rascunho` | `{"task_id", "ia"}`: rascunho a partir das tarjas **revisadas e salvas** no editor (409 sem elas). |
 | `POST /doc-templates/testar` | `{"task_id", "modelo"}`: o modelo reconhece o documento? Só pontuação, rótulos e contagens. |

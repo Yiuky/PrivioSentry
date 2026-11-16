@@ -29,6 +29,7 @@ def test_editor_links_to_admin_and_back(page, live_app, open_app):
 
 def test_save_a_setting_and_restore_default(page, live_app, dialogs):
     open_admin(page, live_app, "ocr")
+    page.get_by_test_id("adv-ocr").locator("summary").click()          # DPI fica nas opções avançadas
     page.fill("#f-BASE_DPI", "250")
     page.get_by_test_id("save-ocr").click()
     expect(page.locator("#toast")).to_contain_text("salva")
@@ -111,3 +112,111 @@ def test_deep_link_opens_the_document(page, live_app, open_app):
     page.goto(f"{live_app.url}/?task={tid}")
     page.wait_for_selector("#page-wrapper-1 img")
     expect(page.locator("#doc-name")).to_contain_text("link.pdf")
+
+
+# ------------------------------------------------------------------ administração mais natural
+def test_switches_show_the_value_in_use_and_saving_writes_only_what_changed(page, live_app, dialogs, monkeypatch):
+    for key in ("VERIFY_OCR", "DOC_TEMPLATES", "BASE_DPI"):
+        monkeypatch.delenv(key, raising=False)
+    open_admin(page, live_app, "ocr")
+    expect(page.locator("#f-VERIFY_OCR")).to_be_checked()                 # ligado por padrão: aparece ligado
+    page.get_by_test_id("adv-ocr").locator("summary").click()
+    page.fill("#f-BASE_DPI", "250")
+    page.get_by_test_id("save-ocr").click()
+    expect(page.locator("#toast")).to_contain_text("salva")
+    import json
+    with open(os.environ["PRIVIO_SETTINGS_FILE"], encoding="utf-8") as fh:
+        assert json.load(fh)["values"] == {"BASE_DPI": "250"}            # o interruptor não mexido não foi gravado
+    assert "VERIFY_OCR" not in os.environ
+    page.goto(f"{live_app.url}/admin#deteccao")
+    page.wait_for_selector("#view-deteccao.active")
+    expect(page.locator("#f-DOC_TEMPLATES")).to_be_checked()
+
+
+def test_switch_that_is_off_in_env_shows_off(page, live_app, monkeypatch):
+    monkeypatch.setenv("VERIFY_OCR", "0")
+    open_admin(page, live_app, "ocr")
+    expect(page.locator("#f-VERIFY_OCR")).not_to_be_checked()             # contra-teste
+    expect(page.get_by_test_id("group-ocr")).to_contain_text("do .env")
+
+
+def test_unsaved_changes_are_flagged_and_can_be_discarded(page, live_app):
+    open_admin(page, live_app, "operacao")
+    save, flag = page.get_by_test_id("save-operacao"), page.get_by_test_id("unsaved-operacao")
+    expect(save).to_be_disabled()
+    expect(flag).to_be_hidden()
+    page.fill("#f-MAX_UPLOAD_MB", "123")
+    expect(save).to_be_enabled()
+    expect(flag).to_be_visible()
+    leaving = page.evaluate("() => { const e = new Event('beforeunload', { cancelable: true }); "
+                            "window.dispatchEvent(e); return e.defaultPrevented; }")
+    assert leaving                                                        # sair da página pede confirmação
+    page.get_by_role("button", name="Descartar").click()
+    expect(page.locator("#f-MAX_UPLOAD_MB")).to_have_value("")
+    expect(save).to_be_disabled()
+    assert not page.evaluate("() => { const e = new Event('beforeunload', { cancelable: true }); "
+                             "window.dispatchEvent(e); return e.defaultPrevented; }")
+
+
+def test_restoring_one_item_keeps_other_edits_unsaved(page, live_app, dialogs):
+    from utils import settings
+    settings.save({"MAX_UPLOAD_MB": "200"})
+    open_admin(page, live_app, "operacao")
+    page.fill("#f-MAX_PARALLEL_TASKS", "3")
+    page.locator("#f-MAX_UPLOAD_MB").locator("xpath=..").get_by_role("button", name="restaurar padrão").click()
+    expect(page.locator("#f-MAX_UPLOAD_MB")).to_have_value("")
+    expect(page.locator("#f-MAX_PARALLEL_TASKS")).to_have_value("3")     # continua na tela...
+    assert "MAX_PARALLEL_TASKS" not in settings.load()["values"]           # ...e não foi salvo junto
+
+
+def test_choices_use_readable_names(page, live_app):
+    open_admin(page, live_app, "deteccao")
+    options = page.locator("#f-POLICY_PROFILE option").all_inner_texts()
+    assert "LGPD: publicação (transparência / LAI)" in options and "lgpd_publicacao" not in options
+    assert page.locator("#f-NER_ENGINE option").all_inner_texts()[:1] == ["Desligado"]
+
+
+def test_advanced_options_open_by_themselves_when_changed(page, live_app, monkeypatch):
+    for key in ("BASE_DPI", "VERIFY_DPI", "TESSERACT_LANG"):
+        monkeypatch.delenv(key, raising=False)
+    open_admin(page, live_app, "ocr")
+    assert page.get_by_test_id("adv-ocr").get_attribute("open") is None   # padrão: recolhido
+    monkeypatch.setenv("BASE_DPI", "200")
+    page.reload()
+    page.wait_for_selector("[data-group=ocr] .fields", state="attached")
+    assert page.get_by_test_id("adv-ocr").get_attribute("open") is not None   # mudado: não fica escondido
+
+
+def test_overview_lists_what_needs_attention_and_the_queue(page, live_app, monkeypatch):
+    from utils import admin_status
+    monkeypatch.setattr(admin_status, "tesseract", lambda: {"encontrado": False, "versao": None, "do_path": True})
+    monkeypatch.setattr(admin_status, "yolo", lambda: {"pacote": True, "modelo": True})
+    live_app.seed_task("r.pdf", status="Requer revisão", needs_review=True)
+    live_app.seed_task("ok.pdf", status="Concluído", extra={"finalizado": True})
+    open_admin(page, live_app, "visao")
+    expect(page.get_by_test_id("hero")).to_contain_text("pede(m) atenção")
+    ocr = page.get_by_test_id("check-ocr")
+    expect(ocr).to_contain_text("Não encontrado")
+    ocr.get_by_role("link", name="Ajustar").click()
+    page.wait_for_selector("#view-ocr.active")
+    page.goto(f"{live_app.url}/admin#visao")
+    expect(page.get_by_test_id("q-requer_revisao")).to_contain_text("1")
+    expect(page.get_by_test_id("q-aprovado")).to_contain_text("1")
+    assert "r.pdf" not in page.get_by_test_id("queue").inner_text()       # só contagens
+
+
+def test_overview_says_all_set_when_nothing_is_missing(page, live_app, monkeypatch):
+    from utils import admin_status
+    monkeypatch.setattr(admin_status, "tesseract", lambda: {"encontrado": True, "versao": "5.3.0", "do_path": True})
+    monkeypatch.setattr(admin_status, "yolo", lambda: {"pacote": True, "modelo": True})
+    monkeypatch.delenv("VERIFY_OCR", raising=False)
+    open_admin(page, live_app, "visao")
+    expect(page.get_by_test_id("hero")).to_contain_text("Tudo pronto")    # contra-teste
+    expect(page.get_by_test_id("check-ocr")).to_contain_text("versão 5.3.0")
+
+
+def test_cloud_preset_explains_the_next_steps(page, live_app):
+    open_admin(page, live_app, "ia")
+    page.get_by_role("button", name="Google Gemini").click()
+    expect(page.locator("#preset-hint")).to_contain_text("Permitir IA fora desta rede")
+    expect(page.get_by_test_id("save-ia")).to_be_enabled()
