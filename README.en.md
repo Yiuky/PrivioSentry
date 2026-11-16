@@ -30,7 +30,7 @@ PRIVIO SENTRY is a local-first project for detecting and protecting personal, se
 
 * The models only **suggest** *potential* detections; every suggestion appears as an editable region that a person can accept, move, resize or remove.
 * Automatic processing produces only a *preliminary* PDF with the AI suggestions; the version meant for use comes from the reviewer checking the boxes and clicking **Apply protection** in the editor. When the pipeline is unsure (an AI call failed, a CPF found in the original is not covered, a page could not be verified) it **fails closed**: the document is marked **"Requer revisão" (Needs review)** instead of "Concluído" (Completed), with per-page alerts.
-* "The policy constrains" and "the system records" are the design direction: today the policy is fixed (CPF + personal addresses) and the only record is the task log. A configurable policy engine and an audit trail are **planned, not implemented** (see [Vision](#vision-future-not-implemented)).
+* "The policy constrains" and "the system records" are the design direction: what gets redacted comes from the **policy profile** (`POLICY_PROFILE`, or chosen per document in the UI), and the record is the task log, which also keeps the external AI destinations used. An audit trail is **planned, not implemented** (see [Vision](#vision-future-not-implemented)).
 
 ## Read this first: it assists, it does not guarantee
 
@@ -51,19 +51,20 @@ The LGPD separates *personal data* from *sensitive personal data* (health, biome
 
 1. Renders each PDF page to an image and runs **Tesseract OCR** (with word coordinates).
 2. Finds **CPFs** (validated with the check digits; CNPJs are spared; dates/times are excluded) using two OCR passes.
-3. Detects **signatures** with a **YOLO** model, crops them and audits the crops (OCR + a **vision LLM** served by [Ollama](https://ollama.com)) for handwritten/hard-to-OCR CPFs.
-4. Asks the vision LLM to discover **addresses** on each page and classify them (personal / professional / secondary); only *personal* addresses are redacted, via a deterministic match against the OCR words.
-5. Produces a final PDF (native-text redaction of the original, or rasterized pages) plus a JSON of redaction boxes.
-6. Runs a **post-redaction verification**: re-reads the output and cross-checks the *original* (OCR at higher DPI) to make sure every CPF found is covered by a redaction.
-7. Optionally, a **local decision model** ([Laya](https://huggingface.co/convaiinnovations/laya), Apache-2.0, CPU-friendly) gives a calibrated second opinion on addresses and **learns from reviewer corrections**; a new profile only goes live after passing a quality gate, and it never removes a redaction. Off by default; see [docs/decisions.md](docs/decisions.md) (Portuguese).
-8. Provides a **web editor** to add, move, delete and approve redactions before generating the final PDF.
+3. Detects **signatures** with a **YOLO** model, crops them and audits the crops (OCR + a **vision LLM** on an AI server reached by its API: [Ollama](https://ollama.com), LM Studio...) for handwritten/hard-to-OCR CPFs.
+4. Depending on the policy profile, finds **other data** (RG, CNH, phone, e-mail, bank data, Pix and more) with rules (check digits, format, context words), and names with the optional GLiNER detector.
+5. Asks the vision LLM to discover **addresses** on each page and classify them (personal / professional / secondary); only *personal* addresses are redacted, via a deterministic match against the OCR words.
+6. Produces a final PDF (native-text redaction of the original, or rasterized pages) plus a JSON of redaction boxes.
+7. Runs a **post-redaction verification**: re-reads the output and cross-checks the *original* (OCR at higher DPI) to check that every CPF found is covered by a redaction.
+8. Optionally, a **local decision model** ([Laya](https://huggingface.co/convaiinnovations/laya), Apache-2.0, CPU-friendly) gives a calibrated second opinion on addresses and **learns from reviewer corrections**; a new profile only goes live after passing a quality gate, and it never removes a redaction. Off by default; see [docs/decisions.md](docs/decisions.md) (Portuguese).
+9. Provides a **web editor** to add, move, delete and approve redactions before generating the final PDF.
 
 ## Requirements
 
 * Python **3.10 – 3.12**
 * **Tesseract OCR** 5.x with the Portuguese data (`por`)
 * An AI server with a vision model: **Ollama**, **LM Studio**, vLLM, llama.cpp or an organization server (OpenAI-compatible API)
-* RAM/VRAM suitable for the model you choose (the default render DPI is high; reduce `BASE_DPI` on small machines)
+* RAM/VRAM suitable for the model you choose (the default render DPI is 300, `BASE_DPI`; above it CPF reading gets worse, see [benchmarks](docs/benchmarks.md))
 * The YOLO signature detector `models/signature_stamp_detector.pt` (included, see [models/MODEL_CARD.md](models/MODEL_CARD.md))
 
 ## Installation
@@ -118,6 +119,11 @@ cloud provider by API key, with a connection test), detection, OCR, queue and re
 **blocked by default**; once allowed, page images and text go to it, each task records where, and the badge
 changes to **EXTERNAL AI**. What the provider does with that data depends on your organization's contract.
 
+**AI usage limits:** a per-minute request limiter, per server, is shared by every document being processed (on by
+default for a cloud provider: slower, but without refusals, `AI_REQUESTS_PER_MINUTE`). If the provider's quota runs
+out, a document can stay **Pending** and be processed again later instead of going to review
+(`AI_LIMIT_ACTION=pendente`).
+
 **Document templates** ([docs/modelos-documento.md](docs/modelos-documento.md)): documents with a known layout
 (licenses, forms) are recognized by fixed phrases and redacted by their labels with **no AI (zero tokens)**; an
 inspection afterwards (rules, plus an agent reading the already-redacted text) looks for anything left out.
@@ -129,7 +135,7 @@ The same service is also an **API** ([docs/api.md](docs/api.md), `PORTAL_ENABLED
 **local MCP server** for AI agents (`python sentry_mcp.py`, [docs/mcp.md](docs/mcp.md)). Agents upload and follow
 documents; only a human reviewer approves, and the PDF is released to them only after approval.
 
-Copy `.env.example` to `.env`. All variables are documented in [docs/configuration.md](docs/configuration.md). The most relevant ones: `TESSERACT_PATH`, `OLLAMA_API_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `YOLO_MODEL_PATH`, `BASE_DPI`, `APP_HOST`, `API_TOKEN`, `VERIFY_OCR`.
+Copy `.env.example` to `.env`. All variables are documented in [docs/configuration.md](docs/configuration.md). The most relevant ones: `TESSERACT_PATH`, `AI_PROVIDER`, `AI_BASE_URL`, `AI_VISION_MODEL` (or `OLLAMA_*`), `AI_API_KEY`, `AI_ALLOW_EXTERNAL`, `POLICY_PROFILE`, `YOLO_MODEL_PATH`, `BASE_DPI`, `APP_HOST`, `API_TOKEN`, `VERIFY_OCR`.
 
 ## Usage
 
@@ -159,9 +165,10 @@ python main.py --input examples/sample_input.pdf --output out
 ## Architecture (short)
 
 ```
-Browser ─► gatekeeper.py (:8000, optional) ─proxy─► app_service.py (:8001, FastAPI)
+Browser ─► gatekeeper.py (:8000, optional) ─proxy─► app_service.py (:8001, FastAPI: portal, API, /admin)
+AI agent ─► sentry_mcp.py (MCP, stdio) ──── API ────►│
                                                        └─ one worker process per task ─► main.py (SentryApp)
-                                                              OCR (Tesseract) · YOLO · Ollama LLM · verifier
+                                                              OCR (Tesseract) · YOLO · AI server by API · egress gate · verifier
 ```
 
 Details: [docs/architecture.md](docs/architecture.md).
@@ -191,7 +198,7 @@ Full list: [docs/limitations.md](docs/limitations.md).
 
 ## Privacy & security
 
-Processing is local. Artifacts of every task (page images, OCR output, crops) are stored under `output/` and contain **personal data**; delete them when no longer needed (see retention options in [docs/configuration.md](docs/configuration.md)). Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
+Processing is local by default; a cloud AI provider only receives content with `AI_ALLOW_EXTERNAL=1`, enabled in the Administration screen. Artifacts of every task (page images, OCR output, crops) are stored under `output/` and contain **personal data**; delete them when no longer needed (see retention options in [docs/configuration.md](docs/configuration.md)). Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 
 ## Contributing
 

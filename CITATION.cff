@@ -4,15 +4,16 @@ type: software
 title: "PRIVIO SENTRY: infraestrutura local de privacidade com IA (SENTRY Redact)"
 abstract: >-
   Local-first pipeline that finds Brazilian CPF numbers and personal (residential) addresses in PDF files with
-  Tesseract OCR, a YOLO signature detector and a local vision LLM served by Ollama, suggests redactions for
+  Tesseract OCR, a YOLO signature detector and a vision LLM on a local AI server (Ollama or any
+  OpenAI-compatible API), suggests redactions for
   human review in a web editor, verifies the output against the original and fails closed. It can support
   LGPD-aligned practices but does not guarantee anonymization.
 authors:
   - family-names: Gambati
     given-names: Joberth Firmino
     alias: Yiuky
-version: 5.6.1
-date-released: 2026-10-05
+version: 5.7.0
+date-released: 2026-11-16
 license: AGPL-3.0-or-later
 repository-code: "https://github.com/Yiuky/PrivioSentry"
 url: "https://github.com/Yiuky/PrivioSentry"
