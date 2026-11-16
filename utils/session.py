@@ -483,9 +483,16 @@ class Session:
                     x1 = (b["x"] + b["w"]) * scale
                     y1 = (b["y"] + b["h"]) * scale
 
-                    rect = fitz.Rect(x0, y0, x1, y1)
+                    # As caixas estão no espaço da imagem renderizada (página já girada); a tarja do PyMuPDF
+                    # usa o espaço sem rotação: sem a conversão, em página com /Rotate ela caía em outro lugar.
+                    rect = fitz.Rect(x0, y0, x1, y1) * page.derotation_matrix
+                    rect.normalize()
                     # Adiciona área de bloqueio visual (tinta preta sem bordas)
                     page.add_redact_annot(rect, fill=(0,0,0))
+                    # Campo de formulário sob a tarja: o valor continuava no PDF (extraível) mesmo coberto
+                    for widget in list(page.widgets() or []):
+                        if widget.rect.intersects(rect):
+                            page.delete_widget(widget)
 
             self.logger.info("[+] Executando queima real de pixels nas páginas...")
             for page in doc:

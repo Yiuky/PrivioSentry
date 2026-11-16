@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import argparse
-import glob
+import math
 import os
 import sys
 import time
@@ -456,8 +456,7 @@ class SentryApp:
             return
         for i in range(len(self.grounding_maps)):
             page_num = i + 1
-            native = self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else []
-            gmap = native or self.grounding_maps[i]
+            gmap = self._page_words(i)  # camada de texto rala (só o carimbo): o OCR tem a página inteira
             if not gmap:
                 continue
             try:
@@ -516,8 +515,7 @@ class SentryApp:
         stats = {"acrescentadas": 0, "ja_cobertas": 0, "nao_localizadas": 0, "falhas": 0}
         for page_num in pages:
             i = page_num - 1
-            native = self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else []
-            words = native or self.grounding_maps[i]
+            words = self._page_words(i)
             if not words:
                 continue
             page_text = self._lines_from_words(words)
@@ -579,7 +577,7 @@ class SentryApp:
     def run_template_phase(self):
         """
         Modelos de documento (utils/doc_templates): reconhece o documento pelas frases fixas e tarja os campos
-        ancorados em rótulos, sem IA (zero token). Dois modelos quase empatados: nenhum é aplicado (revisão).
+        ancorados em rótulos, sem IA (zero token). Mais de um modelo reconhecido: nenhum é aplicado (revisão).
         Modelo APROVADO com "dispensa_ia" e todos os campos obrigatórios achados dispensa a IA de visão de
         endereços nas páginas dele; a inspeção depois (run_template_inspection) procura o que ficou de fora.
         Nada aqui aprova o documento.
@@ -680,7 +678,9 @@ class SentryApp:
                     self.add_review(page, "Modelo aplicado sem IA (zero token): dados fora dos campos do modelo "
                                           "não foram procurados por IA. Conferir a página.")
                 continue
-            text = template_engine.masked_text(words, covered)
+            # palavra só em parte sob a tarja ("PROPRIETARIO:MARIA") também sai mascarada no texto do agente
+            text = template_engine.masked_text(words, covered | template_engine.touched_ids(
+                words, self.global_redactions[page]))
             items, info = second_look.run_agent(text, types)
             if items is None:
                 stats["falhas"] += 1
@@ -748,8 +748,7 @@ class SentryApp:
         # testados, achou 3x mais endereços pessoais que o pedido antigo, sem inventar (benchmarks/address_eval.py)
         texts = []
         for i in range(len(self.image_paths)):
-            native = self.grounding_maps_native[i] if i < len(self.grounding_maps_native) else []
-            words = native or (self.grounding_maps[i] if i < len(self.grounding_maps) else [])
+            words = self._page_words(i)
             texts.append(" ".join(str(w.get("text", "")) for w in words))
         self.address_redactor.run_discovery(self.image_paths, page_texts=texts, skip_pages=self.template_skip_pages)
         for page_num, reason in self.address_redactor.failed_pages.items():
@@ -769,7 +768,12 @@ class SentryApp:
         items = [(page, addr) for page in sorted(results) for addr in results[page]]
         if service is None or not items:
             return
-        verdicts = service.decide_many([addr["text"] for _, addr in items])
+        verdicts = list(service.decide_many([addr["text"] for _, addr in items]) or [])
+        if len(verdicts) != len(items):  # resposta incompleta: endereço sem veredito nunca passa calado
+            self.logger.error(f"[decisions] {len(verdicts)} veredito(s) para {len(items)} endereço(s)")
+            for page in sorted({page for page, _ in items[len(verdicts):]} or {page for page, _ in items}):
+                self.add_review(page, "Endereços: decisor local indisponível. Revisar manualmente.")
+            verdicts = verdicts[:len(items)]
         log = []
         for (page, addr), verdict in zip(items, verdicts):
             llm_personal = addr.get("type") == "pessoal"
@@ -841,6 +845,10 @@ class SentryApp:
                 # O LLM viu um endereço pessoal que não foi achado no texto do OCR: revisão, não tarja espalhada
                 self.add_review(page_num, f"{len(unlocated)} endereço(s) pessoal(is) apontado(s) pela IA não "
                                           f"localizado(s) no texto. Revisar manualmente.")
+            partial = getattr(self.address_redactor, "partial", {}).get(page_num) or []
+            if partial:
+                self.add_review(page_num, f"{len(partial)} endereço(s) pessoal(is) tarjado(s) só em parte (havia "
+                                          f"outras palavras no meio). Conferir se ficou parte visível.")
             
             if redaction_mappings:
                 if "FALLBACK_ALL" in redaction_mappings:
@@ -950,6 +958,7 @@ class SentryApp:
                 img = Image.open(crop_path).convert("RGB")
             except Exception as e:
                 self.logger.error(f"[!] Erro ao abrir imagem do crop {crop_path}: {e}")
+                self.add_review(page_num, "Recorte de assinatura não pôde ser auditado pela IA. Revisar a assinatura.")
                 continue
 
             draw = ImageDraw.Draw(img)
@@ -985,6 +994,10 @@ class SentryApp:
                 img_bytes=img_bytes
             )
             
+            # Resposta fora do formato (lista, null, outra chave, texto no lugar da lista) = falha, não "nada visível"
+            if not (isinstance(response, dict) and isinstance(response.get("unredacted_cpfs"), list)):
+                response = {"error": "resposta da IA fora do formato esperado"} if not (
+                    isinstance(response, dict) and "error" in response) else response
             if isinstance(response, dict):
                 if "error" in response:
                     msg = f"Protocolo de Pânico (Assinaturas) ativo na pág {page_num}: IA esgotada/Timeout."
@@ -1018,6 +1031,8 @@ class SentryApp:
                              if emergency_box not in self.global_redactions[page_num]:
                                  self.global_redactions[page_num].append(emergency_box)
                                  self.cpf_redactions[page_num].append(emergency_box)
+                                 self.add_review(page_num, "A IA viu CPF sem tarja numa assinatura: recorte inteiro "
+                                                           "tarjado. Conferir.")
 
         self.logger.info("[+] Fase 7 concluída.")
 
@@ -1043,7 +1058,13 @@ class SentryApp:
                 source = red.get("source", "Manual")
                 source_w = red.get("image_width")
                 if coords and len(coords) == 4:
-                    box = { "x": coords[0], "y": coords[1], "w": coords[2]-coords[0], "h": coords[3]-coords[1] }
+                    # o editor gera x1<x0 ao redimensionar para cima/esquerda: normaliza em vez de perder a tarja
+                    x0, y0, x1, y1 = (c if isinstance(c, (int, float)) and not isinstance(c, bool) else float(c)
+                                      for c in coords)
+                    if not all(map(math.isfinite, (x0, y0, x1, y1))) or x0 == x1 or y0 == y1:
+                        raise ValueError("coordenadas sem área")
+                    x0, x1, y0, y1 = min(x0, x1), max(x0, x1), min(y0, y1), max(y0, y1)
+                    box = {"x": x0, "y": y0, "w": x1 - x0, "h": y1 - y0}
                     if source_w: box["source_width"] = float(source_w)
                     self.global_redactions[page_num].append(box)
                     label = red.get("label")
@@ -1051,8 +1072,65 @@ class SentryApp:
                         self.box_labels[page_num][f"{box['x']}_{box['y']}_{box['w']}_{box['h']}"] = str(label)
                     if rtype == "pii" and label == "Endereço residencial": self.address_redactions[page_num].append(box)
                     elif rtype == "signature": self.cpf_redactions[page_num].append(box)
+                else:
+                    raise ValueError("coordenadas ausentes")
             except Exception as e:
                 self.logger.error(f"Erro ao analisar tarja ({source}): {e}")
+                # Falha fechado: uma tarja do revisor que não pode ser aplicada nunca termina "Concluído"
+                page = red.get("page") if isinstance(red, dict) else None
+                where = int(page) if str(page).isdigit() else None
+                reason = "Uma tarja do revisor não pôde ser aplicada (coordenadas inválidas). Refaça a tarja."
+                if where:
+                    self.add_review(where, reason)
+                else:
+                    self.add_document_review(reason)
+
+    def _merge_into_saved_draft(self, suggestions):
+        """Reprocessamento com rascunho salvo no editor (manual_redactions.json, que tem prioridade): as tarjas
+        novas desta leitura que não estão no rascunho entram nele, e o documento vai para revisão. Antes, o PDF
+        aprovado saía só com as caixas antigas. O que o revisor tirou de propósito pode voltar: tarja a mais."""
+        import json
+        path = os.path.join(self.session.output_dir, "manual_redactions.json")
+        if getattr(self, "manual_mode", False) or not os.path.exists(path):
+            return
+        try:
+            with open(path, encoding="utf-8") as f:
+                draft = json.load(f)
+            if not isinstance(draft, list):
+                raise ValueError("rascunho fora do formato")
+        except (OSError, ValueError) as e:
+            self.add_document_review(f"Rascunho salvo no editor não pôde ser lido ({type(e).__name__}): confira as "
+                                     "tarjas antes de aplicar a proteção.")
+            return
+
+        def rel(box):  # coordenadas relativas: o DPI pode ter mudado entre as leituras
+            try:
+                w = float(box.get("image_width") or 0) or 1.0
+                h = float(box.get("image_height") or 0) or w
+                x0, y0, x1, y1 = (float(c) for c in box["coords"])
+                return int(box.get("page")), (min(x0, x1) / w, min(y0, y1) / h, max(x0, x1) / w, max(y0, y1) / h)
+            except (TypeError, ValueError, KeyError, AttributeError):
+                return None, None
+
+        def overlaps(a, b):
+            ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+            iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+            area = (a[2] - a[0]) * (a[3] - a[1])
+            return area > 0 and ix * iy / area >= 0.5
+
+        kept = [rel(b) for b in draft if isinstance(b, dict)]
+        new = [b for b in suggestions
+               if not any(page == rel(b)[0] and overlaps(rel(b)[1], r) for page, r in kept if r)]
+        if not new:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(draft + new, f, indent=2)
+        except OSError as e:
+            self.logger.error(f"[-] Não foi possível somar as sugestões novas ao rascunho: {e}")
+        for page in sorted({b["page"] for b in new}):
+            self.add_review(page, "Reprocessado com rascunho salvo: sugestões novas foram somadas ao rascunho. "
+                                  "Conferir.")
 
     def run_native_phase(self):
         """Nova fase: Retarjamento direto e nativo no arquivo PDF."""
@@ -1098,6 +1176,8 @@ class SentryApp:
                 by = box['y']
                 bw = box['w']
                 bh = box['h']
+                if not bw or not bh or bw < 0 or bh < 0:
+                    continue  # caixa sem área não cobre nada, e o editor não conseguiria gravá-la (422)
                 box_sig = f"{bx}_{by}_{bw}_{bh}"
                 
                 known = self.box_labels.get(page_num, {}).get(box_sig)  # rótulo explícito vence a inferência
@@ -1126,6 +1206,7 @@ class SentryApp:
             self.logger.info(f"[+] Metadados do frontend salvos em {metadata_path}")
         except Exception as e:
             self.logger.error(f"[-] Erro ao salvar metadados do frontend: {e}")
+        self._merge_into_saved_draft(frontend_redactions)
         
         final_images = []
         
@@ -1161,7 +1242,10 @@ class SentryApp:
             raise RuntimeError(f"PDF final não encontrado para verificação: {final_pdf}")
 
         use_ocr = os.getenv("VERIFY_OCR", "1") == "1"
-        verify_dpi = int(os.getenv("VERIFY_DPI", "300"))
+        try:
+            verify_dpi = int(float(os.getenv("VERIFY_DPI") or 300))
+        except (TypeError, ValueError, OverflowError):
+            verify_dpi = 300
         if self.dpi_reduced:  # página gigante: a verificação também respeita o teto de pixels (senão, 40 GB de RAM)
             verify_dpi = min(verify_dpi, self.base_dpi)
         found_at = {}
@@ -1207,7 +1291,9 @@ class SentryApp:
 def collect_pdfs(input_path):
     """PDF único ou todos os *.pdf (ordenados) de uma pasta."""
     if os.path.isdir(input_path):
-        return sorted(glob.glob(os.path.join(input_path, "*.pdf")))
+        # extensão sem diferenciar maiúsculas: "SCAN.PDF" ficava de fora calado no Linux
+        return sorted(os.path.join(input_path, n) for n in os.listdir(input_path)
+                      if n.lower().endswith(".pdf") and os.path.isfile(os.path.join(input_path, n)))
     if os.path.isfile(input_path):
         return [input_path]
     return []
@@ -1216,7 +1302,8 @@ def collect_pdfs(input_path):
 def build_arg_parser():
     parser = argparse.ArgumentParser(
         prog="main.py",
-        description="SENTRY Redact: tarja CPF e endereços pessoais em PDFs (processamento 100% local).")
+        description="SENTRY Redact: tarja CPF e endereços pessoais em PDFs (processamento local; IA fora desta "
+                    "rede só com AI_ALLOW_EXTERNAL=1).")
     parser.add_argument("--input", "-i", required=True, help="PDF ou pasta com PDFs a processar.")
     parser.add_argument("--output", "-o", default=None,
                         help="Pasta dos PDFs finais tarjados (arquivos intermediários ficam em <output>/work). "

@@ -146,7 +146,9 @@ def verify_pdf(pdf_path, ocr_engine=None, use_ocr=True, dpi=300, psm="6", logger
                         if logger:
                             logger.error(f"[!] Verificação por OCR falhou na pág {page_num}: {e}")
                         unverified.append(page_num)
-                elif needs_ocr and not words:
+                elif needs_ocr:
+                    # sem OCR, página com imagem fica sem verificar: a imagem pode ter dado pessoal, mesmo com um
+                    # pouco de texto digital (carimbo, cabeçalho) na página
                     unverified.append(page_num)
                 pages.append((page_num, found_here, boxes_here, size))
 

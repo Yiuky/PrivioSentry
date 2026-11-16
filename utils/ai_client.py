@@ -115,7 +115,14 @@ class Breaker:
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(self.path), suffix=".tmp")
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(data, f)
-            os.replace(tmp, self.path)
+            for attempt in range(5):  # no Windows, outro processo lendo o arquivo faz o replace falhar por instantes
+                try:
+                    os.replace(tmp, self.path)
+                    break
+                except PermissionError:
+                    time.sleep(0.01 * (attempt + 1))
+            else:
+                os.remove(tmp)  # não deixa .tmp acumulando na pasta temporária
         except OSError:
             pass  # sem disco para o estado: o disjuntor só não é compartilhado
 
@@ -186,11 +193,12 @@ class Backend:
         return _env_float(f"{self.prefix}{kind}_TIMEOUT", general) if self.prefix != "AI_" else general
 
     def key(self, vision):
-        return f"{self.kind}|{self.base_url}|{self.vision_model if vision else self.model}"
+        return f"{self.kind}|{egress.safe_url(self.base_url)}|{self.vision_model if vision else self.model}"
 
     def describe(self):
         """Sem a chave."""
-        return {"papel": self.role, "tipo": self.kind, "endereco": self.base_url, "modelo_texto": self.model,
+        return {"papel": self.role, "tipo": self.kind, "endereco": egress.safe_url(self.base_url),
+                "modelo_texto": self.model,
                 "modelo_visao": self.vision_model, "com_chave": bool(self.api_key),
                 "externo": egress.is_external(self.base_url)}
 
@@ -219,7 +227,8 @@ class OllamaBackend(Backend):
         payload = {"model": self.vision_model if vision else self.model,
                    "messages": [{"role": "system", "content": system}, user],
                    "stream": False, "think": False, "options": options}
-        response = requests.post(self.url, json=payload, timeout=timeout)
+        response = requests.post(self.url, json=payload, timeout=timeout, allow_redirects=False)
+        egress.refuse_redirect(response)
         _raise_for_server_error(response)
         raw_text = response.text
         data = clean_json_response(raw_text)
@@ -237,7 +246,8 @@ class OllamaBackend(Backend):
             return
         for model in {self.model, self.vision_model}:
             try:
-                requests.post(self.base_url + "/api/generate", json={"model": model, "keep_alive": 0}, timeout=15)
+                requests.post(self.base_url + "/api/generate", json={"model": model, "keep_alive": 0}, timeout=15,
+                              allow_redirects=False)
             except Exception:
                 pass
 
@@ -269,13 +279,14 @@ class OpenAICompatBackend(Backend):
                                 {"role": "user", "content": content if image_b64 else prompt}]}
         t0 = time.time()
         response = requests.post(self.base_url + "/chat/completions", json=payload, headers=self._headers(),
-                                 timeout=timeout)
+                                 timeout=timeout, allow_redirects=False)
         if response.status_code == 400 and re.search(r"max_completion_tokens|temperature", response.text or ""):
             # modelos de raciocínio da OpenAI recusam max_tokens/temperature: repete uma vez no formato novo
             payload["max_completion_tokens"] = payload.pop("max_tokens")
             payload.pop("temperature", None)
             response = requests.post(self.base_url + "/chat/completions", json=payload, headers=self._headers(),
-                                     timeout=timeout)
+                                     timeout=timeout, allow_redirects=False)
+        egress.refuse_redirect(response)
         _raise_for_server_error(response)
         if response.status_code in (401, 403):
             raise RuntimeError(f"HTTP {response.status_code}: servidor de IA recusou a chave (AI_API_KEY)")
@@ -420,8 +431,14 @@ class AIClient:
                 if external:
                     egress.record(backend.base_url)
                 ratelimit.pace(backend.base_url)
-                with ollama_lock:
+                # Trava com prazo: um worker morto segurando a trava (falta de memória) travava todos para sempre
+                if not ollama_lock.acquire(timeout=_env_float("AI_LOCK_TIMEOUT", 3600)):
+                    return {"error": "IA ocupada por tempo demais (trava não liberada)", "_backend_failed":
+                            backend.role}, None, {}
+                try:
                     out = attempt_fn(backend, attempt)
+                finally:
+                    ollama_lock.release()
                 self.breaker.success(key)
                 self._maybe_reset(backend)
                 return out
@@ -467,7 +484,9 @@ class AIClient:
                     raise RuntimeError(f"resposta inesperada do servidor: {str(raw)[:120]}")
                 return content, metrics
             parsed = clean_json_response(content)
-            if isinstance(parsed, dict) and "error" in parsed:
+            if not isinstance(parsed, dict):  # lista, null, número: fora do formato (a reserva confere)
+                parsed = {"error": "resposta da IA não é um objeto JSON", "model_output_invalid": True}
+            elif "error" in parsed:
                 parsed["model_output_invalid"] = True
             return parsed, metrics
 
@@ -499,7 +518,9 @@ class AIClient:
                 return {"error": "A IA retornou uma mensagem vazia", "raw_response": raw[:500],
                         "model_output_invalid": True}, img_bytes, metrics
             parsed = clean_json_response(content)
-            if isinstance(parsed, dict) and "error" in parsed:
+            if not isinstance(parsed, dict):  # lista, null, número: fora do formato (a reserva confere)
+                parsed = {"error": "resposta da IA não é um objeto JSON", "model_output_invalid": True}
+            elif "error" in parsed:
                 parsed["model_output_invalid"] = True
             return parsed, img_bytes, metrics
 

@@ -111,6 +111,7 @@ def make_router(deps):
         result, report = draft.build(pages, boxes, labels, name=payload.get("nome") or None)
         if payload.get("ia"):
             result, report["ia"] = draft.ai_suggest(result, pages, boxes)
+        result["id"] = schema.free_id(result["id"])  # salvar o rascunho nunca substitui um modelo existente
         if not result["reconhecimento"]["ancoras"] or not result["campos"]:
             report["aviso"] = ("Faltam âncoras ou campos: complete à mão (documento em texto corrido ou "
                                "digitalizado costuma não ter rótulos).")
@@ -144,7 +145,7 @@ def make_router(deps):
                 "ancoras_encontradas": mine["ancoras_encontradas"],
                 "conflito_com": [i for i in found["ambiguos"] if i != template["id"]],
                 "outro_modelo_vence": (found["modelo"] or {}).get("id") not in (None, template["id"]),
-                "campos": fields, "faltando": [label for _, label in missing], "paginas": len(pages)}
+                "campos": fields, "faltando": list(dict.fromkeys(label for _, label in missing)), "paginas": len(pages)}
 
     @router.get("/{tid}")
     def get_template(tid: str):

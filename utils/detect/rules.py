@@ -32,6 +32,8 @@ class Rule:
     # rótulo no meio: "Nascimento: 01/02/1980 Emissão: 05/06/2010" não faz da emissão uma data de nascimento)
     stop: Optional[Pattern] = None
     canon: Optional[Callable[[str], str]] = None  # forma canônica do valor no resumo (ex.: "(D" do OCR -> "@")
+    # Lista ("Telefones: A / B, C"): valor logo depois de outro valor aceito da mesma regra herda o contexto
+    chain: bool = False
 
 
 def _norm(text):
@@ -57,6 +59,8 @@ def _phone_ok(value, has_ctx):
         return False
     if len(d) == 11 and d[2] != "9":  # celular com 9 dígitos começa com 9
         return False
+    if not has_ctx and re.match(r"(?:\+\s?55\s?)?0?\d{2}\.", value.strip()):
+        return False  # DDD colado por ponto ("65.99876.5432") parece número de protocolo: só com "celular"/"tel"
     formatted = bool(re.search(r"[()\-+]", value))
     return formatted or has_ctx
 
@@ -119,9 +123,10 @@ def _email_alts():
 def _email_pattern():
     alts = "|".join(re.escape(a) for a in sorted(_email_alts(), key=len, reverse=True))
     ends = "|".join(re.escape(t) for t in sorted(config.strings("email", "dominios_finais"), key=len, reverse=True))
-    standard = rf"{_EMAIL_LOCAL}\s?@\s?[A-Za-z0-9.\-]+\.[A-Za-z]{{2,}}"
-    # o OCR também parte o nome ("beatriz.7" + "1(Dexample.com"): junta a palavra anterior se ela tem "." ou "_"
+    # o OCR também parte o nome ("beatriz.7" + "1(Dexample.com", "maria. exemplo@..."): junta a palavra anterior
+    # se ela tem "." ou "_"
     split_local = rf"(?:[A-Za-z0-9%+\-]*[._][A-Za-z0-9._%+\-]*\s)?{_EMAIL_LOCAL}"
+    standard = rf"{split_local}\s?@\s?[A-Za-z0-9.\-]+\.[A-Za-z]{{2,}}"
     ocr = rf"{split_local}\s?(?:{alts})[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.(?:{ends})\b" if alts else None
     # Sem "@" reconhecível (só vale depois de "e-mail"): a tarja cobre a palavra INTEIRA, inclusive um "(" com
     # letra fora da lista ("nome(Gdominio.gov") e o nome logo antes quando o OCR perdeu o "@" ("nome gmail.com").
@@ -156,7 +161,7 @@ _I = re.IGNORECASE
 # Palavras de contexto: utils/detect/data/contextos.json. Ficam no código só os padrões de VALOR (formato) e os
 # trechos estruturais (ex.: "outra data no meio"); conta bancária usa um contexto ancorado, também estrutural.
 RULES: List[Rule] = [
-    Rule("rg", re.compile(r"(?P<v>\b\d[\d.\-]{3,13}[\dxX]\b)"),
+    Rule("rg", re.compile(r"(?P<v>\b(?:\d[\d.\-]{3,13}[\dxX]|\d{1,3}(?: \d{3}){2}(?:\s?-\s?[\dxX])?)\b)"),
          config.context("rg")[0], context_required=True, window=30, accept=_rg_ok,
          stop=_join(config.context("rg")[1], re.compile(r"\d{3}\.\d{3}\.\d{3}"))),
     Rule("cnh", re.compile(r"(?P<v>\b\d{9,11}\b)"),
@@ -164,32 +169,32 @@ RULES: List[Rule] = [
     Rule("titulo_eleitor", re.compile(r"(?P<v>\b\d{4}\s?\d{4}\s?\d{4}\b)"),
          config.context("titulo_eleitor")[0], context_required=True, window=40,
          accept=lambda value, _c: v.is_valid_titulo_eleitor(value)),
-    Rule("pis_nis", re.compile(r"(?P<v>\b\d{3}\.?\s?\d{5}\.?\s?\d{2}-?\s?\d\b)"),
+    Rule("pis_nis", re.compile(r"(?P<v>\b\d{3}\.?\s?\d{5}\.?\s?\d{2}\s?-?\s?\d\b)"),
          config.context("pis_nis")[0], context_required=True, window=30,
          accept=lambda value, _c: v.is_valid_pis(value)),
-    Rule("cns", re.compile(r"(?P<v>\b[12789]\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\b)"),
+    Rule("cns", re.compile(r"(?P<v>\b[12789]\d{2}[\s.]?\d{4}[\s.]?\d{4}[\s.]?\d{4}\b)"),
          config.context("cns")[0], window=40, accept=_cns_ok),
-    Rule("passaporte", re.compile(r"(?P<v>\b[A-Z]{2}\s?\d{6,7}\b)"),
+    Rule("passaporte", re.compile(r"(?P<v>\b[A-Za-z]{2}\s?\d{6,7}\b)"),
          config.context("passaporte")[0], context_required=True, window=30),
     Rule("ctps", re.compile(r"(?P<v>\b\d{5,8}(?:\s*(?:/|serie|série)\s*\d{3,5}(?:-[A-Z]{2})?)?\b)", _I),
          config.context("ctps")[0], context_required=True, window=30),
-    Rule("telefone", re.compile(r"(?<![\d(])(?P<v>(?:\+\s?55\s?)?(?:\(?\s?0?\d{2}\s?\)?\s?)?9?\s?\d{4}\s?[\-.]?\s?\d{4})(?!\d)"),
-         config.context("telefone")[0], window=25, accept=_phone_ok),
+    Rule("telefone", re.compile(r"(?<![\d(])(?P<v>(?:\+\s?55\s?)?(?:\(?\s?0?\d{2}\s?\)?\s?\.?)?9?\s?\d{4}\s?[\-.]?\s?\d{4})(?!\d)"),
+         config.context("telefone")[0], window=25, accept=_phone_ok, chain=True),
     Rule("email", _email_pattern(), config.context("email")[0], window=40, accept=_email_ok, canon=_email_canon),
     Rule("ip", re.compile(r"(?P<v>(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.]))"),
          accept=lambda value, _c: v.is_valid_ipv4(value)),
-    Rule("cartao_pagamento", re.compile(r"(?P<v>\b(?:\d{4}[\s\-.]){3}\d{1,7}\b|\b\d{13,19}\b)"),
+    Rule("cartao_pagamento", re.compile(r"(?P<v>\b(?:\d{4}[\s\-.]){3}\d{1,7}\b|\b\d{4}[\s\-.]\d{6}[\s\-.]\d{4,5}\b|\b\d{13,19}\b)"),
          config.context("cartao_pagamento")[0], window=30, accept=_card_ok),
-    Rule("conta_bancaria", re.compile(r"(?P<v>\b\d{3,12}(?:-[\dxX])?\b)"),
-         re.compile(r"\b(agencia|ag\.?|conta|c/c|cc|conta\s+corrente|poupanca)\s*(n[o.º°]?\s*)?[:\-]?\s*$"),
-         context_required=True, window=22, accept=_digits_ok(3, 13)),
+    Rule("conta_bancaria", re.compile(r"(?P<v>\b\d[\d.]{1,18}\d\b(?:\s?-\s?[\dxX]\b)?(?:\s?/\s?\d[\d.]{1,18}\d\b(?:\s?-\s?[\dxX]\b)?)?)"),
+         re.compile(rf"(?:{config.context('conta_bancaria')[0].pattern})\s*(?:(?:n[o.]?|num\.?|numero|nr\.?|nro\.?)\s*)?[:\-]?\s*$"),
+         context_required=True, window=24, accept=_digits_ok(3, 26)),
     Rule("chave_pix", re.compile(r"(?P<v>\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b)")),
     Rule("data_nascimento",
          re.compile(r"(?P<v>\b\d{1,2}\s?[/.\-]\s?\d{1,2}\s?[/.\-]\s?\d{2,4}\b|\b\d{1,2}[ºo°]?\s+de\s+[a-zç]+\s+de\s+\d{4}\b)", _I),
          config.context("data_nascimento")[0], context_required=True, window=40,
          stop=_join(config.context("data_nascimento")[1],
                     re.compile(r"\d{1,2}\s?[/.\-]\s?\d{1,2}\s?[/.\-]\s?\d{2,4}|\bdata\b(?!\s+de\s+nasc)"))),
-    Rule("placa_veiculo", re.compile(r"(?P<v>\b[A-Z]{3}[\s\-]?[\dOI][A-Z0-9][\dOIl]{2}\b)"),
+    Rule("placa_veiculo", re.compile(r"(?P<v>\b[A-Z]{3}[\s\-]?[\dOIl][A-Z0-9][\dOIl]{2}\b)"),
          config.context("placa_veiculo")[0], window=30, accept=_plate_ok, canon=_plate_canon),
 ]
 RULES_BY_TYPE = {r.type_id: r for r in RULES}
@@ -218,7 +223,6 @@ def find_in_grounding(grounding, type_ids) -> Dict[str, Tuple[Commands, Set[str]
     text, char_map = build_text(grounding)
     if not text:
         return {}
-    norm_text = _norm(text)  # mesmo comprimento para texto latino comum; usado só para o contexto
     results = {}
     for type_id in type_ids:
         rule = RULES_BY_TYPE.get(type_id)
@@ -226,26 +230,55 @@ def find_in_grounding(grounding, type_ids) -> Dict[str, Tuple[Commands, Set[str]
             continue
         commands: Commands = {}
         values: Set[str] = set()
-        for m in rule.value.finditer(text):
+        last_end = [-1]
+
+        def check(m, rule=rule, commands=commands, values=values, last_end=last_end):
             value = m.group("v")
             start, end = m.span("v")
             has_ctx = False
             if rule.context is not None:
-                window = norm_text[max(0, start - rule.window):start] if len(norm_text) == len(text) else \
-                    _norm(text[max(0, start - rule.window):start])
+                # janela normalizada só ela: normalizar o texto todo desalinha as posições (ex.: "—" some e "ﬁ"
+                # vira "fi" e o comprimento total coincide por acaso)
+                window = _norm(text[max(0, start - rule.window):start])
                 matches = list(rule.context.finditer(window))
                 has_ctx = bool(matches)
-                if has_ctx and rule.stop is not None and rule.stop.search(window[matches[-1].end():]):
-                    has_ctx = False  # outro valor/rótulo entre o contexto e este valor
+                if has_ctx and rule.stop is not None:
+                    tail = window[matches[-1].end():]
+                    # outro valor/rótulo entre o contexto e este valor; rótulo combinado ("RG/CPF: ", "RG e CPF: ",
+                    # só rótulos e separadores até o valor) não
+                    if any(not (_LABEL_JOINER.fullmatch(tail[:s.start()]) and _LABEL_JOINER.fullmatch(tail[s.end():]))
+                           for s in rule.stop.finditer(tail)):
+                        has_ctx = False
+            if rule.chain and not has_ctx and last_end[0] >= 0 and _LIST_SEP.fullmatch(text[last_end[0]:start]):
+                has_ctx = True
             if rule.context_required and not has_ctx:
-                continue
+                return False
             if rule.accept is not None and not rule.accept(value, has_ctx):
-                continue
+                return False
             for pos in range(start, end):
                 ref = char_map[pos]
                 if ref is not None and not text[pos].isspace():
                     commands.setdefault(ref[0], set()).add(ref[1])
             values.add(re.sub(r"\s", "", rule.canon(value) if rule.canon else value).lower())
+            last_end[0] = max(last_end[0], end)
+            return True
+
+        for m in rule.value.finditer(text):
+            value = m.group("v")
+            if check(m) or _CPF_FORMATTED.fullmatch(value.strip()) or v.is_valid_cpf(v.only_digits(value)):
+                continue  # um CPF rejeitado (ex.: depois de "RG") é da busca de CPF: seus pedaços não são outro valor
+            # Rejeitado: o valor verdadeiro pode começar DENTRO dele ("2022 1573 6819 0604": o título começa no
+            # 2º grupo). finditer não volta atrás, então tenta cada início dentro do trecho rejeitado.
+            pos = m.start() + 1
+            while pos < m.end():
+                inner = rule.value.search(text, pos)
+                if inner is None or inner.start() >= m.end():
+                    break
+                pos = inner.end() if check(inner) else inner.start() + 1
         if commands:
             results[type_id] = (commands, values)
     return results
+
+
+_LABEL_JOINER = re.compile(r"[\s/,;:\-]*(?:e\s+)?")       # "rg/cpf", "identidade e cpf"
+_LIST_SEP = re.compile(r"\s*(?:[/,;]|e|ou)\s*")           # "A / B", "A, B", "A e B", "A ou B"

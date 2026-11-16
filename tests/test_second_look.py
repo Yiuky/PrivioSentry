@@ -14,7 +14,7 @@ class FakeAPI:
     def __init__(self, final, fail=False):
         self.final, self.fail, self.calls = final, fail, []
 
-    def __call__(self, url, json=None, headers=None, timeout=None):
+    def __call__(self, url, json=None, headers=None, timeout=None, **kwargs):
         self.calls.append(json)
         outer = self
 

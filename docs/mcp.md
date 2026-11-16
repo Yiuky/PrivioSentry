@@ -35,7 +35,7 @@ claude mcp add privio-sentry -e PRIVIO_URL=http://127.0.0.1:8001 -- python sentr
 | `sentry_status` | Versão, fila, modos e servidores de IA externos em uso. |
 | `sentry_profiles` | Perfis de proteção e o padrão. |
 | `sentry_list_documents` | Documentos e situação de cada um. |
-| `sentry_submit_pdf` | Envia um PDF desta máquina (`caminho`, `perfil`, `nomes`, `baixa_qualidade`). Devolve `task_id` e o link `revisar_em`. |
+| `sentry_submit_pdf` | Envia um PDF desta máquina (`caminho`, `perfil`, `nomes`, `baixa_qualidade`). Devolve `task_id` e o link `revisar_em`. As outras ferramentas só aceitam um `task_id` nesse formato (UUID). |
 | `sentry_document` | Progresso, páginas a revisar, tipos encontrados (só quantidades) e se já foi aprovado. |
 | `sentry_wait` | Espera terminar (até `timeout_s`, padrão 300 s). Volta na hora se o documento ficar `pendente`. |
 | `sentry_download_final` | Salva o PDF **aprovado** num arquivo ou pasta. Recusa sem aprovação e não sobrescreve sem `sobrescrever=true`. |

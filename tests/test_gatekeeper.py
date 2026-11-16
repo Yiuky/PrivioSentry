@@ -310,7 +310,15 @@ def test_management_pages_and_unknown_api_are_served_locally(client):
     for path in ("/gatekeeper", "/manage"):
         r = client.get(path)
         assert r.status_code == 200 and "html" in r.headers["content-type"]
-    assert client.get("/api/inexistente").status_code == 404
+    # /api/* que não é do painel vai para o app (ex.: /api/info, que diz se a IA é externa); com o app fora, 503
+    r = client.get("/api/info")
+    assert r.status_code in (404, 503) and "html" not in r.headers["content-type"]
+
+
+def test_app_api_info_is_proxied_not_blocked(client, gk, monkeypatch):
+    seen = []
+    mock_upstream(monkeypatch, gk, lambda req: seen.append(req.url.path) or httpx.Response(200, json={"ok": 1}))
+    assert client.get("/api/info").json() == {"ok": 1} and "/api/info" in seen
 
 
 def test_status_reflects_app_health_and_clears_dead_process(client, gk, monkeypatch):
@@ -389,8 +397,9 @@ def test_proxy_shows_management_page_when_app_is_down(client, gk, monkeypatch):
     r = client.get("/")
     assert r.status_code == 200 and "html" in r.headers["content-type"]
     assert gk.state.app_running is False
-    r = client.get("/qualquer/rota")
+    r = client.get("/qualquer/rota", headers={"accept": "text/html"})   # navegador: página do painel
     assert r.status_code == 200 and gk.state.app_running is False
+    assert client.get("/qualquer/rota").status_code == 503               # API: nunca HTML com 200
 
 
 def test_proxy_falls_back_when_request_fails_midway(client, gk, monkeypatch):
@@ -403,8 +412,24 @@ def test_proxy_falls_back_when_request_fails_midway(client, gk, monkeypatch):
         raise httpx.ReadTimeout("lento")  # a requisicao proxied falha
 
     mock_upstream(monkeypatch, gk, upstream)
-    r = client.get("/tasks-lento")
+    r = client.get("/tasks-lento", headers={"accept": "text/html"})     # navegador: a página do painel
     assert r.status_code == 200 and "html" in r.headers["content-type"]
+    assert gk.state.app_running is True                                   # lento não é desligado
+    state["n"] = 0
+    r = client.get("/download/x?final=true")                              # API/agente: erro de verdade
+    assert r.status_code == 502 and "html" not in r.headers["content-type"]
+
+
+def test_proxy_connection_error_marks_the_app_down(client, gk, monkeypatch):
+    state = {"n": 0}
+
+    def upstream(request):
+        state["n"] += 1
+        if state["n"] == 1:
+            return httpx.Response(200, json={})
+        raise httpx.ConnectError("caiu")
+    mock_upstream(monkeypatch, gk, upstream)
+    assert client.get("/tasks").status_code == 502
     assert gk.state.app_running is False
 
 

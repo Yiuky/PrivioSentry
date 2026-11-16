@@ -18,6 +18,8 @@ import socket
 from functools import lru_cache
 from urllib.parse import urlsplit
 
+from urllib3.util import parse_url
+
 LOCAL_SUFFIXES = (".localhost", ".local", ".lan", ".internal", ".intranet", ".home.arpa")
 _sent = set()
 
@@ -27,10 +29,39 @@ class ExternalBlocked(RuntimeError):
 
 
 def host_of(url):
+    """Host a que o cliente HTTP vai de fato se conectar. Se o leitor de URL do Python e o do cliente HTTP
+    (urllib3) discordam ("http://nuvem.example\\@localhost"), vale o do cliente: é para lá que o conteúdo vai."""
+    text = str(url or "")
     try:
-        return (urlsplit(url if "://" in str(url) else "//" + str(url)).hostname or "").lower()
+        host = (urlsplit(text if "://" in text else "//" + text).hostname or "").lower()
     except ValueError:
         return ""
+    if "://" in text:
+        try:
+            real = (parse_url(text).host or "").strip("[]").lower()
+        except Exception:
+            return ""  # sem host legível: tratado como externo
+        if real != host:
+            return real
+    return host
+
+
+def safe_url(url):
+    """URL sem usuário e senha embutidos (para mostrar e registrar)."""
+    try:
+        parts = urlsplit(str(url or ""))
+    except ValueError:
+        return ""
+    if "@" not in parts.netloc:
+        return str(url or "")
+    return parts._replace(netloc=parts.netloc.rsplit("@", 1)[1]).geturl()
+
+
+def refuse_redirect(response):
+    """Pedido com conteúdo nunca segue redirecionamento: o destino novo não passou pela trava de saída."""
+    if 300 <= getattr(response, "status_code", 0) < 400:
+        raise RuntimeError(f"HTTP {response.status_code}: o servidor de IA redirecionou o pedido; redirecionamento "
+                           "recusado (o novo destino não passou pela trava de saída)")
 
 
 def _ip_is_local(ip):

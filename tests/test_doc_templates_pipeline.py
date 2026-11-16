@@ -223,3 +223,20 @@ def test_full_run_with_an_approved_template(tmp_path, monkeypatch):
     meta = json.load(open(tmp_path / "out" / "licenca" / "redactions_metadata.json", encoding="utf-8"))
     labels = {r["label"] for r in meta}
     assert "Nome de pessoa" in labels and "CPF" in labels
+
+
+def test_required_label_with_value_on_the_next_row_keeps_the_vision_ai(app, monkeypatch):
+    """'Endereço:' achado e o valor na linha de baixo (linhas=1): nada achado -> revisão e a IA de visão roda (I-13)."""
+    from test_doc_templates import grid
+    schema.save(schema.save({"id": "ficha", "dispensa_ia": True,
+                             "reconhecimento": {"ancoras": ["FICHA CADASTRAL FICTICIA"]},
+                             "campos": [{"rotulo": "Nome"}, {"rotulo": "Endereço", "tipo": "endereco_residencial"}]}),
+                approve=True)
+    words = grid([(10, "FICHA CADASTRAL FICTICIA"), (60, "Nome: FULANO DE TAL"), (110, "Endereço:"),
+                  (140, "Rua das Acácias Fictícias 77")])
+    monkeypatch.setattr(app, "_page_words", lambda i: words)
+    monkeypatch.setattr(second_look, "run_agent", lambda text, types: ([], {}))
+    app.run_template_phase()
+    app.run_template_inspection()
+    assert app.template_skip_pages == set() and app.needs_review
+    assert any("Endereço" in a for a in app.alerts)

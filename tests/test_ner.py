@@ -166,3 +166,22 @@ def test_preload_loads_once_in_background(monkeypatch):
 def test_preload_does_nothing_when_disabled(monkeypatch):
     monkeypatch.delenv("NER_ENGINE", raising=False)
     assert ner.preload() is None
+
+
+@pytest.mark.parametrize("name", ["Senhorinha Exemplo Teste", "Maria Exemplo Fiscal"])
+def test_name_tokens_that_look_like_roles_are_kept(name):
+    # "senhor*" não pode comer "Senhorinha"; "Fiscal" no fim de um nome é sobrenome (tarja a mais é aceitável)
+    hits = ner.find_names(grounding(f"Compareceu {name} hoje"), FakeEngine({name: 0.9}))
+    assert ids(hits["nome_pessoa"]["tarjar"]) == {1, 2, 3}
+
+
+def test_trailing_role_after_punctuation_is_still_trimmed():
+    hits = ner.find_names(grounding("Fulano Exemplo, Presidente"), FakeEngine({"Fulano Exemplo, Presidente": 0.9}))
+    assert ids(hits["nome_pessoa"]["tarjar"]) == {0, 1}
+
+
+def test_filiation_context_survives_normalisation_that_shifts_positions():
+    # "—" some e "ﬁ" vira "fi": o comprimento total coincide e a janela deslocada perdia o "mãe" (30 caracteres antes)
+    g = grounding("— mãe registrados em nossa sala Fulano Exemplo ﬁm")
+    hits = ner.find_names(g, FakeEngine({"Fulano Exemplo": 0.9}))
+    assert "filiacao" in hits and "nome_pessoa" not in hits

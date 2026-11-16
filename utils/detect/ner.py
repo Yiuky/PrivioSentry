@@ -154,7 +154,8 @@ def _role_matcher():
         tok = re.sub(r"\((?:s|es|as|os|a|o)\)$", "", _norm(token).strip(".,:;!?\"'")).strip("()")
         if not tok:
             return True  # "(s)", pontuação solta
-        return tok in exact or any(tok.startswith(p) for p in prefixes)
+        # prefixo só com flexão curta ("senhor" -> "senhora", "senhores"): "Senhorinha" é nome, não papel
+        return tok in exact or any(tok.startswith(p) and len(tok) - len(p) <= 3 for p in prefixes)
     return is_role
 
 
@@ -163,7 +164,10 @@ def _trim(text, start, end, is_role):
     tokens = [(start + m.start(), start + m.end()) for m in re.finditer(r"\S+", text[start:end])]
     while tokens and is_role(text[tokens[0][0]:tokens[0][1]]):
         tokens.pop(0)
-    while tokens and is_role(text[tokens[-1][0]:tokens[-1][1]]):
+    # No fim, palavra com maiúscula colada ao nome é sobrenome ("Maria Exemplo Fiscal"): tirá-la deixaria parte do
+    # nome visível. Só sai se minúscula ou depois de pontuação ("Fulano Exemplo, Presidente").
+    while tokens and is_role(text[tokens[-1][0]:tokens[-1][1]]) and (
+            len(tokens) == 1 or not text[tokens[-1][0]].isupper() or text[tokens[-2][1] - 1] in ",;:-("):
         tokens.pop()
     return (tokens[0][0], tokens[-1][1]) if tokens else None
 
@@ -183,7 +187,6 @@ def find_names(grounding, engine=None):
     window = int(config.param("nomes", "janela_filiacao"))
     labels = config.strings("nome_pessoa", "rotulos_ner") or ("person",)
     filiation_ctx = config.context("filiacao")[0]
-    norm_text = _norm(text)
     is_role = _role_matcher()
     out = {}
     for offset, chunk in _chunks(text, size):
@@ -200,8 +203,7 @@ def find_names(grounding, engine=None):
             if span is None:
                 continue
             start, end = span
-            before = norm_text[max(0, start - window):start] if len(norm_text) == len(text) else \
-                _norm(text[max(0, start - window):start])
+            before = _norm(text[max(0, start - window):start])  # só a janela: normalizar tudo desalinha posições
             type_id = "filiacao" if filiation_ctx is not None and filiation_ctx.search(before) else "nome_pessoa"
             slot = out.setdefault(type_id, {"tarjar": {}, "alertar": {}, "valores": set()})
             target = slot["tarjar"] if score >= high else slot["alertar"]

@@ -96,6 +96,16 @@ def test_select_move_and_resize_box(page, editor):
     assert resized[3] - resized[1] > after[3] - after[1] + 10
     assert resized[0] == pytest.approx(after[0], abs=0.5)
 
+    # arrastar o canto para cima/esquerda PASSANDO do outro canto: antes gravava x1<x0 e a tarja era ignorada
+    hb = page.locator("#layer-1 .resize-handle").bounding_box()
+    hx, hy = hb["x"] + hb["width"] / 2, hb["y"] + hb["height"] / 2
+    bw = (resized[2] - resized[0]) * z
+    bh = (resized[3] - resized[1]) * z
+    drag(page, hx, hy, hx - bw - 40, hy - bh - 30)
+    flipped = redactions(page)[0]["coords"]
+    assert flipped[0] < flipped[2] and flipped[1] < flipped[3]
+    assert flipped[2] == pytest.approx(resized[0], abs=3)              # o canto fixo virou o canto direito
+
 
 def test_click_outside_deselects(page, editor):
     b = page.locator("#layer-1 .redaction-box")

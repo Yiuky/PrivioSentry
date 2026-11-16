@@ -14,10 +14,13 @@ Fora daqui de propósito: API_TOKEN, APP_HOST, APP_PORT, ALLOWED_HOSTS, ADMIN_EN
 mexe nelas pela web pode se trancar fora ou expor o serviço).
 """
 import json
+import math
 import os
 import tempfile
 from datetime import datetime
 from urllib.parse import urlsplit
+
+from utils import egress
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROFILES = ("cpf_endereco", "lgpd_publicacao", "lgpd_interno", "gdpr", "saude_hipaa")
@@ -89,8 +92,8 @@ FIELDS = [
     _f("TESSERACT_LANG", "ocr", "Idioma do OCR", "text", "Ex.: por, por+eng.", placeholder="por"),
     _f("BASE_DPI", "ocr", "DPI de leitura", "number", "300 é o medido como melhor; acima disso a revocação de CPF "
        "cai (docs/benchmarks.md).", minimum=72, maximum=1200),
-    _f("VERIFY_OCR", "ocr", "OCR na verificação final", "bool", "Recomendado. Desligado, páginas só com imagem não "
-       "são verificadas."),
+    _f("VERIFY_OCR", "ocr", "OCR na verificação final", "bool", "Recomendado. Desligado, páginas com imagem não "
+       "são verificadas e vão para revisão."),
     _f("VERIFY_DPI", "ocr", "DPI da verificação", "number", "", minimum=72, maximum=1200),
     _f("MAX_PARALLEL_TASKS", "operacao", "Documentos ao mesmo tempo", "number", "", restart=True, minimum=1,
        maximum=32),
@@ -100,6 +103,7 @@ FIELDS = [
        "serviço.", restart=True, minimum=0, maximum=3650),
 ]
 BY_KEY = {f["key"]: f for f in FIELDS}
+DECIMAL_KEYS = {"AI_VISION_TIMEOUT", "AI_REQUESTS_PER_MINUTE", "AI_LIMIT_RETRY_MINUTES", "RETENTION_DAYS"}
 # Endereço -> chave dele. Trocar o servidor (outro host) apaga a chave salva e desliga a liberação de IA externa,
 # salvo se o mesmo pedido as reenviar: a chave de um provedor nunca segue para outro, e destino novo pede nova
 # confirmação.
@@ -187,6 +191,11 @@ def _validate(field, value):
             number = float(value)
         except ValueError:
             raise SettingsError(f"{field['label']}: número inválido")
+        if not math.isfinite(number):
+            raise SettingsError(f"{field['label']}: número inválido")
+        # os itens lidos com int() (DPI, fila, tamanho) não aceitam fração: "2.5" impedia o serviço de subir
+        if field["key"] not in DECIMAL_KEYS and number != int(number):
+            raise SettingsError(f"{field['label']}: use um número inteiro")
         if (field["min"] is not None and number < field["min"]) or (field["max"] is not None and number > field["max"]):
             raise SettingsError(f"{field['label']}: entre {field['min']} e {field['max']}")
         return str(int(number)) if number == int(number) else str(number)
@@ -194,6 +203,9 @@ def _validate(field, value):
         parts = urlsplit(value)
         if parts.scheme not in ("http", "https") or not parts.hostname:
             raise SettingsError(f"{field['label']}: use um endereço http:// ou https://")
+        # usuário/senha na URL, barra invertida ou espaço: o destino real pode não ser o que parece (trava de saída)
+        if "@" in parts.netloc or any(c in value for c in "\\ \t") or egress.host_of(value) != parts.hostname.lower():
+            raise SettingsError(f"{field['label']}: endereço inválido (sem usuário/senha, espaços ou \\)")
         return value.rstrip("/")
     if any(c in value for c in "\r\n\0"):
         raise SettingsError(f"{field['label']}: caractere inválido")
@@ -201,10 +213,7 @@ def _validate(field, value):
 
 
 def _host(url):
-    try:
-        return (urlsplit(str(url or "")).hostname or "").lower()
-    except ValueError:
-        return ""
+    return egress.host_of(url)
 
 
 def save(changes):
@@ -220,6 +229,12 @@ def save(changes):
             host_changed = True
             if not str(changes.get(secret_key) or "").strip():
                 values[secret_key] = ""  # vazio (não None): também esconde uma chave vinda do .env
+    # Sem endereço próprio, o segundo olhar usa o servidor principal: a chave dele também não segue para outro host
+    second_look_follows = not str(changes.get("SECOND_LOOK_BASE_URL", os.environ.get("SECOND_LOOK_BASE_URL")) or "")
+    if ("AI_BASE_URL" in changes and second_look_follows
+            and _host(changes["AI_BASE_URL"]) != _host(os.environ.get("AI_BASE_URL"))
+            and not str(changes.get("SECOND_LOOK_API_KEY") or "").strip()):
+        values["SECOND_LOOK_API_KEY"] = ""
     if host_changed and "AI_ALLOW_EXTERNAL" not in changes:
         values["AI_ALLOW_EXTERNAL"] = "0"
     for key, value in changes.items():

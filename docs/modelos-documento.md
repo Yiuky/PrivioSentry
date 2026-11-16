@@ -63,9 +63,14 @@ OCR / texto digital ─► reconhecer (frases fixas) ─► tarjar campos do mod
 
 - **Nada aqui aprova o documento.** Tarja por modelo não marca o documento como aprovado, e o PDF só sai para a
   API e para agentes depois de **Aplicar proteção** (`?final=true`).
-- **Dois modelos com pontuação parecida** (diferença < 10 pontos): nenhum é aplicado e o documento vai para
-  revisão.
-- **Valor:** vai até o próximo rótulo, nunca para num espaço grande. Se o limite de palavras cortar antes, a
+- **Mais de um modelo reconhecido** (cada um passou no próprio mínimo): nenhum é aplicado e o documento vai para
+  revisão. Um modelo genérico de uma frase não vence um específico. Um rascunho criado com o mesmo nome de um
+  modelo existente ganha outro id (`-2`, `-3`); se ele mantiver as mesmas frases, os dois passam a ser
+  reconhecidos e nenhum é aplicado até você apagar um deles ou mudar as frases.
+- **Campo obrigatório sem valor** (o rótulo está lá, mas o valor caiu em outra linha) conta como não achado: a
+  página vai para revisão e a IA de visão não é dispensada.
+- **Valor:** vai até o próximo rótulo **na forma de rótulo** (com `:`), nunca para num espaço grande. Uma palavra
+  que também é rótulo, sem dois-pontos ("Avenida Cidade Jardim", "Rua"), não corta o valor. Se o limite de palavras cortar antes, a
   página vai para revisão. Rótulo colado no valor (`CPF:123...`) tarja só o que vem depois dos dois-pontos.
   `Nome do empreendimento:` não é confundido com o rótulo `Nome:`.
 - **Campo obrigatório não encontrado:** revisão, e a IA de visão não é dispensada.

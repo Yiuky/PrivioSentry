@@ -229,3 +229,102 @@ def test_ai_failure_keeps_the_rule_based_draft(pdf):
     before = [f["rotulo"] for f in t["campos"]]
     t, note = draft.ai_suggest(t, words, {}, client=FakeAI({"error": "fora do ar"}))
     assert [f["rotulo"] for f in t["campos"]] == before and "IA" in note
+
+
+# ------------------------------------------------------------------ regressões da varredura de bugs
+def grid(rows):
+    """Palavras com caixas sintéticas: [(y, "texto da linha")] (sem PDF; valores fictícios)."""
+    out = []
+    for y, line in rows:
+        x = 50
+        for t in line.split():
+            out.append({"text": t, "box": {"x": x, "y": y, "w": 12 * len(t), "h": 20}})
+            x += 12 * len(t) + 10
+    return out
+
+
+FICHA = {"id": "ficha", "reconhecimento": {"ancoras": ["FICHA CADASTRAL FICTICIA"]},
+         "campos": [{"rotulo": "Nome"}, {"rotulo": "Endereço", "tipo": "endereco_residencial"},
+                    {"rotulo": "Cidade", "obrigatorio": False}]}
+
+
+def test_required_label_with_empty_value_is_missing():
+    """'Endereço:' achado mas o valor caiu na linha de baixo (linhas=1): não pode contar como achado (I-13)."""
+    page = grid([(10, "FICHA CADASTRAL FICTICIA"), (60, "Nome: FULANO DE TAL"), (110, "Endereço:"),
+                 (140, "Rua das Acácias Fictícias 77")])
+    result, missing = engine.apply(schema.validate(FICHA), [page])
+    assert (0, "Endereço") in missing
+    assert result[1]["campos"]["Endereço"] == [{"palavras": 0, "truncado": False}]   # ocorrência continua registrada
+
+
+def test_empty_occurrence_on_a_listed_page_is_missing_for_that_page():
+    t = schema.validate(dict(FICHA, campos=[{"rotulo": "Nome", "paginas": [1, 2]}]))
+    pages = [grid([(60, "Nome: FULANO DE TAL")]), grid([(60, "Nome:"), (90, "FULANO DE TAL")])]
+    _, missing = engine.apply(t, pages)
+    assert missing == [(2, "Nome")]
+
+
+def test_required_field_on_a_page_beyond_the_document_is_missing():
+    t = schema.validate(dict(FICHA, campos=[{"rotulo": "Nome"}, {"rotulo": "Endereço", "paginas": [2]}]))
+    _, missing = engine.apply(t, [grid([(60, "Nome: FULANO DE TAL"), (110, "Endereço: Rua Ficticia 9")])])
+    assert missing == [(0, "Endereço")]
+    t = schema.validate(dict(FICHA, campos=[{"rotulo": "Endereço", "paginas": [2, 3]}]))
+    assert engine.apply(t, [grid([(60, "Nome: FULANO DE TAL")])])[1] == [(0, "Endereço")]   # sem repetição
+
+
+def test_other_label_word_without_colon_does_not_cut_the_value():
+    page = grid([(10, "FICHA CADASTRAL FICTICIA"), (60, "Nome: FULANO DE TAL"),
+                 (110, "Endereço: Avenida Cidade Jardim Ficticia 400 Cidade: Exemplopolis")])
+    result, missing = engine.apply(schema.validate(FICHA), [page])
+    endereco = {page[i]["text"] for i in engine.extract(page, schema.validate(FICHA)["campos"][1],
+                                                         [f["rotulo"] for f in FICHA["campos"]])[0]}
+    assert endereco == {"Avenida", "Cidade", "Jardim", "Ficticia", "400"}            # para no rótulo "Cidade:"
+    assert "Exemplopolis" in {page[i]["text"] for i in result[1]["comandos"]} and missing == []
+
+
+def test_inspection_labels_without_colon_inside_the_value_are_not_stop_words():
+    ws = grid([(10, "Endereço: Rua das Acácias Ficticias 77")])
+    flagged = {label: [ws[i]["text"] for i in ids] for label, ids in engine.inspect_labels(ws, set())}
+    assert flagged["Endereço"] == ["Rua", "das", "Acácias", "Ficticias", "77"]
+    ws = grid([(10, "Proprietário: FULANO Pai Ficticio DE TAL Fone: 0000")])
+    flagged = {label: [ws[i]["text"] for i in ids] for label, ids in engine.inspect_labels(ws, set())}
+    assert flagged["Proprietário"] == ["FULANO", "Pai", "Ficticio", "DE", "TAL"]       # para em "Fone:"
+    ws = grid([(10, "Proprietário: FULANO Pai : TAL")])                                # "Pai :" separado é rótulo
+    flagged = {label: [ws[i]["text"] for i in ids] for label, ids in engine.inspect_labels(ws, set())}
+    assert flagged["Proprietário"] == ["FULANO"]
+
+
+def test_two_passing_templates_apply_neither_even_with_different_scores():
+    """Genérico (1 âncora do órgão, 100%) x específico (5 de 6): os dois passam no mínimo -> nenhum (I-13)."""
+    gen = schema.validate({"id": "generico", "reconhecimento": {"ancoras": ["ORGAO FICTICIO ESTADUAL"]},
+                           "campos": [{"rotulo": "Nome"}]})
+    spec = schema.validate({"id": "especifico", "reconhecimento": {"ancoras": [
+        "ORGAO FICTICIO ESTADUAL", "LICENCA FICTICIA", "CONDICIONANTES GERAIS", "VALIDADE DA LICENCA",
+        "ATIVIDADE LICENCIADA", "TEXTO QUE MUDOU"]}, "campos": [{"rotulo": "Nome"}]})
+    doc = grid([(10, "ORGAO FICTICIO ESTADUAL"), (40, "LICENCA FICTICIA"), (70, "CONDICIONANTES GERAIS"),
+                (100, "VALIDADE DA LICENCA"), (130, "ATIVIDADE LICENCIADA")])
+    found = engine.match([gen, spec], [doc])
+    assert found["modelo"] is None and set(found["ambiguos"]) == {"generico", "especifico"}
+    assert engine.match([spec], [doc])["modelo"]["id"] == "especifico"               # contra teste: sozinho aplica
+
+
+@pytest.mark.parametrize("tid", ["con", "prn", "aux", "nul", "com1", "com9", "lpt1", "lpt9", "CON", "Nul"])
+def test_windows_reserved_names_are_not_template_ids(tid):
+    with pytest.raises(schema.TemplateError):
+        schema.validate({"id": tid, "reconhecimento": {"ancoras": ["A B"]}, "campos": [{"rotulo": "x"}]})
+    with pytest.raises(schema.TemplateError):
+        schema._path(tid.lower())
+    assert schema.slug(tid) == "modelo"
+    assert not schema.ID_RE.match("modelo\n")
+    assert schema.ID_RE.match("console") and schema.ID_RE.match("com10") and schema.ID_RE.match("nul-1")  # contra
+
+
+@pytest.mark.parametrize("name", ["ANA", "MARIA", "MARIANA"])
+def test_glued_label_and_redacted_value_never_reach_the_ai_unmasked(name):
+    """'PROPRIETARIO:ANA' numa palavra só, tarja só sobre 'ANA' (centro da palavra fora da tarja)."""
+    words = grid([(10, "LICENCA FICTICIA DE TESTE"), (60, f"PROPRIETARIO:{name} Fone: 0000")])
+    gi = next(i for i, w in enumerate(words) if w["text"] == f"PROPRIETARIO:{name}")
+    box = {"x": words[gi]["box"]["x"] + 12 * len("PROPRIETARIO:") - 2, "y": 58, "w": 12 * len(name) + 4, "h": 24}
+    assert gi not in engine.covered_ids(words, [box])                                # o centro não está na tarja
+    text = draft.masked_document([words], {1: [box]})
+    assert name not in text and "Fone:" in text and "LICENCA" in text                 # vizinhos continuam visíveis

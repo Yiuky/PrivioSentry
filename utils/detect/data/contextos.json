@@ -56,12 +56,27 @@
   "telefone": {
     "palavras": [
       "tel",
-      "telefone",
-      "fone",
-      "celular",
+      "telefone*",
+      "fone*",
+      "celular*",
       "cel",
       "whatsapp",
-      "contato"
+      "contato*"
+    ]
+  },
+  "conta_bancaria": {
+    "_sobre": "Rótulo logo antes do valor (ancorado no código): 'Conta: ', 'Agência/Conta nº ', 'C/C '.",
+    "palavras": [
+      "agencia",
+      "ag",
+      "ag.",
+      "conta",
+      "conta corrente",
+      "conta-corrente",
+      "conta poupanca",
+      "poupanca",
+      "c/c",
+      "cc"
     ]
   },
   "cartao_pagamento": {

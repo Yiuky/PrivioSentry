@@ -13,7 +13,6 @@ import re
 import unicodedata
 from functools import lru_cache
 
-AMBIGUITY_MARGIN = 0.1  # dois modelos com pontuação tão próxima: nenhum é aplicado (revisão)
 DATA = os.path.join(os.path.dirname(os.path.dirname(__file__)), "detect", "data", "rotulos_inspecao.json")
 
 
@@ -48,7 +47,8 @@ def page_norm_text(words):
 
 # ------------------------------------------------------------------------------------------- reconhecimento
 def match(templates, pages_words):
-    """Escolhe o modelo do documento pelas âncoras (frases fixas). Dois modelos quase empatados = nenhum.
+    """Escolhe o modelo do documento pelas âncoras (frases fixas). Mais de um modelo passa no próprio mínimo =
+    nenhum é aplicado (I-13): um modelo genérico de 1 âncora não pode vencer um específico, nem o contrário.
 
     Devolve {"modelo": dict|None, "pontuacao", "ancoras_encontradas", "ambiguos": [ids], "candidatos": [...]}."""
     n_pages = len(pages_words)
@@ -66,7 +66,7 @@ def match(templates, pages_words):
     passing = [s for s in scored if s[0] >= s[1]["reconhecimento"]["minimo"]]
     if not passing:
         return {"modelo": None, "pontuacao": 0, "ancoras_encontradas": [], "ambiguos": [], "candidatos": candidates}
-    if len(passing) > 1 and passing[0][0] - passing[1][0] < AMBIGUITY_MARGIN:
+    if len(passing) > 1:
         return {"modelo": None, "pontuacao": passing[0][0], "ancoras_encontradas": [],
                 "ambiguos": [p[1]["id"] for p in passing], "candidatos": candidates}
     score, template, found = passing[0]
@@ -110,8 +110,10 @@ def _find_label(words, line, tokens):
 def _starts_label(words, line, pos, stop_tokens):
     if _looks_like_label(words[line[pos]].get("text", "")):
         return True
-    # outro rótulo começando aqui, inclusive colado no valor ("CPF:123..."): o valor anterior termina antes dele
-    return any(t and any(p == len(t) - 1 for p, _ in _find_label(words, line[pos:pos + len(t)], t))
+    # outro rótulo começando aqui, inclusive colado no valor ("CPF:123..."): o valor anterior termina antes dele.
+    # Só na forma de rótulo (com ':'): "Avenida Cidade Jardim" e "FULANO Pai DE TAL" não cortam o valor (I-03)
+    return any(t and any(p == len(t) - 1 and has_colon(words, line, pos + p, glued)
+                         for p, glued in _find_label(words, line[pos:pos + len(t)], t))
                for t in stop_tokens)
 
 
@@ -186,19 +188,23 @@ def apply(template, pages_words):
         located = False
         for page in pages:
             if page > len(pages_words):
+                if field["obrigatorio"]:  # página que o documento não tem: campo não achado (documento todo)
+                    missing.append((0, field["rotulo"]))
                 continue
             commands, found = extract(pages_words[page - 1], field, labels)
             slot = result.setdefault(page, {"comandos": {}, "campos": {}})
             for wid, chars in commands.items():
                 slot["comandos"].setdefault(wid, set()).update(chars)
             if found:
-                located = True
                 slot["campos"].setdefault(field["rotulo"], []).extend(found)
-            elif field["obrigatorio"] and field["paginas"]:
+            # rótulo achado com valor vazio (ex.: o valor caiu na linha de baixo) não é campo achado (I-13)
+            empty = any(not o["palavras"] for o in found)
+            located = located or any(o["palavras"] for o in found)
+            if field["obrigatorio"] and (empty or (field["paginas"] and not found)):
                 missing.append((page, field["rotulo"]))
         if field["obrigatorio"] and not field["paginas"] and not located:
             missing.append((0, field["rotulo"]))
-    return result, missing
+    return result, list(dict.fromkeys(missing))
 
 
 # ------------------------------------------------------------------------------------------- inspeção
@@ -217,6 +223,22 @@ def covered_ids(words, boxes):
         cx, cy = b["x"] + b["w"] / 2, b["y"] + b["h"] / 2
         if any(r["x"] <= cx <= r["x"] + r["w"] and r["y"] <= cy <= r["y"] + r["h"] for r in boxes):
             out.add(i)
+    return out
+
+
+def touched_ids(words, boxes):
+    """Palavras com QUALQUER parte sob uma tarja ('PROPRIETARIO:ANA' numa palavra só, tarja só sobre 'ANA': o centro
+    fica fora). Folga de 1/4 da altura (menos de um caractere) para a borda de uma tarja vizinha. Para mascarar o
+    texto que vai a uma IA."""
+    out = set()
+    for i, w in enumerate(words):
+        b = w["box"]
+        for r in boxes:
+            ox = min(b["x"] + b["w"], r["x"] + r["w"]) - max(b["x"], r["x"])
+            oy = min(b["y"] + b["h"], r["y"] + r["h"]) - max(b["y"], r["y"])
+            if ox > 0.25 * b["h"] and oy > 0.25 * b["h"]:
+                out.add(i)
+                break
     return out
 
 

@@ -76,6 +76,10 @@ def check_request(method, headers, token_enabled):
     headers: mapeamento com chaves em minúsculas (como o de Starlette).
     """
     if token_enabled:
+        # O cookie SameSite=Strict vai junto em pedidos de outra PORTA do mesmo host (localhost:3000 -> :8001):
+        # para o navegador é "same-site". Escrita só da mesma origem; clientes da API não mandam Sec-Fetch-Site.
+        if method.upper() in UNSAFE_METHODS and                 (headers.get("sec-fetch-site") or "").lower() in ("same-site", "cross-site"):
+            return 403, "Requisição de outra origem recusada"
         return None
     hosts = allowed_hosts()
     if "*" not in hosts and _hostname(headers.get("host")) not in hosts:

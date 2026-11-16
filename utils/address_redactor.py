@@ -87,7 +87,7 @@ def _unit_for(word, units, abbreviations):
     return None
 
 
-def locate_address_spans(address, coordinate_map, min_coverage=None):
+def locate_address_spans(address, coordinate_map, min_coverage=None, report=None):
     """
     Trechos contínuos do OCR (listas de índices) que correspondem ao endereço.
 
@@ -142,18 +142,21 @@ def locate_address_spans(address, coordinate_map, min_coverage=None):
         if len(matched) >= need and len(matched) / len(significant) >= min_coverage:
             # Mais unidades casadas vence; depois, sem repetir unidade (não engole "10" solto antes de "Flores 10");
             # depois, mais palavras casadas (CEP partido "78.550-" + "352" inteiro); por fim, o trecho mais curto.
-            candidates.append((len(matched), -duplicates, hits, -(last - i), i, last))
-    spans, taken = [], set()
-    for *_score, i, last in sorted(candidates, reverse=True):
+            candidates.append((len(matched), -duplicates, hits, -(last - i), i, last, frozenset(matched)))
+    spans, taken, covered = [], set(), set()
+    for *_score, i, last, matched in sorted(candidates, key=lambda c: c[:6], reverse=True):
         if any(k in taken for k in range(i, last + 1)):
             continue
         taken.update(range(i, last + 1))
+        covered |= matched
         span = [k for k in range(i, last + 1)
                 if words[k] and not str(coordinate_map[k].get("text", "")).endswith(":")
                 and not is_immune(str(coordinate_map[k].get("text", "")))
                 and not _DATE_OR_TIME.match(str(coordinate_map[k].get("text", "")))]
         if span:
             spans.append(span)
+    if report is not None:  # quanto do endereço os trechos cobrem (parcial = parte do endereço pode ter ficado visível)
+        report["cobertura"] = len(covered & set(significant)) / len(significant) if significant else 1.0
     return sorted(spans)
 
 
@@ -271,6 +274,7 @@ class AddressRedactor:
         self.failed_pages = {}  # page_num -> motivo; páginas sem análise de endereço (revisão obrigatória)
         self.review_notes = {}  # page_num -> motivo; análise feita, mas com classificação incerta (revisão)
         self.unlocated = {}     # page_num -> endereços pessoais que o LLM viu mas não foram achados no OCR
+        self.partial = {}       # page_num -> endereços pessoais achados só em parte (o resto pode estar visível)
 
     def run_discovery(self, image_paths, page_texts=None, skip_pages=()):
         """
@@ -380,6 +384,8 @@ class AddressRedactor:
         mandar a página para revisão (falha fechado), em vez de espalhar tarjas.
         """
         self.unlocated[page_num] = []
+        self.partial = getattr(self, "partial", {})  # objetos montados sem __init__ (testes, roteiros)
+        self.partial[page_num] = []
         if not discovered_addresses:
             return []
         pessoais = [a["text"] for a in discovered_addresses if a.get("type") == "pessoal"]
@@ -400,9 +406,13 @@ class AddressRedactor:
         for addr in pessoais:
             if not _address_units(addr)[1]:
                 continue  # só termos genéricos ("Rua", "Centro", "Apto"): nada identificável para tarjar ou revisar
-            spans = locate_address_spans(addr, coordinate_map)
+            report = {}
+            spans = locate_address_spans(addr, coordinate_map, report=report)
             if not spans and addr not in self.unlocated[page_num]:  # o LLM às vezes repete o mesmo endereço
                 self.unlocated[page_num].append(addr)
+            elif spans and report.get("cobertura", 1.0) < 1.0 and addr not in self.partial[page_num]:
+                # achou só parte (palavras de outra coluna ou campo no meio): tarja o que achou E pede revisão
+                self.partial[page_num].append(addr)
             for span in spans:
                 for idx in span:
                     w_id = coordinate_map[idx].get("id", idx)

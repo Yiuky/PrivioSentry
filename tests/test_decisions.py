@@ -292,3 +292,26 @@ def test_preload_loads_model_once_even_when_racing_with_use(monkeypatch):
 
 def test_preload_is_optional_for_engines_without_it():
     assert DecisionService(KeywordEngine()).preload() is None
+
+
+@pytest.mark.parametrize("llm, p", [(False, float("nan")), (False, 1.5), (False, -0.1), (False, "x"),
+                                    (True, float("nan"))])
+def test_invalid_probability_means_decider_unavailable(llm, p):
+    # NaN passa por todas as comparações como falso: sem isto, nenhum pedido de revisão
+    is_personal, reason = combine_address_decision(llm, p, "assist", Thresholds(0.9, 0.1))
+    assert is_personal == llm and "indisponível" in reason
+
+
+def test_labels_from_review_rescales_editor_boxes(tmp_path, monkeypatch):
+    # tarja do editor numa imagem com metade da largura da página da IA (1000 px): precisa ser reescalada
+    final = [{"page": 1, "coords": [0, 0, 50, 15], "image_width": 500}]
+    rows = feedback.labels_from_review(ENTRIES, final, page_widths={1: 1000})
+    assert [(r["text"], r["label"]) for r in rows] == [("Rua A casa", 1), ("Av B sala", 0)]
+    # capture_review lê a largura da página dos metadados da IA (redactions_metadata.json)
+    feedback.write_decision_log(str(tmp_path), ENTRIES)
+    with open(tmp_path / "redactions_metadata.json", "w", encoding="utf-8") as f:
+        json.dump([{"page": 1, "coords": [0, 0, 1, 1], "image_width": 1000}], f)
+    monkeypatch.setenv("LEARNING_ENABLED", "1")
+    store = learning.LearningStore(tmp_path / "learn")
+    assert feedback.capture_review(str(tmp_path), final, store) == 2
+    assert sorted(r["label"] for r in store.examples()) == [0, 1]

@@ -28,6 +28,22 @@ def ocr_workers(base_dpi=None, jobs=None):
     return value
 
 
+_LOOKALIKES = str.maketrans("OoQDIl|SsBZ", "00001115582")
+
+
+def _digit_lookalikes(text):
+    """Número com letras parecidas trocadas pelo OCR ("945.8O7.3O2-24", "lll.444.777-35"): devolve o texto com os
+    dígitos de volta. Só quando TODA letra da palavra é parecida com dígito e os dígitos de verdade são ao menos
+    metade. Senão, devolve o texto como está. Tarja a mais é aceitável; um CPF visível, não."""
+    alnum = [ch for ch in text if ch.isalnum()]
+    digits = sum(ch.isdigit() for ch in alnum)
+    if not digits or digits == len(alnum) or digits * 2 < len(alnum):
+        return text
+    if any(not ch.isdigit() and ch.translate(_LOOKALIKES) == ch for ch in alnum):
+        return text
+    return text.translate(_LOOKALIKES)
+
+
 def _looks_like_ocr_noise(text):
     """
     Palavra que é ruído de OCR (carimbo, rabisco, textura), não pedaço de número: letras e dígitos embaralhados.
@@ -232,12 +248,14 @@ class OCREngine:
 
         excluded_ids = set()
         prev_text = ""
+        last_word = -2
         
         digits_only = ""
         last_box = None
         
+        last_text = ""
         for word_id, item in enumerate(grounding_map):
-            text = item["text"]
+            text = _digit_lookalikes(item["text"])
             box = item["box"]
             
             # Marcar IDs que parecem datas/horas (ou valores em reais) para evitar colisões acidentais
@@ -266,16 +284,22 @@ class OCREngine:
                     
                     max_h = max(box['h'], last_box['h'])
                     
+                    # Número que termina em separador ("529.982.247-") e continua na linha de baixo: é o mesmo
+                    # número (quebra de linha). Só a linha seguinte (até 3x a altura) e sem palavra no meio.
+                    wraps = (last_text.rstrip()[-1:] in (".", "-", "/") and max_h * 1.5 < y_diff <= max_h * 3
+                             and box['y'] > last_box['y'] and last_word == word_id - 1)
                     # Se estiver em outra linha (y_diff > 1.5x) ou muito distante (x_dist > 4x a altura da fonte)
-                    if y_diff > max_h * 1.5 or x_dist > max_h * 4:
+                    if not wraps and (y_diff > max_h * 1.5 or x_dist > max_h * 4):
                         digits_only += "X"
                         digit_to_source.append(("X", -1, -1))
                 
                 for char, w_id, c_idx in word_digits:
                     digits_only += char
                     digit_to_source.append((char, w_id, c_idx))
-                    
+
                 last_box = box
+                last_text = text
+                last_word = word_id
         redaction_commands = {}
         found_cpfs = set()
         
@@ -289,12 +313,30 @@ class OCREngine:
             word_digits = {}
             for _ch, w_id, _c in digit_to_source:
                 word_digits[w_id] = word_digits.get(w_id, 0) + 1
+            def starts_word(k):
+                return k == 0 or digit_to_source[k - 1][1] != digit_to_source[k][1]
+
+            def ends_word(k):  # k = índice depois do último dígito
+                return k == len(chars_list) or digit_to_source[k][1] != digit_to_source[k - 1][1]
+
+            def holds_cpf(j, size):
+                """Dentro do trecho há um CPF válido escrito em grupos de CPF ("Ramal 113 CPF 529 982 247 25": 3-3-3-2).
+                Grupos de outro formato (CNS "123 4567 8901 2345") continuam excluídos."""
+                for i in range(j, j + size - 10):
+                    if not (starts_word(i) and ends_word(i + 11) and is_valid_cpf("".join(chars_list[i:i + 11]))):
+                        continue
+                    groups = [word_digits[w] for w in dict.fromkeys(digit_to_source[k][1] for k in range(i, i + 11))]
+                    if groups in ([3, 3, 3, 2], [9, 2]):
+                        return True
+                return False
+
             for size, valid in ((14, is_valid_cnpj), (15, is_valid_cns)):
                 j = 0
                 while j <= len(chars_list) - size:
                     candidate = "".join(chars_list[j:j + size])
-                    aligned = (j == 0 or digit_to_source[j - 1][1] != digit_to_source[j][1]) and                         (j + size == len(chars_list) or digit_to_source[j + size][1] != digit_to_source[j + size - 1][1])
-                    looks_cpf = any(word_digits[digit_to_source[k][1]] == 11 for k in range(j, j + size))
+                    aligned = starts_word(j) and ends_word(j + size)
+                    looks_cpf = any(word_digits[digit_to_source[k][1]] == 11 for k in range(j, j + size)) \
+                        or ('X' not in candidate and holds_cpf(j, size))
                     if 'X' not in candidate and aligned and not looks_cpf and valid(candidate):
                         for k in range(j, j + size):
                             chars_list[k] = 'X'

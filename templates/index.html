@@ -637,6 +637,7 @@
         let movingBox = null;
         let resizingBox = null;
         let resizeDir = '';
+        let resizeAnchor = null;  // canto fixo durante o redimensionamento
         let offsetX, offsetY;
         let pendingRedaction = null;
 
@@ -1173,7 +1174,7 @@
 
                 ['se'].forEach(dir => {
                     const h = document.createElement('div'); h.className = `resize-handle handle-${dir}`;
-                    h.onmousedown = (e) => { e.stopPropagation(); isDown = true; resizingBox = r; resizeDir = dir; activePageNum = r.page; };
+                    h.onmousedown = (e) => { e.stopPropagation(); isDown = true; resizingBox = r; resizeDir = dir; resizeAnchor = [Math.min(r.coords[0], r.coords[2]), Math.min(r.coords[1], r.coords[3])]; activePageNum = r.page; };
                     box.appendChild(h);
                 });
 
@@ -1243,7 +1244,13 @@
                     const nx = (pCurX - offsetX) * sX; const ny = (pCurY - offsetY) * sY;
                     movingBox.coords = [nx, ny, nx + w, ny + h]; renderRedactions();
                 } else if(resizingBox) {
-                    resizingBox.coords[2] = pCurX * sX; resizingBox.coords[3] = pCurY * sY; renderRedactions();
+                    // arrastar para cima/esquerda inverte o canto: guarda sempre [x0, y0, x1, y1] com x0<x1, y0<y1
+                    const [ax, ay] = resizeAnchor || resizingBox.coords;
+                    const bx = pCurX * sX, by = pCurY * sY;
+                    // tamanho mínimo: caixa sem área não tarja nada (e o servidor recusa gravar)
+                    resizingBox.coords = [Math.min(ax, bx), Math.min(ay, by), Math.max(Math.max(ax, bx), Math.min(ax, bx) + 2),
+                                          Math.max(Math.max(ay, by), Math.min(ay, by) + 2)];
+                    renderRedactions();
                 }
             }
         };
@@ -1259,7 +1266,7 @@
                 const x0 = Math.min(pStartX, pCurX) * sX; const y0 = Math.min(pStartY, pCurY) * sY;
                 const x1 = Math.max(pStartX, pCurX) * sX; const y1 = Math.max(pStartY, pCurY) * sY;
 
-                if(Math.abs(x1-x0) > 4) {
+                if(Math.abs(x1-x0) > 4 && Math.abs(y1-y0) > 2) {
                     pendingRedaction = {
                         page: activePageNum,
                         coords: [x0, y0, x1, y1],

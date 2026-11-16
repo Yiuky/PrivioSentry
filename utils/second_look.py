@@ -110,10 +110,19 @@ def _retry_wait(response):
     return ratelimit.parse(response)[0]
 
 
+def _int(value, default):
+    try:
+        return int(value or default)
+    except (TypeError, ValueError):
+        return default
+
+
 def _run_tool(name, args, lines):
+    if not isinstance(args, dict):  # argumentos fora do formato: a ferramenta responde vazio, o agente segue
+        args = {}
     if name == "ler_pagina":
-        start = max(1, int(args.get("inicio") or 1))
-        end = min(len(lines), int(args.get("fim") or len(lines)))
+        start = max(1, _int(args.get("inicio"), 1))
+        end = min(len(lines), _int(args.get("fim"), len(lines)))
         return "\n".join(f"{i}: {lines[i - 1]}" for i in range(start, end + 1)) or "(página vazia)"
     if name == "buscar":
         term = _strip(args.get("termo") or "")
@@ -149,25 +158,30 @@ def run_agent(page_text, types, post=None):
         try:
             payload = {"model": model_name, "messages": messages, "tools": TOOLS, "temperature": 0, "stream": False}
             ratelimit.pace(_endpoint())
-            r = post(_endpoint(), headers=headers, timeout=timeout, json=payload)
+            r = post(_endpoint(), headers=headers, timeout=timeout, json=payload, allow_redirects=False)
             for _ in range(2):  # limite por minuto: espera o que o provedor pede e tenta de novo
                 wait, long = ratelimit.parse(r) if r.status_code == 429 else (0, True)
                 if long:  # sem 429, ou cota esgotada (esperar aqui não adianta)
                     break
                 time.sleep(wait)
-                r = post(_endpoint(), headers=headers, timeout=timeout, json=payload)
+                r = post(_endpoint(), headers=headers, timeout=timeout, json=payload, allow_redirects=False)
             if r.status_code == 429:
                 ratelimit.note()
                 raise RuntimeError("HTTP 429: limite de uso do provedor de IA")
+            egress.refuse_redirect(r)
             if r.status_code >= 400:
                 raise RuntimeError(f"HTTP {r.status_code}: {str(r.text)[:120]}")
             data = r.json()
         except Exception as e:
             info["erro"] = f"{type(e).__name__}: {str(e)[:160]}"
             return None, info
-        info["tokens"] += int((data.get("usage") or {}).get("prompt_tokens") or 0)
-        msg = ((data.get("choices") or [{}])[0].get("message")) or {}
-        calls = msg.get("tool_calls") or []
+        try:  # corpo fora do formato (lista, número...) = falha desta página, nunca do documento inteiro
+            info["tokens"] += _int((data.get("usage") or {}).get("prompt_tokens"), 0)
+            msg = ((data.get("choices") or [{}])[0].get("message")) or {}
+            calls = [c for c in (msg.get("tool_calls") or []) if isinstance(c, dict)]
+        except (AttributeError, IndexError, TypeError):
+            info["erro"] = "resposta do servidor fora do formato"
+            return None, info
         if calls:
             messages.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
             for call in calls:
@@ -278,11 +292,11 @@ def locate(value, grounding):
         for idx, ch in _norm_chars(w.get("text", "")):
             stream.append((ch, wid, idx))
     flat = "".join(c for c, _w, _i in stream)
-    pos = flat.find(target)
-    if pos < 0:
-        return {}
     commands = {}
-    for ch, wid, idx in stream[pos:pos + len(target)]:
-        commands.setdefault(wid, set()).add(idx)
+    pos = flat.find(target)
+    while pos >= 0:  # TODAS as ocorrências: o mesmo nome/telefone pode aparecer mais de uma vez na página
+        for ch, wid, idx in stream[pos:pos + len(target)]:
+            commands.setdefault(wid, set()).add(idx)
+        pos = flat.find(target, pos + len(target))
     # cobre a palavra inteira de nomes/e-mails (pontuação no meio), mas só as palavras tocadas
     return commands

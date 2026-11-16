@@ -78,7 +78,8 @@ def test_verify_without_ocr_still_reads_native_text_of_scanned_page(tmp_path):
     doc.save(str(tmp_path / "mix.pdf"))
     doc.close()
     leftovers, unverified = verify_pdf(str(tmp_path / "mix.pdf"), use_ocr=False)
-    assert leftovers == {1: {"52998224725"}} and unverified == []
+    # o texto digital continua lido; a imagem, sem OCR, deixa a página sem verificar (revisão)
+    assert leftovers == {1: {"52998224725"}} and unverified == [1]
 
 
 def test_coverage_reports_ocr_failure_and_ignores_pages_without_cpf(tmp_path):
