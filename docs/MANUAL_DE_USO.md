@@ -389,7 +389,7 @@ Botões da barra lateral:
 Clique no cartão de uma tarefa para abri-la no editor.
 
 <p align="center">
-  <img src="img/editor.png" alt="Editor do SENTRY Redact com tarjas sugeridas sobre CPF e endereço residencial de um formulário fictício" width="94%" />
+  <img src="img/editor.png" alt="Editor do SENTRY Redact com tarjas sugeridas sobre nome, CPF, endereço residencial, telefone, e-mail e a assinatura achada pelo YOLO num formulário fictício" width="94%" />
 </p>
 
 #### Barra de ferramentas

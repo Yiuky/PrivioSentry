@@ -3,6 +3,12 @@
 Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); as versões seguem o [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Não publicado]
+
+### Documentação
+- README: selos do YOLO (assinaturas), da IA local (Ollama ou LM Studio) e do MCP; fluxos em diagrama (da chegada ao PDF aprovado, cada pedido à IA com trava de saída e limitador, modelos de documento e agentes pelo MCP); seção de telas com a Administração e o gerenciador de modelos.
+- Capturas de tela novas (editor com a assinatura achada pelo YOLO e tarefas em vários estados, Administração e modelos), geradas com dados fictícios por `python scripts/make_screenshots.py`.
+
 ## [5.7.0] - 2026-11-16
 
 Fácil de configurar e pronto para agentes: tela **Administração**, IA na nuvem por chave de API **só com

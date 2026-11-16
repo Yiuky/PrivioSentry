@@ -21,7 +21,7 @@ PRIVIO SENTRY is a local-first project for detecting and protecting personal, se
 > **Trademark:** the code is AGPL-3.0-or-later, but the names and logos are not covered by that license. See [TRADEMARKS.md](TRADEMARKS.md).
 
 <p align="center">
-  <img src="docs/img/editor.png" alt="SENTRY Redact editor with suggested redactions over the CPF and residential address of a fictional form" width="94%" />
+  <img src="docs/img/editor.png" alt="SENTRY Redact editor with suggested redactions over the name, CPF, residential address, phone, e-mail and the signature found by YOLO on a fictional form; on the side, tasks queued, pending, in review and completed" width="94%" />
 </p>
 
 ## Principle
@@ -58,6 +58,82 @@ The LGPD separates *personal data* from *sensitive personal data* (health, biome
 7. Runs a **post-redaction verification**: re-reads the output and cross-checks the *original* (OCR at higher DPI) to check that every CPF found is covered by a redaction.
 8. Optionally, a **local decision model** ([Laya](https://huggingface.co/convaiinnovations/laya), Apache-2.0, CPU-friendly) gives a calibrated second opinion on addresses and **learns from reviewer corrections**; a new profile only goes live after passing a quality gate, and it never removes a redaction. Off by default; see [docs/decisions.md](docs/decisions.md) (Portuguese).
 9. Provides a **web editor** to add, move, delete and approve redactions before generating the final PDF.
+
+### Flows
+
+**From upload to the approved PDF.** No automatic path reaches the final PDF: it only comes out after the reviewer
+applies the protection and the verification passes.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Queued: upload (portal, API or MCP)
+    Queued --> Processing
+    Processing --> Completed: no alert
+    Processing --> NeedsReview: doubt, AI failure or unverified page
+    Processing --> Pending: provider quota exhausted (pending option)
+    Pending --> Queued: retried after the wait
+    Completed --> Editor
+    NeedsReview --> Editor
+    Editor --> Verification: Apply protection
+    Verification --> Approved: no alert
+    Verification --> NeedsReview: uncovered CPF or error
+    Approved --> [*]: final download (/download?final=true)
+    Completed: Completed (preliminary PDF)
+    NeedsReview: Needs review
+    Verification: Post-redaction verification
+    Approved: Approved PDF
+```
+
+**Every AI request** goes through the egress gate and the rate limiter.
+
+```mermaid
+flowchart LR
+    P[Page or crop] --> T{Destination outside<br>this network?}
+    T -- no --> L[Per-minute<br>rate limiter]
+    T -- yes --> X{External AI<br>allowed?}
+    X -- no --> R[⚠️ Blocked:<br>page goes to review]
+    X -- yes --> L
+    L --> S[AI server<br>primary or backup]
+    S -- answer --> V[Validators +<br>match against OCR]
+    S -- 429 per minute --> L
+    S -- quota exhausted --> Q{AI_LIMIT_ACTION}
+    Q -- revisao --> R
+    Q -- pendente --> PD[⏳ Pending document,<br>retried later]
+```
+
+**AI agents (MCP).** The agent uploads and follows; a person approves in the editor.
+
+```mermaid
+sequenceDiagram
+    participant A as AI agent
+    participant M as sentry_mcp.py
+    participant S as SENTRY (API)
+    participant H as Reviewer
+    A->>M: sentry_submit_pdf(PDF)
+    M->>S: POST /upload
+    S-->>A: task_id
+    A->>M: sentry_wait(task_id)
+    S-->>A: Needs review / Completed (no document text)
+    H->>S: reviews in the editor and applies protection
+    A->>M: sentry_download_final(task_id)
+    M->>S: GET /download?final=true
+    S-->>A: only the approved PDF
+```
+
+### Screens
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/img/admin.png" alt="Administration screen, AI and providers section, with provider shortcuts, primary AI and the per-minute rate limiter" /></td>
+    <td width="50%"><img src="docs/img/modelos.png" alt="Document template manager with a draft created from a fictional form and the test recognizing the document" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Administration:</strong> AI servers, usage limits, detection, OCR and queue</td>
+    <td align="center"><strong>Document templates:</strong> draft from a reviewed document, test and approval</td>
+  </tr>
+</table>
+
+Screenshots use only fictional data and are regenerated with `python scripts/make_screenshots.py` (the UI is shown in Portuguese).
 
 ## Requirements
 
