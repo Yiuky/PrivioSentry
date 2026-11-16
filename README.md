@@ -14,8 +14,10 @@
   <a href="https://github.com/Yiuky/PrivioSentry/actions/workflows/ci.yml"><img src="https://github.com/Yiuky/PrivioSentry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white" alt="Python"></a>
   <a href="https://github.com/tesseract-ocr/tesseract"><img src="https://img.shields.io/badge/OCR-Tesseract%205-5C2D91.svg" alt="Tesseract OCR"></a>
-  <a href="https://ollama.com/"><img src="https://img.shields.io/badge/LLM%20local-Ollama-000000.svg?logo=ollama&logoColor=white" alt="Ollama"></a>
+  <a href="https://github.com/ultralytics/ultralytics"><img src="https://img.shields.io/badge/Assinaturas-YOLO%20%C2%B7%20Ultralytics-111F68.svg" alt="YOLO (Ultralytics)"></a>
+  <a href="https://ollama.com/"><img src="https://img.shields.io/badge/IA%20local-Ollama%20%7C%20LM%20Studio-000000.svg?logo=ollama&logoColor=white" alt="IA local: Ollama ou LM Studio"></a>
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/API-FastAPI-009688.svg?logo=fastapi&logoColor=white" alt="FastAPI"></a>
+  <a href="docs/mcp.md"><img src="https://img.shields.io/badge/Agentes-MCP-6E56CF.svg" alt="Servidor MCP para agentes"></a>
   <a href="#-limitações"><img src="https://img.shields.io/badge/Status-est%C3%A1gio%20inicial-E67E22.svg" alt="Status: estágio inicial"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/Licen%C3%A7a-AGPL--3.0--or--later-blue.svg" alt="Licença AGPL-3.0-or-later"></a>
 </p>
@@ -35,7 +37,7 @@
 ---
 
 <p align="center">
-  <img src="docs/img/editor.png" alt="Editor do SENTRY Redact com tarjas sugeridas sobre CPF e endereço residencial de um formulário fictício" width="94%" />
+  <img src="docs/img/editor.png" alt="Editor do SENTRY Redact com tarjas sugeridas sobre nome, CPF, endereço residencial, telefone, e-mail e a assinatura achada pelo YOLO num formulário fictício; ao lado, tarefas na fila, pendente, em revisão e concluída" width="94%" />
 </p>
 
 > **Proteja os dados antes que sejam expostos.** · Detectar. Revisar. Proteger.
@@ -132,6 +134,83 @@ flowchart LR
     J --> F
 ```
 
+### Fluxos
+
+**Da chegada ao PDF aprovado.** Nenhum caminho automático chega ao PDF final: ele só sai depois que o revisor aplica
+a proteção e a verificação passa.
+
+```mermaid
+stateDiagram-v2
+    [*] --> NaFila: envio (portal, API ou MCP)
+    NaFila --> Processando
+    Processando --> Concluido: sem alerta
+    Processando --> RequerRevisao: dúvida, falha da IA ou página não verificada
+    Processando --> Pendente: cota do provedor esgotada (opção pendente)
+    Pendente --> NaFila: nova tentativa depois do prazo
+    Concluido --> Editor
+    RequerRevisao --> Editor
+    Editor --> Verificacao: Aplicar proteção
+    Verificacao --> Aprovado: sem alerta
+    Verificacao --> RequerRevisao: CPF sem tarja ou erro
+    Aprovado --> [*]: download final (/download?final=true)
+    NaFila: Na fila
+    RequerRevisao: Requer revisão
+    Concluido: Concluído (PDF preliminar)
+    Verificacao: Verificação pós-tarja
+    Aprovado: PDF aprovado
+```
+
+**Cada pedido à IA.** A trava de saída e o limitador ficam entre o pipeline e qualquer servidor de IA.
+
+```mermaid
+flowchart LR
+    P[Página ou recorte] --> T{Destino fora<br>desta rede?}
+    T -- não --> L[Limitador de<br>pedidos por minuto]
+    T -- sim --> X{IA externa<br>liberada?}
+    X -- não --> R[⚠️ Bloqueado:<br>página vai para revisão]
+    X -- sim --> L
+    L --> S[Servidor de IA<br>principal ou reserva]
+    S -- resposta --> V[Validadores +<br>casamento com o OCR]
+    S -- 429 por minuto --> L
+    S -- cota esgotada --> Q{AI_LIMIT_ACTION}
+    Q -- revisao --> R
+    Q -- pendente --> PD[⏳ Documento Pendente,<br>refeito depois]
+```
+
+**Modelos de documento.** Formulários de layout conhecido são tarjados pelos rótulos, sem IA, e o modelo nunca aprova
+sozinho.
+
+```mermaid
+flowchart LR
+    D[Documento revisado] --> RS[Rascunho do modelo<br>frases + campos]
+    RS --> TE[Testar no documento] --> AP[Aprovar]
+    AP --> RC{Novo documento:<br>um só modelo reconhecido?}
+    RC -- não --> PI[Pipeline normal com IA]
+    RC -- sim --> TR[Tarja pelos rótulos<br>zero token]
+    TR --> IN[Inspeção: agente ou regras]
+    IN --> HR{{🖊️ Revisão humana}}
+    PI --> HR
+```
+
+**Agentes de IA (MCP).** O agente envia e acompanha; quem aprova é a pessoa no editor.
+
+```mermaid
+sequenceDiagram
+    participant A as Agente de IA
+    participant M as sentry_mcp.py
+    participant S as SENTRY (API)
+    participant H as Revisor
+    A->>M: sentry_submit_pdf(PDF)
+    M->>S: POST /upload
+    S-->>A: task_id
+    A->>M: sentry_wait(task_id)
+    S-->>A: Requer revisão / Concluído (sem texto do documento)
+    H->>S: revisa no editor e aplica a proteção
+    A->>M: sentry_download_final(task_id)
+    M->>S: GET /download?final=true
+    S-->>A: só o PDF aprovado
+```
+
 ### Destaques
 
 - **Decisor local que aprende (experimental):** um modelo de decisão local
@@ -165,6 +244,21 @@ flowchart LR
   e segredo interno entre os *workers* e o serviço.
 - **Interface acessível:** pt-BR por padrão com seletor en-US, contraste WCAG AA, foco visível e atalhos
   `N`/`P`/`Esc`.
+
+### Telas
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/img/admin.png" alt="Tela Administração, seção IA e provedores, com atalhos de provedor, IA principal e limitador de pedidos por minuto" /></td>
+    <td width="50%"><img src="docs/img/modelos.png" alt="Gerenciador de modelos de documento com o rascunho criado a partir de um formulário fictício e o teste reconhecendo o documento" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Administração:</strong> servidores de IA, limite de uso, detecção, OCR e fila, sem editar o <code>.env</code></td>
+    <td align="center"><strong>Modelos de documento:</strong> rascunho a partir de um documento revisado, teste e aprovação</td>
+  </tr>
+</table>
+
+As capturas usam só dados fictícios e são refeitas com `python scripts/make_screenshots.py`.
 
 ---
 
