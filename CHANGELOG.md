@@ -24,6 +24,17 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
   - **Alterações não salvas** ficam marcadas; **Salvar** grava só o que mudou, **Descartar** desfaz, e sair da página pede confirmação.
 
 ### Corrigido
+- **Nº da CNH deixava de ser achado** (perfis LGPD/GDPR/saúde) em dois formatos medidos em documentos reais e
+  reproduzidos com valores fictícios:
+  - **cópia de CNH lida pelo OCR:** o rótulo "Nº REGISTRO"/"HABILITAÇÃO" ficava a mais de 40 caracteres do número
+    (ou depois dele). Agora o número de 11 dígitos que passa no **dígito verificador da CNH** vale com o rótulo até
+    120 caracteres antes ou depois, e também com "registro"/"RENACH"/"motorista" (`contextos.json`,
+    `parametros.json` › `cnh.janela_com_dv`). Sem o verificador, a regra de antes continua igual: nada deixa de ser
+    achado;
+  - **número colado no "Nº"** ("CNH Nº" seguido dos 11 dígitos, sem espaço): o "º" é letra para o regex e o número não casava.
+  - Corpus fictício (`benchmarks/pii_corpus.py`) ganhou a cópia de CNH e a carteira profissional, com iscas
+    (registro profissional, código de autenticidade). CNH de 1/12 para 12/12 no texto direto e no OCR real
+    (semente 7 com OCR: de 0/10 para 10/10), sem falso positivo novo; os outros tipos ficaram iguais.
 - **Tela Administração:**
   - interruptores ligados por padrão (**Modelos de documento**, **OCR na verificação final**) apareciam desligados quando nada estava salvo;
   - o padrão mostrado para servidor, modelo e tempo limite ignorava as variáveis antigas `OLLAMA_*` do `.env`;

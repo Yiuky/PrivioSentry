@@ -46,6 +46,14 @@ def make_card():
     return "".join(map(str, d)) + str((10 - total % 10) % 10)
 
 
+def make_cnh():
+    base = [RNG.randint(0, 9) for _ in range(9)]
+    dv1 = sum(a * w for a, w in zip(base, range(9, 0, -1))) % 11
+    dv2 = sum(a * w for a, w in zip(base, range(1, 10))) % 11 - (2 if dv1 >= 10 else 0)
+    dv2 = dv2 + 11 if dv2 < 0 else dv2
+    return "".join(map(str, base)) + str(0 if dv1 >= 10 else dv1) + str(0 if dv2 >= 10 else dv2)
+
+
 def mutate(number):
     last = (int(number[-1]) + 1) % 10
     return number[:-1] + str(last)
@@ -102,7 +110,8 @@ def test_generated_catalog_doc_is_in_sync():
 
 # --- validadores ------------------------------------------------------------------------------------------
 @pytest.mark.parametrize("make, check", [(make_pis, v.is_valid_pis), (make_cns, v.is_valid_cns),
-                                         (make_titulo, v.is_valid_titulo_eleitor), (make_card, v.is_valid_luhn)])
+                                         (make_titulo, v.is_valid_titulo_eleitor), (make_card, v.is_valid_luhn),
+                                         (make_cnh, v.is_valid_cnh)])
 def test_validators_accept_generated_and_reject_mutated(make, check):
     for _ in range(20):
         n = make()
@@ -123,6 +132,10 @@ def test_fixed_vectors_checked_by_hand():
     # Números de teste públicos das bandeiras (Luhn válido)
     assert v.is_valid_luhn("4111111111111111") and v.is_valid_luhn("5555555555554444")
     assert not v.is_valid_luhn("4111111111111112")
+    # CNH 100000000-??: dv1 = 1*9 = 9; dv2 = 1*1 = 1. Base 000000050: 5*2 = 10 -> dv1 = 0 com desconto 2 no
+    # segundo: 5*8 = 40, 40 % 11 = 7, 7 - 2 = 5
+    assert v.is_valid_cnh("10000000091") and not v.is_valid_cnh("10000000092")
+    assert v.is_valid_cnh("00000005005") and not v.is_valid_cnh("00000005075")
 
 
 def test_validators_reject_degenerate_numbers():
@@ -130,6 +143,7 @@ def test_validators_reject_degenerate_numbers():
     assert not v.is_valid_cns("000000000000000")
     assert not v.is_valid_titulo_eleitor("123456782901")      # UF 29 não existe
     assert not v.is_valid_luhn("1111111111111111")
+    assert not v.is_valid_cnh("11111111111") and not v.is_valid_cnh("1000000009")
     assert v.is_valid_ipv4("200.17.10.4") and not v.is_valid_ipv4("999.1.1.1") and not v.is_valid_ipv4("127.0.0.1")
 
 

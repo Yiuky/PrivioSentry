@@ -67,6 +67,36 @@ def gen_rg(rng):
     return f"{rng.randint(1, 9)}.{rng.randint(100, 999)}.{rng.randint(100, 999)}"
 
 
+def _cnh_dv(base):
+    s1 = sum(int(a) * w for a, w in zip(base, range(9, 0, -1))) % 11
+    dsc = 2 if s1 >= 10 else 0
+    s1 = 0 if s1 >= 10 else s1
+    s2 = (sum(int(a) * w for a, w in zip(base, range(1, 10))) % 11 - dsc) % 11
+    return f"{s1}{0 if s2 >= 10 else s2}"
+
+
+def _cpf_dv(base):
+    d1 = _dv_cpf(base)
+    return d1 + _dv_cpf(base + d1)
+
+
+def gen_cnh(rng):
+    """Nº de registro da CNH: 11 dígitos com os dois verificadores (e que não é CPF válido: a busca de CPF o
+    tarjaria como CPF e a medida misturaria os tipos)."""
+    while True:
+        base = "".join(str(rng.randint(0, 9)) for _ in range(9))
+        if _cnh_dv(base) != _cpf_dv(base):
+            return base + _cnh_dv(base)
+
+
+def gen_digits_no_cnh_dv(rng, n=11):
+    """Número de n dígitos que NÃO passa no verificador da CNH nem no do CPF (protocolo, código de autenticidade)."""
+    while True:
+        d = "".join(str(rng.randint(0, 9)) for _ in range(n))
+        if n != 11 or d[9:] not in (_cnh_dv(d[:9]), _cpf_dv(d[:9])):
+            return d
+
+
 def gen_phone(rng):
     return rng.choice([f"(65) 9{rng.randint(1000, 9999)}-{rng.randint(1000, 9999)}",
                        f"(65) 3{rng.randint(100, 999)}-{rng.randint(1000, 9999)}"])
@@ -207,7 +237,60 @@ def parecer_tecnico(rng):
     return d
 
 
-TEMPLATES = [ata_condominio, contrato_locacao, ficha_cadastro, oficio_publico, atendimento_saude, parecer_tecnico]
+def cnh_pagina(rng):
+    """Cópia de CNH lida pelo OCR (valores fictícios). Leitura em colunas: o rótulo "Nº REGISTRO"/"HABILITAÇÃO"
+    fica longe do número (achado nos documentos testados: 46 caracteres), às vezes DEPOIS dele, ou colado ao "Nº"."""
+    d = Doc("cnh_pagina", [])
+    nome, cpf, rg, nasc, cnh = _person(rng), gen_cpf(rng), gen_rg(rng), gen_date(rng), gen_cnh(rng)
+    validade, primeira, emissao = gen_date(rng, 2027, 2035), gen_date(rng, 1990, 2020), gen_date(rng, 2020, 2026)
+    d.lines += ["REPÚBLICA FEDERATIVA DO BRASIL",
+                "CARTEIRA NACIONAL DE HABILITAÇÃO",
+                f"NOME {nome}",
+                f"DOC. IDENTIDADE/ÓRG. EMISSOR/UF {rg} SSP UF",
+                f"CPF {cpf}   DATA NASCIMENTO {nasc}"]
+    layout = rng.randrange(4)
+    if layout == 0:    # rótulos numa linha, as outras datas antes do número (contexto a ~46 caracteres)
+        d.lines += ["PERMISSÃO ACC CAT. HAB. Nº REGISTRO VALIDADE 1ª HABILITAÇÃO",
+                    f"AB OBSERVAÇÕES: EAR {validade} {primeira}", cnh]
+    elif layout == 1:  # número antes dos rótulos (ordem de leitura invertida)
+        d.lines += [f"{cnh} {validade} {primeira}", "Nº REGISTRO VALIDADE 1ª HABILITAÇÃO", "AB"]
+    elif layout == 2:  # "Nº" colado ao número; o rótulo de habilitação fica no topo, longe
+        d.lines += ["PERMISSÃO ACC CAT. HAB. AB", f"REGISTRO Nº{cnh}", f"VALIDADE {validade}"]
+    else:              # número sozinho no fim, depois de observações e local
+        d.lines += ["Nº REGISTRO VALIDADE 1ª HABILITAÇÃO", f"{validade} {primeira}",
+                    "OBSERVAÇÕES EAR LOCAL CIDADE FICTÍCIA UF", cnh]
+    d.lines.append(f"DATA EMISSÃO {emissao}")
+    d.gabarito += [("cpf", cpf), ("rg", rg), ("data_nascimento", nasc), ("cnh", cnh)]
+    d.iscas += [("data_comum", validade), ("data_comum", primeira), ("data_comum", emissao)]
+    return d
+
+
+def carteira_profissional(rng):
+    """Carteira de identidade profissional (valores fictícios) com o nº da CNH perto da sigla, além de números que
+    NÃO são CNH: registro profissional e código de autenticidade sem o verificador da CNH."""
+    d = Doc("carteira_profissional", [])
+    nome, cpf, cnh = _person(rng), gen_cpf(rng), gen_cnh(rng)
+    registro, codigo = gen_digits_no_cnh_dv(rng, 10), gen_digits_no_cnh_dv(rng)
+    d.lines += ["CONSELHO REGIONAL DE EXEMPLO — CARTEIRA DE IDENTIDADE PROFISSIONAL",
+                f"NOME {nome}",
+                f"REGISTRO PROFISSIONAL {registro}",
+                f"CPF {cpf}"]
+    layout = rng.randrange(3)
+    if layout == 0:
+        d.lines.append(f"CNH Nº{cnh}")                 # "Nº" colado: "º" é letra para o regex
+    elif layout == 1:
+        d.lines += [cnh, "CNH"]                        # valor acima do rótulo
+    else:
+        d.lines.append(f"CNH:{cnh} CAT. B")
+    d.lines += ["Habilitação profissional: Engenharia de Exemplo. Válida em todo o território nacional.",
+                f"Código de autenticidade {codigo}"]
+    d.gabarito += [("cpf", cpf), ("cnh", cnh)]
+    d.iscas += [("registro_profissional", registro), ("codigo", codigo)]
+    return d
+
+
+TEMPLATES = [ata_condominio, contrato_locacao, ficha_cadastro, oficio_publico, atendimento_saude, parecer_tecnico,
+             cnh_pagina, carteira_profissional]
 
 
 def generate(n=50, seed=2026):

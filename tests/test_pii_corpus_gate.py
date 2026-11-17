@@ -12,7 +12,7 @@ from benchmarks.pii_eval import evaluate
 # Mínimos por tipo. Revocação é o que protege (tarja que falta = vazamento): o mínimo é 100% no modo texto.
 MIN_RECALL = 1.0
 MIN_PRECISION = 0.98
-EXPECTED_TYPES = {"cpf", "cns", "data_nascimento", "email", "pis_nis", "placa_veiculo", "rg", "telefone"}
+EXPECTED_TYPES = {"cnh", "cpf", "cns", "data_nascimento", "email", "pis_nis", "placa_veiculo", "rg", "telefone"}
 
 
 @pytest.fixture(scope="module", params=[2026, 7])

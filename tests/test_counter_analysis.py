@@ -498,3 +498,45 @@ def test_shapes_that_are_never_cpf(make):
 def test_formatted_cpf_next_to_cnpj_fragment_is_still_found():
     cnpj_part = "12.345.678/0001-"
     assert _cpfs(cnpj_part, "|", "90", "Responsável", CPF_A_FMT) == {CPF_A}
+
+
+# --- 13. CNH (cópia de CNH e carteira profissional lidas pelo OCR; números gerados, nunca reais) --------------
+def _cnh_numbers():
+    from benchmarks.pii_corpus import gen_cnh, gen_digits_no_cnh_dv
+    rng = random.Random(11)
+    return gen_cnh(rng), gen_digits_no_cnh_dv(rng)
+
+
+@pytest.mark.parametrize("layout", [
+    "Nº REGISTRO VALIDADE 1ª HABILITAÇÃO AB OBSERVAÇÕES: EAR 01/02/2031 03/04/2009 {n}",  # rótulo a 46 caracteres
+    "{n} 01/02/2031 03/04/2009 Nº REGISTRO VALIDADE 1ª HABILITAÇÃO",                       # rótulo depois
+    "PERMISSÃO ACC CAT. HAB. AB REGISTRO Nº{n} VALIDADE 01/02/2031",                       # "Nº" colado
+    "{n} CNH",                                                                             # valor acima do rótulo
+])
+def test_cnh_with_check_digit_is_found_with_far_or_later_label(layout):
+    cnh, _ = _cnh_numbers()
+    assert _found(layout.format(n=cnh), "cnh") == {cnh}
+
+
+def test_cnh_number_glued_to_n_symbol_is_found_even_without_check_digit():
+    _, other = _cnh_numbers()
+    assert _found(f"CNH Nº{other}", "cnh") == {other}  # "º" é letra para o : antes o número não casava
+
+
+@pytest.mark.parametrize("layout", [
+    "Registro do protocolo {x}",                                                          # "registro" sem verificador
+    "Habilitação profissional: Engenharia de Exemplo, válida em todo o território. Código de autenticidade {x}",
+    "REGISTRO PROFISSIONAL {x10}",                                                        # 10 dígitos
+    "{x} registro",
+])
+def test_numbers_that_are_not_cnh(layout):
+    _, other = _cnh_numbers()
+    assert _found(layout.format(x=other, x10=other[:10]), "cnh") == set()
+
+
+def test_cnh_check_digit_still_needs_a_label_nearby():
+    cnh, _ = _cnh_numbers()
+    assert _found(f"Código de autenticidade {cnh}", "cnh") == set()
+    far = "texto " * 25  # 150 caracteres: além de cnh.janela_com_dv
+    assert _found(f"CNH {far}{cnh}", "cnh") == set()
+    assert _found(f"{cnh} {far}habilitação", "cnh") == set()
