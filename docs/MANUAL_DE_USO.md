@@ -555,6 +555,13 @@ O mesmo serviço é uma API ([docs/api.md](api.md)); `PORTAL_ENABLED=0` deixa s�
 servidor MCP local `sentry_mcp.py` ([docs/mcp.md](mcp.md)): o agente envia PDFs, acompanha e baixa o resultado,
 mas **não aprova**. O PDF só é entregue a ele depois de **Aplicar proteção** sem pendências.
 
+Para ver a API funcionando, abra **`/api-demo`** (ex.: `http://127.0.0.1:8001/api-demo`). A página usa só as rotas
+da API: envia um PDF, mostra a fila (processando, na fila, aguardando revisão), publica uma mensagem a cada mudança
+de situação (aba **Eventos**), lista as chamadas HTTP (aba **Chamadas HTTP**) e baixa o PDF aprovado com
+`?final=true`. Antes da aprovação, o download é recusado (409) e a página mostra a recusa. Os nomes dos arquivos
+ficam ocultos até marcar **Mostrar nomes dos arquivos**, e nenhum alerta ou texto do documento aparece, o que
+permite apresentá-la. Com `PORTAL_ENABLED=0`, a página não existe.
+
 ### 4.14 Modelos de documento
 
 Para documentos que se repetem com o mesmo layout (licenças, autorizações, formulários), crie um **modelo**:

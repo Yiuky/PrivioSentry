@@ -346,6 +346,10 @@ def dispatch_queue():
                 continue
             _spawn(task_id, manual_redactions, native_mode)
             started += 1
+        if started:  # a posição mostrada era a da entrada na fila: acompanha quem saiu da frente
+            for pos, (queued_id, _, _) in enumerate(task_queue, 1):
+                if queued_id in tasks:
+                    tasks[queued_id]["status"] = f"Na fila ({pos}º)"
     if started:
         save_tasks()
     return started
@@ -503,6 +507,14 @@ async def index(request: Request):
         return JSONResponse({"servico": "PRIVIO SENTRY", "portal": False, "api": "/openapi.json",
                              "info": "/api/info"})
     return templates.TemplateResponse(request=request, name="index.html")
+
+
+@app.get("/api-demo", response_class=HTMLResponse)
+async def api_demo_page(request: Request):
+    """Demonstração da API (envio, fila, mensagens, download aprovado) usando só as rotas públicas. Parte do portal."""
+    if not portal_enabled():
+        raise HTTPException(status_code=404, detail="Portal desligado (PORTAL_ENABLED=0)")
+    return templates.TemplateResponse(request=request, name="api_demo.html")
 
 
 @app.get("/healthz")

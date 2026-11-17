@@ -38,6 +38,7 @@ curl -H "X-API-Token: $SENTRY_TOKEN" -o protegido.pdf "http://127.0.0.1:8001/dow
 
 | Rota | Uso |
 |---|---|
+| `GET /api-demo` | Página de demonstração da API (envio, fila, mensagens a cada mudança de situação, chamadas HTTP e download aprovado). Usa só as rotas desta tabela; parte do portal (404 com `PORTAL_ENABLED=0`). |
 | `GET /healthz` | Serviço no ar. Sem token e sem nenhum dado (healthcheck). |
 | `GET /api/info` | Versão, modos (portal/admin/token), fila e servidores de IA externos em uso. |
 | `POST /upload` | Multipart: `file` (PDF), `perfil`, `nomes` (sim/não), `baixa_qualidade` (sim/não). Devolve `task_id`. |

@@ -133,7 +133,10 @@ def test_api_only_mode_has_no_portal(svc, monkeypatch):
     monkeypatch.setenv("PORTAL_ENABLED", "0")
     r = c.get("/")
     assert r.json()["portal"] is False and c.get("/admin").status_code == 404
+    assert c.get("/api-demo").status_code == 404                          # a demonstração é parte do portal
     assert c.get("/api/info").json()["portal"] is False
+    monkeypatch.setenv("PORTAL_ENABLED", "1")
+    assert c.get("/api-demo").status_code == 200                          # contra-teste
 
 
 def test_no_cdn_docs_but_openapi_is_local(svc):
