@@ -331,6 +331,10 @@ As opções valem só para aquele documento: outros documentos na fila não são
 e recusa combinação impossível (por exemplo, nomes num perfil que não procura nomes) com uma mensagem clara. Os
 valores iniciais do painel vêm da configuração do servidor (`POLICY_PROFILE`, `NER_ENGINE`, `SECOND_LOOK`).
 
+Se o perfil escolhido pede nomes (LGPD publicação, GDPR, saúde) e "Nomes" fica desmarcado, ou o detector de nomes não
+está instalado, o documento vai para **Requer revisão** com o aviso *Nomes de pessoa não foram procurados* em todas as
+páginas: procure os nomes à mão antes de aplicar a proteção.
+
 Regras de upload:
 
 - Só arquivos com extensão `.pdf` e conteúdo de PDF válido são aceitos.

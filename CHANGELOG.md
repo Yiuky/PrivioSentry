@@ -33,6 +33,11 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
   modelos novos recusam (HTTP 400), e a página ia para revisão. Agora, na primeira recusa, o pedido é refeito sem
   `temperature` e os passos seguintes já vão sem ele, como o cliente de IA principal já fazia. Outro erro 400 não é
   repetido. Medido com `benchmarks.provider_check` e dados fictícios: todas as verificações aprovadas, inspeção 5/5.
+- **Nomes não procurados sem aviso:** nos perfis que pedem nomes (`lgpd_publicacao`, `gdpr`, `saude_hipaa`), com a
+  busca de nomes desligada ou o GLiNER não instalado, o documento saía "Concluído" sem nenhum nome tarjado e sem
+  alerta. Agora todas as páginas vão para revisão com o aviso "Nomes de pessoa não foram procurados (...), mas o
+  perfil pede". Para não ter o aviso: instale e ligue o detector (`pip install -e ".[nomes]"`, `NER_ENGINE=gliner`)
+  ou use um perfil que não pede nomes.
 - **Posição na fila parada:** "Na fila (5º)" mostrava a posição de quando o documento entrou e não mudava enquanto
   a fila andava. Agora as posições são refeitas sempre que uma tarefa sai da fila para processar.
 

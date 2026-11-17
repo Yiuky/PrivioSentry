@@ -509,7 +509,8 @@ detecção é probabilística e só cobre os tipos do perfil de política escolh
 
 No perfil padrão (`cpf_endereco`), é uma regra de negócio deliberada do caso de uso original. Nos perfis LGPD, GDPR e
 saúde, com o GLiNER ligado (`NER_ENGINE=gliner`), nomes e filiação são procurados: confiança alta vira tarja sugerida,
-média vira revisão. Veja as [limitações](docs/limitations.md).
+média vira revisão. Se o perfil pede nomes e a busca está desligada ou o GLiNER não está instalado, todas as páginas
+vão para revisão com o aviso de procurar nomes à mão. Veja as [limitações](docs/limitations.md).
 </details>
 
 <details>

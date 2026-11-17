@@ -406,6 +406,7 @@ class SentryApp:
                    if t not in ("cpf", "endereco_residencial")}
         self.logger.info(f"--- POLÍTICA: perfil '{self.policy_profile}' ({len(actions)} tipo(s) com detector) ---")
         found_values = defaultdict(set)
+        self._warn_names_not_searched(actions)
         self._run_names(actions, found_values)
         actions = {t: a for t, a in actions.items() if t not in pii_detect.ner.TYPES}
         if not actions:
@@ -437,6 +438,22 @@ class SentryApp:
         if found_values:
             resumo = ", ".join(f"{pii_detect.catalog.get(t).nome}: {len(v)}" for t, v in found_values.items())
             self.logger.info(f"[+] Política: {resumo}.")
+
+    def _warn_names_not_searched(self, runnable):
+        """
+        Perfil pede nomes, mas o detector está desligado ou não instalado: sem isso o documento sairia "Concluído"
+        sem nenhum nome tarjado e sem aviso (falha fechada: revisão em todas as páginas).
+        """
+        _, profile = pii_detect.profiles.get_profile(self.policy_profile)
+        missing = [t for t in pii_detect.ner.TYPES if t in profile["acoes"] and t not in runnable]
+        if not missing:
+            return
+        why = ("detector de nomes ligado, mas não instalado" if pii_detect.ner.enabled()
+               else "busca de nomes desligada")
+        self.logger.warning(f"[!] Perfil '{self.policy_profile}' pede nomes, mas {why}: revisão manual.")
+        for page_num in range(1, len(self.grounding_maps) + 1):
+            self.add_review(page_num, f"Nomes de pessoa não foram procurados ({why}), mas o perfil pede: "
+                                      "procure nomes manualmente.")
 
     def _run_names(self, actions, found_values):
         """
