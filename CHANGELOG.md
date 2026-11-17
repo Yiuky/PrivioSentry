@@ -5,6 +5,12 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Adicionado
+- **Demonstração da API** em `/api-demo`: envia um PDF pela API, mostra a fila, publica uma mensagem a cada mudança
+  de situação (recebido, na fila, processando, requer revisão, aprovado, erro, pendente), lista as chamadas HTTP e
+  baixa só o PDF aprovado (`?final=true`; antes disso mostra a recusa 409). Sem texto do documento nem alertas;
+  nomes de arquivo ocultos até serem pedidos. Parte do portal (some com `PORTAL_ENABLED=0`).
+
 ### Alterado
 - **Administração mais natural e fácil de operar.**
   - **Visão geral virou um painel:** diz "Tudo pronto" ou quantos itens pedem atenção e lista os componentes (OCR, detector de assinaturas, IA, para onde vão as páginas, verificação final, pacotes opcionais, reinício pendente) com o link **Ajustar**. Mostra também os documentos por situação, com a próxima tentativa dos pendentes, e o espaço usado pelos arquivos guardados. Atualiza sozinho. Nova rota `GET /admin/status`, só com fatos e contagens.
@@ -27,6 +33,8 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
   modelos novos recusam (HTTP 400), e a página ia para revisão. Agora, na primeira recusa, o pedido é refeito sem
   `temperature` e os passos seguintes já vão sem ele, como o cliente de IA principal já fazia. Outro erro 400 não é
   repetido. Medido com `benchmarks.provider_check` e dados fictícios: todas as verificações aprovadas, inspeção 5/5.
+- **Posição na fila parada:** "Na fila (5º)" mostrava a posição de quando o documento entrou e não mudava enquanto
+  a fila andava. Agora as posições são refeitas sempre que uma tarefa sai da fila para processar.
 
 ### Documentação
 - README: selos do YOLO (assinaturas), da IA local (Ollama ou LM Studio) e do MCP; fluxos em diagrama (da chegada ao PDF aprovado, cada pedido à IA com trava de saída e limitador, modelos de documento e agentes pelo MCP); seção de telas com a Administração e o gerenciador de modelos.

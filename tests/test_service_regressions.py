@@ -65,6 +65,36 @@ def test_queued_task_cannot_be_reprocessed_or_finalized_without_losing_state(svc
         mod.task_queue.clear()
 
 
+
+def test_queue_positions_move_up_when_a_task_starts(svc, monkeypatch):
+    c, mod = svc
+    ids = [_upload(c, f"d{i}.pdf") for i in range(3)]
+    for pos, tid in enumerate(ids, 1):
+        mod.tasks[tid].update(status=f"Na fila ({pos}º)", queued=True)
+        mod.task_queue.append((tid, None, False))
+    running = []
+    monkeypatch.setattr(mod, "MAX_PARALLEL_TASKS", 1)
+    monkeypatch.setattr(mod, "running_count", lambda: len(running))
+    monkeypatch.setattr(mod, "_spawn", lambda tid, m, n: running.append(tid))
+    try:
+        assert mod.dispatch_queue() == 1 and running == ids[:1]
+        assert [mod.tasks[t]["status"] for t in ids[1:]] == ["Na fila (1º)", "Na fila (2º)"]
+    finally:
+        mod.task_queue.clear()
+
+
+def test_queue_positions_stay_when_nothing_starts(svc, monkeypatch):
+    c, mod = svc
+    tid = _upload(c)
+    mod.tasks[tid].update(status="Na fila (1º)", queued=True)
+    mod.task_queue.append((tid, None, False))
+    monkeypatch.setattr(mod, "running_count", lambda: mod.MAX_PARALLEL_TASKS)       # sem vaga
+    try:
+        assert mod.dispatch_queue() == 0 and mod.tasks[tid]["status"] == "Na fila (1º)"   # contra-teste
+    finally:
+        mod.task_queue.clear()
+
+
 def test_server_paths_never_reach_api_clients(svc):
     c, mod = svc
     tid = _upload(c)
