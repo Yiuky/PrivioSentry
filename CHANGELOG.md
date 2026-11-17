@@ -5,6 +5,20 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+## [5.8.0] - 2026-11-17
+
+Administração mais fácil de operar, demonstração da API e correções achadas ao processar documentos reais com
+o Claude Haiku (Anthropic): nomes que o perfil pede e não foram procurados agora pedem revisão, o nº da CNH volta
+a ser achado em cópias lidas pelo OCR e saudações deixam de virar nome. Leia **Atenção ao atualizar**.
+
+### Atenção ao atualizar
+- **Perfil que pede nomes sem a busca de nomes rodando** (`lgpd_publicacao`, `gdpr`, `saude_hipaa` com `NER_ENGINE`
+  vazio, "Nomes" desmarcado no envio ou o GLiNER não instalado): o documento passa a ir para **Requer revisão**, com
+  aviso em todas as páginas. Antes saía "Concluído" sem nenhum nome tarjado. Para não ter o aviso, instale e ligue o
+  detector (`pip install -e ".[nomes]"`, `NER_ENGINE=gliner`) ou use um perfil sem nomes (`cpf_endereco`, `lgpd_interno`).
+- Nº da CNH com dígito verificador válido passa a valer com o rótulo mais longe (até 120 caracteres, antes ou
+  depois) e com "registro", "RENACH" e "motorista": espere mais tarjas sugeridas de CNH em cópias digitalizadas.
+
 ### Adicionado
 - **Demonstração da API** em `/api-demo`: envia um PDF pela API, mostra a fila, publica uma mensagem a cada mudança
   de situação (recebido, na fila, processando, requer revisão, aprovado, erro, pendente), lista as chamadas HTTP e
