@@ -13,6 +13,10 @@ qualidade do LLM da qualidade do OCR. Mede:
     inventados         endereços devolvidos que não existem na página (não localizados)
     classificacao      endereços do gabarito com tipo pessoal × não pessoal certo
     json_invalido      respostas que não viraram a lista esperada (o pipeline manda a página para revisão)
+
+    --corpus condominio   atas de condomínio (vários moradores com bloco/apartamento): o caso difícil
+    --via-cliente         usa o cliente de IA do projeto (servidor do .env/Administração, QUALQUER provedor, inclusive
+                          na nuvem com AI_ALLOW_EXTERNAL=1) com o pedido do pipeline; o rótulo é o modelo configurado
 """
 import argparse
 import base64
@@ -67,12 +71,17 @@ def ask(model, image, prompt, schema, timeout):
     return OllamaClient()._clean_json_response(content)
 
 
+def ask_client(client, image_path, prompt):
+    """Exatamente a chamada do pipeline (utils/address_redactor.py): cliente de IA, trava de saída e limite de uso."""
+    return client.analyze_image(image_path, prompt)[0]
+
+
 def evaluate_page(doc, response):
     words = text_grounding(doc.text)
-    truth_personal, truth_other = set(), set()
+    truth_personal, truth_other, ambiguous = set(), set(), set()
     for text, kind in doc.enderecos:
         ids = {i for span in locate_address_spans(text, words) for i in span}
-        (truth_personal if kind == "pessoal" else truth_other).update(ids)
+        (truth_personal if kind == "pessoal" else ambiguous if kind == "ambiguo" else truth_other).update(ids)
     out = {"json_invalido": 0, "devolvidos": 0, "inventados": 0, "tarjadas": set(), "class_ok": 0, "class_total": 0}
     items = response.get("addresses") if isinstance(response, dict) else None
     if not isinstance(items, list):
@@ -94,19 +103,20 @@ def evaluate_page(doc, response):
             out["tarjadas"] |= ids
     for text, kind in doc.enderecos:
         gold = {i for span in locate_address_spans(text, words) for i in span}
-        if not gold:
+        if not gold or kind == "ambiguo":
             continue
         out["class_total"] += 1
         best = max(located, key=lambda x: len(x[0] & gold), default=None)
         if best and best[0] & gold and best[1] == (kind == "pessoal"):
             out["class_ok"] += 1
-    out["tarja_a_mais"] = len(out["tarjadas"] - truth_personal)
+    out["tarja_a_mais"] = len(out["tarjadas"] - truth_personal - ambiguous)
     return out, truth_personal
 
 
-def run(models, variants, conditions, n_docs, seed, timeout=300, log=print):
+def run(models, variants, conditions, n_docs, seed, timeout=300, log=print, corpus="enderecos", client=None):
     from utils.ocr_engine import OCREngine
-    docs = pii_corpus.generate_addresses(n_docs, seed)
+    gen = pii_corpus.generate_condo_addresses if corpus == "condominio" else pii_corpus.generate_addresses
+    docs = gen(n_docs, seed)
     ocr = OCREngine(os.getenv("TESSERACT_PATH"), lang=os.getenv("TESSERACT_LANG", "por"))
     report = {"docs": n_docs, "seed": seed, "resultados": {}}
     with tempfile.TemporaryDirectory() as tmp:
@@ -117,15 +127,18 @@ def run(models, variants, conditions, n_docs, seed, timeout=300, log=print):
                 path = os.path.join(tmp, f"{cond}_{i}.png")
                 img.save(path)
                 ocr_text = " ".join(w["text"] for w in ocr.get_grounding_map(path, psm="3")[1])
-                pages.append((doc, img, ocr_text))
+                pages.append((doc, img, ocr_text, path))
             for model in models:
                 for variant in variants:
                     agg = defaultdict(float)
                     times = []
-                    for doc, img, ocr_text in pages:
+                    for doc, img, ocr_text, path in pages:
                         t0 = time.time()
                         try:
-                            resp = ask(model, img, _prompt(variant, ocr_text), variant.endswith("schema"), timeout)
+                            if client is not None:
+                                resp = ask_client(client, path, _prompt(variant, ocr_text))
+                            else:
+                                resp = ask(model, img, _prompt(variant, ocr_text), variant.endswith("schema"), timeout)
                         except Exception as e:
                             resp = {"error": str(e)}
                             log(f"[erro] {model} {variant}: {str(e)[:100]}")
@@ -168,9 +181,21 @@ def main(argv=None):
     ap.add_argument("--docs", type=int, default=12)
     ap.add_argument("--seed", type=int, default=2026)
     ap.add_argument("--out")
+    ap.add_argument("--corpus", choices=["enderecos", "condominio"], default="enderecos")
+    ap.add_argument("--via-cliente", action="store_true",
+                    help="cliente de IA do projeto (servidor configurado, qualquer provedor); só o pedido copia_texto")
     args = ap.parse_args(argv)
-    report = run([m for m in args.models.split(",") if m], [v for v in args.variants.split(",") if v],
-                 [c for c in args.conditions.split(",") if c], args.docs, args.seed)
+    client = None
+    models = [m for m in args.models.split(",") if m]
+    variants = [v for v in args.variants.split(",") if v]
+    if args.via_cliente:
+        if variants != ["copia_texto"]:
+            ap.error("--via-cliente mede o pedido do pipeline: use --variants copia_texto")
+        from utils.ai_client import OllamaClient
+        client = OllamaClient()
+        models = [client.vision_model]
+    report = run(models, variants, [c for c in args.conditions.split(",") if c], args.docs, args.seed,
+                 corpus=args.corpus, client=client)
     print(to_markdown(report))
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:

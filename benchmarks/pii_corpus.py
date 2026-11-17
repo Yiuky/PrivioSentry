@@ -371,3 +371,42 @@ def address_doc(rng, i):
 def generate_addresses(n=12, seed=2026):
     rng = random.Random(seed)
     return [address_doc(rng, i) for i in range(n)]
+
+
+def _unit(rng, used):
+    """Unidade de condomínio (endereço pessoal curto), única na página, em grafias variadas."""
+    while True:
+        bloco, apto = rng.choice("ABCDEF"), rng.randint(1, 12) * 100 + rng.randint(1, 8)
+        if (bloco, apto) not in used:
+            used.add((bloco, apto))
+            break
+    return rng.choice([f"Bloco {bloco}, Apto {apto}", f"Bl. {bloco}, Ap. {apto}", f"apartamento {apto} do Bloco {bloco}",
+                       f"unidade {apto}, Bloco {bloco}", f"Apto {apto}, Bl {bloco}"])
+
+
+def condo_doc(rng, i):
+    """
+    Ata de condomínio fictícia: vários moradores, cada um com a unidade (bloco/apartamento), endereço pessoal curto
+    no meio do texto. Caso difícil medido em documento real (docs/benchmarks.md): o pedido antigo perdia as
+    unidades dos condôminos. O endereço do prédio fica como "ambiguo" (é residência de muitos): não conta na
+    cobertura nem como tarja a mais.
+    """
+    d = AddressDoc("ata_condominio", [])
+    used = set()
+    nomes = [_person(rng) for _ in range(5)]
+    units = [_unit(rng, used) for _ in range(6)]
+    predio, prof = _address_text(rng, False), _address_text(rng, False)
+    body = (f"ATA DA ASSEMBLEIA GERAL ORDINÁRIA DO CONDOMÍNIO RESIDENCIAL EXEMPLO {i + 1}, situado na {predio}, "
+            f"realizada em {gen_date(rng, 2023, 2026)}, às 19:30, no salão de festas. Presentes: {nomes[0]} ({units[0]}), "
+            f"{nomes[1]} ({units[1]}) e {nomes[2]} ({units[2]}). A administradora {rng.choice(EMPRESAS)}, com sede na "
+            f"{prof}, apresentou as contas do mês, no valor de R$ {rng.randint(1, 9)}.{rng.randint(100, 999)},00. "
+            f"O condômino {nomes[3]}, morador do {units[3]}, relatou infiltração vinda do {units[4]}. Nada mais havendo, "
+            f"a síndica {nomes[4]}, residente no {units[5]}, encerrou a reunião às 21:15.")
+    d.enderecos += [(predio, "ambiguo"), (prof, "profissional")] + [(u, "pessoal") for u in units]
+    d.lines = _wrap(body)
+    return d
+
+
+def generate_condo_addresses(n=12, seed=2026):
+    rng = random.Random(seed)
+    return [condo_doc(rng, i) for i in range(n)]

@@ -234,6 +234,36 @@ dois modelos acertaram ~100% com qualquer pedido: o corpus é fácil demais para
 
 Na ata de condomínio, o pedido antigo deixava passar os endereços dos condôminos (bloco/apartamento).
 
+### Provedores: Qwen local × Claude Haiku (2026-11-17)
+
+Mesmo pedido do pipeline (copiar + texto da página), pela **mesma chamada do pipeline** (`--via-cliente`: cliente de
+IA, trava de saída e limite de uso), 12 páginas fictícias por condição, semente 2026, uma rodada por modelo. O corpus
+novo `--corpus condominio` reproduz o caso difícil: atas com 6 moradores por página, cada um com a unidade
+("Bloco A, Apto 205", "Bl. B, Ap. 204", "apartamento 302 do Bloco C"...) no meio do texto. O endereço do prédio é
+ambíguo (residência de muitos) e não conta.
+
+| Corpus | Condição | Modelo | Cobertura pessoal | Tarja a mais | Inventados | Classificação | s/pág |
+|---|---|---|---:|---:|---:|---:|---:|
+| condomínio | padrão | Qwen3.5-9B Q6_K (Ollama local) | 71% | 0 | 21/97 | 66/84 | 21,1 |
+| condomínio | ruim | Qwen3.5-9B Q6_K (Ollama local) | 75% | 0 | 18/98 | 68/84 | 13,7 |
+| condomínio | padrão | **Claude Haiku 5.5** (API da Anthropic) | **91%** | 0 | 6/96 | 78/84 | 6,9 |
+| condomínio | ruim | **Claude Haiku 5.5** (API da Anthropic) | **91%** | 0 | 8/96 | 78/84 | 6,7 |
+| endereços (fácil) | padrão | Qwen3.5-9B Q6_K | 100% | 0 | 0/36 | 36/36 | 8,8 |
+| endereços (fácil) | ruim | Qwen3.5-9B Q6_K | 100% | 5 | 1/38 | 36/36 | 12,7 |
+| endereços (fácil) | padrão | Claude Haiku 5.5 | 100% | 0 | 0/36 | 36/36 | 4,1 |
+| endereços (fácil) | ruim | Claude Haiku 5.5 | 100% | 0 | 0/36 | 36/36 | 3,6 |
+
+* No caso difícil o **Haiku cobriu mais** (91% contra 71-75%), inventou menos e classificou melhor; nenhum dos dois
+  chegou a 100%: unidade de condomínio continua sendo o ponto fraco, e o restante fica com a revisão e a verificação.
+* Isso **não** explica a queda observada numa ata real (23 caixas de endereço com o Qwen em outubro, 8-9 com o Haiku):
+  a causa dela ficou em aberto (a contagem de outubro pode somar leituras ou trechos; a versão do pipeline também era
+  outra). O corpus fictício mede o modelo; a ata real precisa ser conferida na revisão.
+* Limites: uma rodada por modelo (o Haiku não é determinístico), 12 páginas por condição, só dados fictícios.
+
+```bash
+python -m benchmarks.address_eval --via-cliente --variants copia_texto --corpus condominio --docs 12
+```
+
 ## Servidores de IA: reserva, disjuntor e verificação cruzada (ao vivo)
 
 * **LM Studio** pela API da OpenAI como principal: funciona (primeira chamada 54 s com carga sob demanda; depois ~11 s).
