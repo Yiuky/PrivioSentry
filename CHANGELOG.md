@@ -5,6 +5,13 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
 
 ## [Não publicado]
 
+### Adicionado
+- **Benchmark de endereços com qualquer provedor e caso difícil:** `benchmarks/address_eval.py` ganhou `--via-cliente`
+  (mesma chamada do pipeline: cliente de IA, trava de saída e limite de uso; vale para Ollama, servidor da
+  organização ou nuvem) e `--corpus condominio` (atas fictícias com 6 moradores por página, cada um com bloco e
+  apartamento). Medido: Claude Haiku 5.5 cobriu 91% das unidades, contra 71-75% do Qwen3.5-9B local; ver
+  docs/benchmarks.md.
+
 ## [5.8.0] - 2026-11-17
 
 Administração mais fácil de operar, demonstração da API e correções achadas ao processar documentos reais com
