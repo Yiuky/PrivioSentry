@@ -23,6 +23,10 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
   - o padrão mostrado para servidor, modelo e tempo limite ignorava as variáveis antigas `OLLAMA_*` do `.env`;
   - `CHAVE=` vazio no `.env` aparecia como "do .env".
 - "Restaurar padrão" num item salvava junto o que estava sendo digitado nos outros itens do mesmo cartão.
+- **Segundo olhar e inspeção de modelo com o Claude Haiku 5.5 (Anthropic):** o agente mandava `temperature`, que
+  modelos novos recusam (HTTP 400), e a página ia para revisão. Agora, na primeira recusa, o pedido é refeito sem
+  `temperature` e os passos seguintes já vão sem ele, como o cliente de IA principal já fazia. Outro erro 400 não é
+  repetido. Medido com `benchmarks.provider_check` e dados fictícios: todas as verificações aprovadas, inspeção 5/5.
 
 ### Documentação
 - README: selos do YOLO (assinaturas), da IA local (Ollama ou LM Studio) e do MCP; fluxos em diagrama (da chegada ao PDF aprovado, cada pedido à IA com trava de saída e limitador, modelos de documento e agentes pelo MCP); seção de telas com a Administração e o gerenciador de modelos.

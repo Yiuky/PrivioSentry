@@ -153,12 +153,17 @@ def run_agent(page_text, types, post=None):
         return None, info
     if external:
         egress.record(_endpoint())
+    sampling = {"temperature": 0}  # modelos novos (ex.: Claude Haiku 5.5) recusam temperature: some na 1ª recusa
     for _ in range(max_turns):
         info["passos"] += 1
         try:
-            payload = {"model": model_name, "messages": messages, "tools": TOOLS, "temperature": 0, "stream": False}
+            payload = {"model": model_name, "messages": messages, "tools": TOOLS, "stream": False, **sampling}
             ratelimit.pace(_endpoint())
             r = post(_endpoint(), headers=headers, timeout=timeout, json=payload, allow_redirects=False)
+            if r.status_code == 400 and "temperature" in str(r.text) and sampling:
+                sampling = {}
+                payload.pop("temperature")
+                r = post(_endpoint(), headers=headers, timeout=timeout, json=payload, allow_redirects=False)
             for _ in range(2):  # limite por minuto: espera o que o provedor pede e tenta de novo
                 wait, long = ratelimit.parse(r) if r.status_code == 429 else (0, True)
                 if long:  # sem 429, ou cota esgotada (esperar aqui não adianta)

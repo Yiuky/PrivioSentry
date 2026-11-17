@@ -46,6 +46,30 @@ def test_agent_failure_is_reported():
     assert items is None and "HTTP 500" in info["erro"]
 
 
+def test_model_that_refuses_temperature_is_asked_again_without_it():
+    api = FakeAPI([{"tipo": "cpf", "texto": CPF_A_FMT}])
+    sent = []
+
+    def post(url, json=None, **kw):
+        sent.append(dict(json))
+        if "temperature" in json:
+            return type("R", (), {"status_code": 400, "text": '{"message": "`temperature` is deprecated"}'})()
+        return api(url, json=json, **kw)
+    items, info = second_look.run_agent("CPF " + CPF_A_FMT, ["cpf"], post=post)
+    assert items == [("cpf", CPF_A_FMT)] and "temperature" in sent[0] and "temperature" not in sent[1]
+    assert len(sent) == 3                                    # 1 recusa + 2 passos do agente: não repete a recusa
+
+
+def test_other_bad_request_is_not_retried():
+    sent = []
+
+    def post(url, json=None, **kw):
+        sent.append(json)
+        return type("R", (), {"status_code": 400, "text": "modelo inexistente"})()
+    items, info = second_look.run_agent("x", ["cpf"], post=post)
+    assert items is None and "HTTP 400" in info["erro"] and len(sent) == 1      # contra-teste
+
+
 def test_locate_finds_values_across_ocr_words_and_rejects_invented_ones():
     g = [word(0, "Nome:", 0), word(1, "Maria", 100), word(2, "Exemplo,", 200), word(3, "CPF", 300),
          word(4, CPF_A_FMT[:7], 400), word(5, CPF_A_FMT[7:], 500)]
