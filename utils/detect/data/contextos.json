@@ -163,6 +163,19 @@
     "rotulos_ner": [
       "person"
     ],
+    "particulas": [
+      "da",
+      "de",
+      "do",
+      "das",
+      "dos",
+      "d'",
+      "di",
+      "du",
+      "del",
+      "van",
+      "von"
+    ],
     "nunca_nome": [
       "analista",
       "tecnico",

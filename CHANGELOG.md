@@ -12,6 +12,14 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
   apartamento). Medido: Claude Haiku 5.5 cobriu 91% das unidades, contra 71-75% do Qwen3.5-9B local; ver
   docs/benchmarks.md.
 
+### Corrigido
+- **Sobrenome que também é palavra comum ficava sem tarja.** O detector de nomes (GLiNER) parava antes dele: em
+  "Maria Exemplo da Silva Teste" (fictício) só "Maria Exemplo da Silva" era tarjado e "Teste" saía no PDF final. O
+  nome agora segue por até 4 palavras com maiúscula na mesma linha (partículas como "da" e "de" só entre duas
+  delas), parando em pontuação, papel ("Requerente"), sigla ("CPF"), número ou palavra minúscula. Só acrescenta
+  tarja. Limite em `utils/detect/data/parametros.json` (`nomes.sobrenome_max_palavras`); partículas em
+  `contextos.json` (`nome_pessoa.particulas`).
+
 ## [5.8.0] - 2026-11-17
 
 Administração mais fácil de operar, demonstração da API e correções achadas ao processar documentos reais com
