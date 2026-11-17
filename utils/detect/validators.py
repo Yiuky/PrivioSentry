@@ -2,8 +2,9 @@
 """Validadores de identificadores com dígito verificador PÚBLICO e estável.
 
 Regra do projeto: só entra aqui algoritmo oficial e bem estabelecido. Documentos sem algoritmo nacional
-confiável (RG, CNH, passaporte, CTPS) são detectados por formato + palavra de contexto (rules.py), nunca por
-um cálculo "aproximado" que poderia descartar um número verdadeiro.
+confiável (RG, passaporte, CTPS) são detectados por formato + palavra de contexto (rules.py), nunca por
+um cálculo "aproximado" que poderia descartar um número verdadeiro. A CNH também: o verificador dela só AMPLIA
+a busca (contexto mais longe), nunca descarta um número achado pela regra de formato + contexto.
 """
 import ipaddress
 
@@ -30,6 +31,19 @@ def is_valid_cns(value):
     if len(d) != 15 or d[0] not in "12789" or len(set(d)) == 1:
         return False
     return sum(int(a) * w for a, w in zip(d, range(15, 0, -1))) % 11 == 0
+
+
+def is_valid_cnh(value):
+    """Nº de registro da CNH: 11 dígitos; verificadores módulo 11 sobre os 9 primeiros (pesos 9..1 e 1..9, com o
+    desconto de 2 no segundo quando o primeiro dá 10)."""
+    d = only_digits(value)
+    if len(d) != 11 or len(set(d)) == 1:
+        return False
+    dv1 = sum(int(a) * w for a, w in zip(d[:9], range(9, 0, -1))) % 11
+    discount = 2 if dv1 >= 10 else 0
+    dv1 = 0 if dv1 >= 10 else dv1
+    dv2 = (sum(int(a) * w for a, w in zip(d[:9], range(1, 10))) % 11 - discount) % 11
+    return d[9:] == f"{dv1}{0 if dv2 >= 10 else dv2}"
 
 
 def is_valid_titulo_eleitor(value):

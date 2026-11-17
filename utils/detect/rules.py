@@ -34,6 +34,12 @@ class Rule:
     canon: Optional[Callable[[str], str]] = None  # forma canônica do valor no resumo (ex.: "(D" do OCR -> "@")
     # Lista ("Telefones: A / B, C"): valor logo depois de outro valor aceito da mesma regra herda o contexto
     chain: bool = False
+    # Valor que passa no dígito verificador (ex.: CNH): o contexto vale até strong_window caracteres antes OU depois
+    # dele e com as palavras extras de strong_context (rótulo genérico, como "registro", que sem o verificador
+    # pegaria número de protocolo). Só amplia: o valor sem verificador continua valendo pela janela normal.
+    strong: Optional[Callable[[str], bool]] = None
+    strong_context: Optional[Pattern] = None
+    strong_window: int = 0
 
 
 def _norm(text):
@@ -164,8 +170,11 @@ RULES: List[Rule] = [
     Rule("rg", re.compile(r"(?P<v>\b(?:\d[\d.\-]{3,13}[\dxX]|\d{1,3}(?: \d{3}){2}(?:\s?-\s?[\dxX])?)\b)"),
          config.context("rg")[0], context_required=True, window=30, accept=_rg_ok,
          stop=_join(config.context("rg")[1], re.compile(r"\d{3}\.\d{3}\.\d{3}"))),
-    Rule("cnh", re.compile(r"(?P<v>\b\d{9,11}\b)"),
-         config.context("cnh")[0], context_required=True, window=40),
+    # Limite por dígito, não \b: o OCR cola o número no "Nº" ("Nº01234567890") e "º" é letra para o regex
+    Rule("cnh", re.compile(r"(?<!\d)(?P<v>\d{9,11})(?!\d)"),
+         config.context("cnh")[0], context_required=True, window=40,
+         strong=v.is_valid_cnh, strong_context=config.phrase_regex(config.strings("cnh", "palavras_com_dv")),
+         strong_window=int(config.param("cnh", "janela_com_dv"))),
     Rule("titulo_eleitor", re.compile(r"(?P<v>\b\d{4}\s?\d{4}\s?\d{4}\b)"),
          config.context("titulo_eleitor")[0], context_required=True, window=40,
          accept=lambda value, _c: v.is_valid_titulo_eleitor(value)),
@@ -249,6 +258,10 @@ def find_in_grounding(grounding, type_ids) -> Dict[str, Tuple[Commands, Set[str]
                     if any(not (_LABEL_JOINER.fullmatch(tail[:s.start()]) and _LABEL_JOINER.fullmatch(tail[s.end():]))
                            for s in rule.stop.finditer(tail)):
                         has_ctx = False
+            if not has_ctx and rule.strong is not None and rule.strong(value):
+                near = (text[max(0, start - rule.strong_window):start], text[end:end + rule.strong_window])
+                has_ctx = any(p.search(_norm(part)) for part in near
+                              for p in (rule.context, rule.strong_context) if p is not None)
             if rule.chain and not has_ctx and last_end[0] >= 0 and _LIST_SEP.fullmatch(text[last_end[0]:start]):
                 has_ctx = True
             if rule.context_required and not has_ctx:

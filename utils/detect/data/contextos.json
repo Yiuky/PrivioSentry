@@ -13,9 +13,15 @@
     ]
   },
   "cnh": {
+    "_sobre": "'palavras_com_dv' só valem para número de 11 dígitos que passa no verificador da CNH (sozinhas pegariam protocolo). Esse número também aceita o contexto mais longe, antes ou depois dele (parametros.json, cnh.janela_com_dv).",
     "palavras": [
       "cnh",
       "habilitacao"
+    ],
+    "palavras_com_dv": [
+      "registro",
+      "renach",
+      "motorista"
     ]
   },
   "titulo_eleitor": {

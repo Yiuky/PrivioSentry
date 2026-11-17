@@ -61,7 +61,7 @@ CATALOG = [
     _t("rg", "RG (carteira de identidade)", DIRETO, ATIVO, "formato + palavra de contexto (RG, identidade)",
        REF_LGPD_I, REF_GDPR_4 + " e art. 87", "identificador pessoal", "outro número de identificação único",
        "Sem algoritmo nacional de dígito verificador: exige contexto."),
-    _t("cnh", "CNH (registro da habilitação)", DIRETO, ATIVO, "formato + palavra de contexto (CNH, habilitação)",
+    _t("cnh", "CNH (registro da habilitação)", DIRETO, ATIVO, "formato + palavra de contexto (CNH, habilitação); com dígito verificador, contexto mais longe (registro)",
        REF_LGPD_I, REF_GDPR_4, "identificador pessoal (carteira de motorista)", "número de certificado/licença"),
     _t("titulo_eleitor", "Título de eleitor", DIRETO, ATIVO, "regra + dígito verificador + contexto",
        REF_LGPD_I, REF_GDPR_4, "identificador pessoal", "outro número de identificação único"),
