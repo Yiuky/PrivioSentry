@@ -205,7 +205,7 @@ estiver errado), e não espalhados pelo código:
 | Arquivo | O que guarda |
 |---|---|
 | `utils/detect/data/contextos.json` | Palavras de contexto de cada detector (`palavras`, `parar`), variantes de "@" que o OCR produz e extensões de domínio do e-mail, rótulos e palavras de filiação do detector de nomes |
-| `utils/detect/data/parametros.json` | Limiares: casamento de endereços, filtro de ruído de OCR, confiança dos nomes (`limiar_tarjar`, `limiar_alertar`) e quando sugerir algo a partir do retorno do revisor |
+| `utils/detect/data/parametros.json` | Limiares: casamento de endereços, filtro de ruído de OCR, confiança dos nomes (`limiar_tarjar`, `limiar_alertar`), até quantas palavras o nome segue além do que o modelo marcou (`sobrenome_max_palavras`) e quando sugerir algo a partir do retorno do revisor |
 | `utils/detect/data/lexico.json` | Palavras que nunca são tarjadas como endereço (termos estruturais e conectores) |
 
 Mudou um arquivo? Rode `python -m benchmarks.pii_eval` (revocação e precisão por tipo num corpus fictício) e os testes:

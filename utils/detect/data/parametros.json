@@ -25,6 +25,8 @@
     "limiar_tarjar": 0.7,
     "limiar_alertar": 0.4,
     "tamanho_bloco": 1200,
-    "janela_filiacao": 30
+    "janela_filiacao": 30,
+    "_sobre_sobrenome": "O modelo de nomes às vezes para antes de um sobrenome que também é palavra comum (medido: 'Maria Exemplo da Silva Teste' saiu sem 'Teste'). O trecho continua por até este número de palavras com maiúscula na mesma linha (partículas como 'da' só entre duas delas).",
+    "sobrenome_max_palavras": 4
   }
 }

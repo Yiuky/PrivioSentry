@@ -172,6 +172,53 @@ def _trim(text, start, end, is_role):
     return (tokens[0][0], tokens[-1][1]) if tokens else None
 
 
+_SURNAME_RE = re.compile(r"[^\W\d_][^\W\d_'’-]*(?:['’-][^\W\d_]+)*")
+
+
+def _same_line(a, b):
+    """Duas palavras do mapa na mesma linha: centros verticais a menos de meia altura."""
+    ba, bb = (a or {}).get("box") or {}, (b or {}).get("box") or {}
+    try:
+        ca, cb = ba["y"] + ba["h"] / 2, bb["y"] + bb["h"] / 2
+        return abs(ca - cb) <= max(ba["h"], bb["h"]) / 2
+    except (KeyError, TypeError):
+        return False
+
+
+def _extend_surname(text, start, end, char_map, grounding, is_role, particles, max_words):
+    """
+    O modelo às vezes para antes de um sobrenome que também é palavra comum ("Maria Exemplo da Silva Teste" sai
+    sem "Teste"; "Joao Exemplo de Teste" sai só "Joao"): a parte de fora ficaria visível. Segue o trecho por
+    palavras com maiúscula na mesma linha, sem papel nem número; partícula ("da", "de") só entre duas delas.
+    Para em pontuação e em sigla depois de nome em caixa mista ("Fulano Exemplo CPF"). Só acrescenta tarja (I-03).
+    """
+    def word_of(pos):
+        ref = char_map[pos] if pos < len(char_map) else None
+        return grounding[ref[0]] if ref is not None else None
+
+    upper_name = text[start:end].isupper()
+    last = word_of(end - 1)
+    base, after_particle, taken = end, False, 0
+    for m in re.finditer(r"\S+", text[base:]):
+        tok_start = base + m.start()
+        if taken >= max_words or not _same_line(last, word_of(tok_start)):
+            break
+        raw = m.group(0)
+        core = raw.rstrip(".,;:!?)\"'")
+        stop_after = core != raw
+        if core.lower() in particles and not stop_after and not after_particle:
+            after_particle = True  # só vale se a próxima palavra for sobrenome
+            continue
+        if (not (core[:1].isupper() and _SURNAME_RE.fullmatch(core)) or is_role(core)
+                or (core.isupper() and not upper_name)):
+            break
+        end, after_particle, taken = tok_start + len(core), False, taken + 1
+        last = word_of(end - 1)
+        if stop_after:
+            break
+    return end
+
+
 def find_names(grounding, engine=None):
     """
     Nomes no mapa de palavras. Devolve {tipo: {"tarjar": comandos, "alertar": comandos, "valores": set}},
@@ -188,6 +235,8 @@ def find_names(grounding, engine=None):
     labels = config.strings("nome_pessoa", "rotulos_ner") or ("person",)
     filiation_ctx = config.context("filiacao")[0]
     is_role = _role_matcher()
+    particles = {p.lower() for p in config.strings("nome_pessoa", "particulas")}
+    max_surname = int(config.param("nomes", "sobrenome_max_palavras"))
     out = {}
     for offset, chunk in _chunks(text, size):
         for ent in engine.predict(chunk, labels, low) or []:
@@ -203,6 +252,7 @@ def find_names(grounding, engine=None):
             if span is None:
                 continue
             start, end = span
+            end = _extend_surname(text, start, end, char_map, grounding, is_role, particles, max_surname)
             before = _norm(text[max(0, start - window):start])  # só a janela: normalizar tudo desalinha posições
             type_id = "filiacao" if filiation_ctx is not None and filiation_ctx.search(before) else "nome_pessoa"
             slot = out.setdefault(type_id, {"tarjar": {}, "alertar": {}, "valores": set()})

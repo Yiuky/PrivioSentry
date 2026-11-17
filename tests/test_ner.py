@@ -223,3 +223,41 @@ def test_filiation_context_survives_normalisation_that_shifts_positions():
     g = grounding("— mãe registrados em nossa sala Fulano Exemplo ﬁm")
     hits = ner.find_names(g, FakeEngine({"Fulano Exemplo": 0.9}))
     assert "filiacao" in hits and "nome_pessoa" not in hits
+
+
+def lines_grounding(*lines):
+    """Mapa de palavras com uma linha por argumento (y diferente), como o OCR devolve."""
+    out = []
+    for y, line in enumerate(lines):
+        out += [word(len(out), t, 100 * x, y=100 + 50 * y) for x, t in enumerate(line.split())]
+    return out
+
+
+@pytest.mark.parametrize("line, model_span, expected", [
+    # medido com o GLiNER: o sobrenome que também é palavra comum fica de fora do trecho
+    ("Requerente Maria Exemplo da Silva Teste e outros", "Maria Exemplo da Silva", {1, 2, 3, 4, 5}),
+    ("Representante Joao Exemplo de Teste", "Joao", {1, 2, 3, 4}),
+    ("Maria Exemplo Teste, Outra Pessoa", "Maria Exemplo", {0, 1, 2}),          # vírgula fecha o nome
+])
+def test_surname_left_out_by_the_model_is_still_redacted(line, model_span, expected):
+    hits = ner.find_names(lines_grounding(line), FakeEngine({model_span: 0.9}))
+    assert ids(hits["nome_pessoa"]["tarjar"]) == expected
+
+
+@pytest.mark.parametrize("lines, expected", [
+    (("Requerente Fulano Exemplo", "Teste Modelo"), {1, 2}),                    # próxima linha: não é o mesmo nome
+    (("Fulano Exemplo Requerente",), {0, 1}),                                   # papel
+    (("Fulano Exemplo CPF 529.982.247-25",), {0, 1}),                           # sigla depois de nome em caixa mista
+    (("Fulano Exemplo de 2020",), {0, 1}),                                      # partícula sem sobrenome depois
+    (("Fulano Exemplo assinou o termo",), {0, 1}),                              # minúscula
+    (("Fulano Exemplo, Teste",), {0, 1}),                                       # pontuação logo depois do nome
+    (("Fulano Exemplo Alfa Beta Gama Delta Epsilon",), {0, 1, 2, 3, 4, 5}),       # no máximo 4 palavras a mais
+])
+def test_surname_extension_stops_where_the_name_ends(lines, expected):           # contra-teste
+    hits = ner.find_names(lines_grounding(*lines), FakeEngine({"Fulano Exemplo": 0.9}))
+    assert ids(hits["nome_pessoa"]["tarjar"]) == expected
+
+
+def test_all_caps_name_keeps_all_caps_surname():
+    hits = ner.find_names(lines_grounding("REQUERENTE MARIA EXEMPLO TESTE"), FakeEngine({"MARIA EXEMPLO": 0.9}))
+    assert ids(hits["nome_pessoa"]["tarjar"]) == {1, 2, 3}
