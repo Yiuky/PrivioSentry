@@ -78,6 +78,19 @@ def test_enabled_without_package_is_not_runnable(monkeypatch):
     assert "nome_pessoa" not in profiles.runnable_actions("gdpr")
 
 
+
+@pytest.mark.parametrize("found", ["Prezado", "Prezados", "Prezada Senhora", "Ilmo", "Excelentíssimo Senhor"])
+def test_salutation_alone_is_not_a_name(found):
+    # o modelo marcou "Prezado," (abertura de parecer) como nome de confiança média: virava revisão à toa
+    text = f"{found}, seguindo os procedimentos foi verificado o imovel"
+    assert ner.find_names(grounding(text), FakeEngine({found: 0.5})) == {}
+
+
+def test_name_after_a_salutation_is_still_found():
+    text = "Prezada Maria Exemplo e Ilmo Senhor Pedro Modelo, segue o parecer"
+    out = ner.find_names(grounding(text), FakeEngine({"Prezada Maria Exemplo": 0.9, "Ilmo Senhor Pedro Modelo": 0.5}))
+    assert out["nome_pessoa"]["valores"] == {"maria exemplo", "pedro modelo"}                  # contra-teste
+
 # --- fase de política ---------------------------------------------------------------------------------------
 @pytest.fixture()
 def app(tmp_path, monkeypatch):
