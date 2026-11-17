@@ -170,7 +170,7 @@ RULES: List[Rule] = [
     Rule("rg", re.compile(r"(?P<v>\b(?:\d[\d.\-]{3,13}[\dxX]|\d{1,3}(?: \d{3}){2}(?:\s?-\s?[\dxX])?)\b)"),
          config.context("rg")[0], context_required=True, window=30, accept=_rg_ok,
          stop=_join(config.context("rg")[1], re.compile(r"\d{3}\.\d{3}\.\d{3}"))),
-    # Limite por dígito, não \b: o OCR cola o número no "Nº" ("Nº01234567890") e "º" é letra para o regex
+    # Limite por dígito, não \b: o OCR cola o número no "Nº" ("Nº" seguido dos dígitos, sem espaço) e "º" é letra para o regex
     Rule("cnh", re.compile(r"(?<!\d)(?P<v>\d{9,11})(?!\d)"),
          config.context("cnh")[0], context_required=True, window=40,
          strong=v.is_valid_cnh, strong_context=config.phrase_regex(config.strings("cnh", "palavras_com_dv")),

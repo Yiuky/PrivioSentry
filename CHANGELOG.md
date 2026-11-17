@@ -25,7 +25,7 @@ Todas as mudanças relevantes ficam registradas aqui. Formato baseado no
     120 caracteres antes ou depois, e também com "registro"/"RENACH"/"motorista" (`contextos.json`,
     `parametros.json` › `cnh.janela_com_dv`). Sem o verificador, a regra de antes continua igual: nada deixa de ser
     achado;
-  - **número colado no "Nº"** ("CNH Nº01234567890"): o "º" é letra para o regex e o número não casava.
+  - **número colado no "Nº"** ("CNH Nº" seguido dos 11 dígitos, sem espaço): o "º" é letra para o regex e o número não casava.
   - Corpus fictício (`benchmarks/pii_corpus.py`) ganhou a cópia de CNH e a carteira profissional, com iscas
     (registro profissional, código de autenticidade). CNH de 1/12 para 12/12 no texto direto e no OCR real
     (semente 7 com OCR: de 0/10 para 10/10), sem falso positivo novo; os outros tipos ficaram iguais.
