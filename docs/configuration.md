@@ -190,7 +190,7 @@ Detalhes no [catálogo de PII](catalogo-pii.md).
 | Variável | Padrão | Lida em | Descrição |
 |---|---|---|---|
 | `POLICY_PROFILE` | `cpf_endereco` | `utils/detect/profiles.py` | Perfil de política: `cpf_endereco` (original), `lgpd_publicacao`, `lgpd_interno`, `gdpr`, `saude_hipaa`. Define o que é tarjado e o que só é alertado. Valor desconhecido volta ao padrão. |
-| `NER_ENGINE` | *(vazio)* | `utils/detect/ner.py` | `gliner` liga o detector local de **nomes de pessoa e filiação** (exige `pip install -e ".[nomes]"`). Vale nos perfis que pedem nomes (`lgpd_publicacao`, `gdpr`, `saude_hipaa`). Ligado e com falha = documento vai para revisão |
+| `NER_ENGINE` | *(vazio)* | `utils/detect/ner.py` | `gliner` liga o detector local de **nomes de pessoa e filiação** (exige `pip install -e ".[nomes]"`). Vale nos perfis que pedem nomes (`lgpd_publicacao`, `gdpr`, `saude_hipaa`). Ligado e com falha = documento vai para revisão. Perfil que pede nomes com a busca desligada ou sem o GLiNER instalado = todas as páginas vão para revisão ("Nomes de pessoa não foram procurados") |
 | `NER_MODEL` | `urchade/gliner_multi_pii-v1` | `utils/detect/ner.py` | Modelo GLiNER do Hugging Face ou pasta local |
 | `NER_MODEL_REVISION` | *(commit fixado no código)* | `utils/detect/ner.py` | Commit do modelo. O padrão já vem fixado; outro modelo remoto **exige** um commit (cadeia de suprimentos) |
 

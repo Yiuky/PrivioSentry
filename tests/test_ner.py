@@ -116,6 +116,31 @@ def test_engine_failure_fails_closed(app, monkeypatch):
     assert app.needs_review and any("Detector de nomes falhou" in r for r in app.review_pages[1])
 
 
+
+@pytest.mark.parametrize("engine, installed, why", [("", False, "busca de nomes desligada"),
+                                                   ("", True, "busca de nomes desligada"),
+                                                   ("gliner", False, "ligado, mas não instalado")])
+def test_profile_asking_names_without_detector_goes_to_review(app, monkeypatch, engine, installed, why):
+    # sem isso o documento saía "Concluído", sem nome tarjado e sem aviso
+    monkeypatch.setenv("NER_ENGINE", engine)
+    monkeypatch.setattr(ner, "available", lambda: ner.enabled() and installed)
+    app.policy_profile = "lgpd_publicacao"                        # nome_pessoa: tarjar
+    app.run_policy_phase()
+    assert app.needs_review and any("Nomes de pessoa não foram procurados" in r and why in r
+                                    for r in app.review_pages[1])
+    assert not any("Nome de pessoa" == v for v in app.box_labels[1].values())
+
+
+def test_names_searched_or_not_asked_add_no_such_warning(app, monkeypatch):
+    monkeypatch.setattr(ner, "get_engine", lambda: FakeEngine({}))
+    app.policy_profile = "lgpd_publicacao"                        # detector rodando: nada de aviso
+    app.run_policy_phase()
+    monkeypatch.setenv("NER_ENGINE", "")
+    monkeypatch.setattr(ner, "available", lambda: False)
+    app.policy_profile = "cpf_endereco"                           # perfil não pede nomes
+    app.run_policy_phase()
+    assert not any("não foram procurados" in r for r in app.review_pages[1])        # contra-teste
+
 def test_profile_without_names_never_loads_the_model(app, monkeypatch):
     def boom():
         raise AssertionError("não deveria carregar o modelo")
